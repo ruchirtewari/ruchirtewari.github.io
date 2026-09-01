@@ -500,4 +500,5 @@ through llm_backend.
   07_03, 08_02 full), a single small cloud GPU cuts hours to minutes -- see the
   project notes on free Kaggle/Colab or a cheap RunPod/Vast.ai box.
 - Every program writes to out/<program_name>/; delete out/ to reset.
-===============================================================================
+
+
