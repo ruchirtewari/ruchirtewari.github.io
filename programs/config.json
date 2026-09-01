@@ -1,0 +1,18 @@
+{
+  "llm_backend": "ollama",
+  "ollama": {
+    "base_url": "http://localhost:11434",
+    "model": "gemma3:1b"
+  },
+  "openai_compatible": {
+    "base_url": "https://api.openai.com",
+    "api_key_env": "OPENAI_API_KEY",
+    "model": "gpt-4o-mini"
+  },
+  "hf_pipeline": {
+    "model": "Qwen/Qwen2.5-0.5B-Instruct"
+  },
+  "hf_base_model": "gpt2",
+  "hf_chat_model": "Qwen/Qwen2.5-0.5B-Instruct",
+  "device": "auto"
+}
