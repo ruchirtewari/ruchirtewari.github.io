@@ -1,1 +1,126 @@
-Hello world!
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Introduction to Neural Network Interpretability</title>
+<style>
+  :root { --navy: #0F1B2D; --accent: #2b4a7a; --rule: #d8dde5; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 0;
+    font-family: Georgia, "Times New Roman", serif;
+    color: #1c2430; background: #fafbfc; line-height: 1.55;
+  }
+  header {
+    background: var(--navy); color: #eef1f6;
+    padding: 3.2rem 1.5rem 2.6rem;
+    text-align: center;
+  }
+  header h1 { margin: 0 0 .4rem; font-size: 2rem; letter-spacing: .01em; }
+  header p.sub { margin: 0; color: #b9c4d6; font-size: 1.05rem; }
+  header p.author { margin: 1.1rem 0 0; font-size: .95rem; }
+  header a { color: #cfd9ea; }
+  main { max-width: 46rem; margin: 0 auto; padding: 2rem 1.5rem 3rem; }
+  p.lead { font-size: 1.06rem; }
+  .parts { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2rem; margin: 2rem 0; }
+  @media (max-width: 40rem) { .parts { grid-template-columns: 1fr; } }
+  .part {
+    border: 1px solid var(--rule); border-top: 4px solid var(--navy);
+    background: #fff; padding: 1.2rem 1.3rem 1.3rem; border-radius: 4px;
+  }
+  .part h2 { margin: 0 0 .2rem; font-size: 1.12rem; color: var(--navy); }
+  .part p.range { margin: 0 0 .7rem; font-size: .9rem; color: #5a6575; }
+  .part ol { margin: 0 0 1rem 1.2rem; padding: 0; font-size: .95rem; }
+  .part li { margin: .25rem 0; }
+  .part li span { color: #5a6575; }
+  a.pdf {
+    display: inline-block; text-decoration: none;
+    background: var(--navy); color: #fff; padding: .5rem .95rem;
+    border-radius: 4px; font-size: .95rem;
+  }
+  a.pdf:hover { background: var(--accent); }
+  h3 { color: var(--navy); margin-top: 2.2rem; }
+  code { font-family: Menlo, Consolas, monospace; font-size: .9em; background: #eef1f5; padding: .08em .35em; border-radius: 3px; }
+  footer {
+    border-top: 1px solid var(--rule); margin-top: 2.5rem; padding-top: 1.2rem;
+    font-size: .85rem; color: #5a6575;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Introduction to Neural Network Interpretability</h1>
+  <p class="sub">A structured, hands-on guide in two parts &mdash; from random machines to the inside of trained ones</p>
+  <p class="author">Ruchir Tewari &middot; <a href="mailto:ruchirtewari@gmail.com">ruchirtewari@gmail.com</a></p>
+</header>
+
+<main>
+
+<p class="lead">
+Interpretability research moves quickly, but the questions underneath it
+are stable: What kind of mathematical object is a network&rsquo;s internal
+state? Can we name the parts and trace the wiring? If concepts are
+directions, can we steer? And when an explanation is offered, how do we
+know it is true of the machine rather than merely plausible to us? This
+book builds the foundations for those questions from first principles,
+then takes them to the frontier of current research.
+</p>
+
+<p>
+The treatment is deliberately concrete. Every chapter closes with
+takeaways, open research directions scoped so a reader could start on
+them, and runnable programs &mdash; the full suite runs on a laptop with
+Python, <code>torch</code>, and GPT-2-class models. Short
+&ldquo;neuroscience parallel&rdquo; passages trace which methods were
+inherited from systems neuroscience, and which failure modes came with
+them.
+</p>
+
+<div class="parts">
+  <section class="part">
+    <h2>Part I &mdash; From Random Machines to Trained Machines</h2>
+    <p class="range">Chapters 1&ndash;4 &middot; the foundations</p>
+    <ol>
+      <li>Statistical Foundations <span>&mdash; Markov, Shannon, and the modern objective</span></li>
+      <li>Geometric Foundations <span>&mdash; KL divergence, Fisher information, the Fisher&ndash;Rao metric</span></li>
+      <li>Neural Networks as Distribution Machines <span>&mdash; the transformer decoder, flows, mixtures of experts</span></li>
+      <li>Training Dynamics <span>&mdash; natural gradient, flat minima, training-time levers</span></li>
+    </ol>
+    <a class="pdf" href="book1/interp_book1.pdf">Read Part I (PDF)</a>
+  </section>
+
+  <section class="part">
+    <h2>Part II &mdash; Geometry, Circuits, Control, and Evidence</h2>
+    <p class="range">Chapters 5&ndash;8 &middot; the interpretability frontier</p>
+    <ol start="5">
+      <li>Representation Geometry <span>&mdash; the latent space: manifolds, superposition, probes and lenses</span></li>
+      <li>Features and Circuits <span>&mdash; sparse autoencoders, induction heads, activation patching</span></li>
+      <li>Control and Steering <span>&mdash; steering vectors, conceptors, fine-tuning compared</span></li>
+      <li>Evaluation and Frontiers <span>&mdash; faithfulness, grokking, open problems</span></li>
+    </ol>
+    <a class="pdf" href="book2/interp_book2.pdf">Read Part II (PDF)</a>
+  </section>
+</div>
+
+<h3>Hands-on programs</h3>
+<p>
+The <code>programs/</code> directory contains 22 runnable experiments
+keyed to the chapters &mdash; from reproducing Markov&rsquo;s 1913 letter
+statistics to finding induction heads, steering refusal directions, and
+watching a grokking phase transition form its internal circuit before
+the behavioral jump. See <code>programs/README_programs.txt</code> for
+what each program does and what to expect, and run them with
+<code>programs/run_tests.sh</code>.
+</p>
+
+<footer>
+  Copyright &copy; 2026 Ruchir Tewari. Licensed under
+  <a href="https://creativecommons.org/licenses/by-nc-nd/4.0/">CC BY-NC-ND 4.0</a>:
+  share freely with attribution; no commercial use; no derivatives.
+</footer>
+
+</main>
+</body>
+</html>
