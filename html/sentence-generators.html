@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sentence Generators + Cross-Entropy</title>
+<style>
+  body { font-family: monospace; max-width: 900px; margin: 2em auto; padding: 0 1em; background: #fff; color: #222; }
+  section { border: 1px solid #ccc; border-radius: 8px; padding: 1em 1.5em; margin-bottom: 2em; }
+  h2 { margin-top: 0; color: #067; }
+  .out { background: #f5f5f5; border: 1px solid #ddd; border-radius: 4px; padding: 1em; min-height: 3em; white-space: pre-wrap; word-wrap: break-word; margin-top: 1em; }
+  button { background: #2a6; color: #fff; border: none; border-radius: 4px; padding: 0.5em 1.2em; cursor: pointer; font-family: inherit; }
+  button:hover { background: #3b7; }
+  label { display: inline-block; margin: 0.4em 1em 0.4em 0; }
+  input[type=number] { width: 4em; }
+  input[type=range] { vertical-align: middle; }
+  .val { color: #067; font-weight: bold; }
+</style>
+</head>
+<body>
+<h1>Random Sentence Generators</h1>
+
+<!-- ============ 1. UNIFORM ============ -->
+<section>
+  <h2>1. Uniform</h2>
+  <p>Word lengths uniform in [2,10], letters uniform a–z.</p>
+  <label>Words: <input type="number" id="uniN" value="12" min="1" max="100"></label>
+  <button onclick="runUniform()">Generate</button>
+  <div class="out" id="uniOut"></div>
+</section>
+
+<!-- ============ 2. MARKOV / ENGLISH STATS ============ -->
+<section>
+  <h2>2. English-like (Markov)</h2>
+  <p>Letters drawn by English frequency, first-order Markov vowel/consonant alternation
+     (q→u, no triple repeats). Word lengths follow measured English distribution (mode 3, mean ≈ 4.7).</p>
+  <label>Words: <input type="number" id="mkvN" value="12" min="1" max="100"></label>
+  <button onclick="runMarkov()">Generate</button>
+  <div class="out" id="mkvOut"></div>
+</section>
+
+<!-- ============ 3. DIALS ============ -->
+<section>
+  <h2>3. Dials</h2>
+  <p>Bimodal word lengths (short mode + long mode) and boostable favorite letters.</p>
+  <label>Words: <input type="number" id="dlN" value="12" min="1" max="100"></label><br>
+  <label>Short mode length: <input type="range" id="dlShort" min="2" max="6" value="3" oninput="showVals()"> <span class="val" id="dlShortV">3</span></label>
+  <label>Long mode length: <input type="range" id="dlLong" min="7" max="14" value="10" oninput="showVals()"> <span class="val" id="dlLongV">10</span></label><br>
+  <label>Short/long mix: <input type="range" id="dlMix" min="0" max="100" value="50" oninput="showVals()"> <span class="val" id="dlMixV">50</span>% short</label><br>
+  <label>Favorite letters: <input type="text" id="dlFav" value="ze" size="8"></label>
+  <label>Boost ×: <input type="range" id="dlBoost" min="1" max="20" value="5" oninput="showVals()"> <span class="val" id="dlBoostV">5</span></label><br>
+  <button onclick="runDials()">Generate</button>
+  <div class="out" id="dlOut"></div>
+</section>
+
+<!-- ============ 4. SHAKESPEARE + CROSS-ENTROPY ============ -->
+<section>
+  <h2>4. Shakespeare vs. the generators</h2>
+  <p>Fixed 20-word line. Cross-entropy H(p,q) = −(1/N) Σ log₂ q(letter) per letter,
+     where q = empirical letter distribution of each generator's last output
+     (add-one smoothed to avoid log 0). Lower = generator's letters better match Shakespeare's.</p>
+  <div class="out" id="shakOut"></div>
+  <p>H(shakespeare) = <span class="val" id="shakH"></span>
+     — entropy of the line's own letter distribution (plug-in estimate).
+     Cross-entropy below can never beat this: H(p,q) ≥ H(p), gap = KL divergence.</p>
+  <table id="xentTable" style="margin-top:1em; border-collapse:collapse">
+    <tr><th style="text-align:left;padding:0.3em 1em 0.3em 0">Generator</th>
+        <th style="text-align:left;padding:0.3em">H(shakespeare, q) bits/letter</th></tr>
+    <tr><td style="padding:0.3em 1em 0.3em 0">1. Uniform</td><td class="val" id="xentUni">waiting for generation</td></tr>
+    <tr><td style="padding:0.3em 1em 0.3em 0">2. Markov</td><td class="val" id="xentMkv">waiting for generation</td></tr>
+    <tr><td style="padding:0.3em 1em 0.3em 0">3. Dials</td><td class="val" id="xentDl">waiting for generation</td></tr>
+  </table>
+</section>
+
+<script>
+'use strict';
+
+// ---------- shared ----------
+const AZ = 'abcdefghijklmnopqrstuvwxyz';
+
+// weighted pick: weights = array of 26 numbers aligned to AZ
+function pickWeighted(weights) {
+  let total = 0;
+  for (const w of weights) total += w;
+  let r = Math.random() * total;
+  for (let i = 0; i < weights.length; i++) {
+    r -= weights[i];
+    if (r < 0) return i;
+  }
+  return weights.length - 1;
+}
+
+// sanity-clamp numeric input: NaN/garbage -> def, else clamp to [min,max]
+function getNum(id, min, max, def) {
+  const v = Math.floor(+document.getElementById(id).value);
+  return Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : def;
+}
+
+function stats(words) {
+  const counts = {};
+  let letters = 0;
+  for (const w of words) for (const c of w) { counts[c] = (counts[c] || 0) + 1; letters++; }
+  const top = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 5)
+    .map(([c, n]) => `${c}:${(100 * n / letters).toFixed(1)}%`).join(' ');
+  const meanLen = (letters / words.length).toFixed(2);
+  return `\n\n[${words.length} words, mean length ${meanLen}, top letters: ${top}]`;
+}
+
+// ---------- 1. uniform ----------
+function runUniform() {
+  const n = getNum('uniN', 1, 100, 12);
+  const words = [];
+  for (let i = 0; i < n; i++) {
+    const len = 2 + Math.floor(Math.random() * 9); // uniform 2..10
+    let w = '';
+    for (let j = 0; j < len; j++) w += AZ[Math.floor(Math.random() * 26)];
+    words.push(w);
+  }
+  document.getElementById('uniOut').textContent = words.join(' ') + '.' + stats(words);
+  lastWords.uni = words; updateXent();
+}
+
+// ---------- 2. markov / english ----------
+// English letter frequencies (percent), a..z
+const ENG_FREQ = [8.17,1.49,2.78,4.25,12.70,2.23,2.02,6.09,6.97,0.15,0.77,4.03,2.41,
+                  6.75,7.51,1.93,0.10,5.99,6.33,9.06,2.76,0.98,2.36,0.15,1.97,0.07];
+// English word length distribution (percent), lengths 1..14 (Norvig, Google corpus)
+const ENG_WLEN = [3.0,17.7,20.5,14.9,10.7,8.4,7.2,5.9,4.4,3.1,1.9,1.1,0.7,0.5];
+const VOWELS = new Set([...'aeiou']);
+
+function pickLen() {
+  const i = pickWeighted(ENG_WLEN);
+  return i + 1;
+}
+
+// weights restricted to a class (vowel or consonant)
+function classWeights(wantVowel) {
+  return ENG_FREQ.map((f, i) => (VOWELS.has(AZ[i]) === wantVowel ? f : 0));
+}
+
+function markovWord(len) {
+  let w = '';
+  let prev = '';
+  for (let j = 0; j < len; j++) {
+    let c;
+    if (prev === 'q') {
+      c = 'u';
+    } else if (prev === '') {
+      c = AZ[pickWeighted(ENG_FREQ)];
+    } else {
+      // Markov: after vowel, 65% consonant; after consonant, 70% vowel
+      const prevVowel = VOWELS.has(prev);
+      const wantVowel = Math.random() < (prevVowel ? 0.35 : 0.70);
+      c = AZ[pickWeighted(classWeights(wantVowel))];
+      if (c === prev && w.length >= 2 && w[w.length - 2] === c) j--, c = null; // no triples
+    }
+    if (c === null) continue;
+    w += c;
+    prev = c;
+  }
+  return w;
+}
+
+function runMarkov() {
+  const n = getNum('mkvN', 1, 100, 12);
+  const words = [];
+  for (let i = 0; i < n; i++) words.push(markovWord(pickLen()));
+  document.getElementById('mkvOut').textContent = words.join(' ') + '.' + stats(words);
+  lastWords.mkv = words; updateXent();
+}
+
+// ---------- 3. dials ----------
+function showVals() {
+  for (const id of ['dlShort', 'dlLong', 'dlMix', 'dlBoost'])
+    document.getElementById(id + 'V').textContent = document.getElementById(id).value;
+}
+
+function runDials() {
+  const n = getNum('dlN', 1, 100, 12);
+  const short = getNum('dlShort', 2, 6, 3);
+  const long = getNum('dlLong', 7, 14, 10);
+  const mix = getNum('dlMix', 0, 100, 50) / 100;
+  const boost = getNum('dlBoost', 1, 20, 5);
+  const fav = new Set(document.getElementById('dlFav').value.toLowerCase().replace(/[^a-z]/g, '').slice(0, 26));
+
+  const weights = ENG_FREQ.map((f, i) => fav.has(AZ[i]) ? f * boost : f);
+
+  const words = [];
+  for (let i = 0; i < n; i++) {
+    // bimodal: pick a mode, jitter ±1 around it
+    const mode = Math.random() < mix ? short : long;
+    const len = Math.max(1, mode + Math.floor(Math.random() * 3) - 1);
+    let w = '';
+    for (let j = 0; j < len; j++) w += AZ[pickWeighted(weights)];
+    words.push(w);
+  }
+  document.getElementById('dlOut').textContent = words.join(' ') + '.' + stats(words);
+  lastWords.dl = words; updateXent();
+}
+
+// ---------- 4. shakespeare cross-entropy ----------
+const SHAK = 'to be or not to be that is the question whether tis nobler in the mind to suffer the slings';
+const SHAK_LETTERS = SHAK.replace(/[^a-z]/g, '');
+document.getElementById('shakOut').textContent =
+  '"To be, or not to be, that is the question: Whether ’tis nobler in the mind to suffer the slings"' +
+  `\n\n[20 words, ${SHAK_LETTERS.length} letters]`;
+
+// H(p) of the line itself: -Σ p̂ log2 p̂ over its own letter counts
+{
+  const c = {};
+  for (const ch of SHAK_LETTERS) c[ch] = (c[ch] || 0) + 1;
+  let h = 0;
+  for (const k in c) { const p = c[k] / SHAK_LETTERS.length; h -= p * Math.log2(p); }
+  document.getElementById('shakH').textContent = h.toFixed(3) + ' bits/letter';
+}
+
+const lastWords = { uni: null, mkv: null, dl: null };
+
+// empirical q from generated words, add-one smoothed; then H(p,q) over shakespeare letters
+function crossEntropy(words) {
+  const counts = new Array(26).fill(0);
+  let total = 0;
+  for (const w of words) for (const c of w) { counts[AZ.indexOf(c)]++; total++; }
+  let h = 0;
+  for (const c of SHAK_LETTERS) {
+    const q = (counts[AZ.indexOf(c)] + 1) / (total + 26);
+    h -= Math.log2(q);
+  }
+  return h / SHAK_LETTERS.length;
+}
+
+function updateXent() {
+  for (const [key, id] of [['uni', 'xentUni'], ['mkv', 'xentMkv'], ['dl', 'xentDl']]) {
+    if (lastWords[key])
+      document.getElementById(id).textContent = crossEntropy(lastWords[key]).toFixed(3) + ' bits/letter';
+  }
+}
+</script>
+</body>
+</html>

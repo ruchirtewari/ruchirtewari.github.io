@@ -1,0 +1,1148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>PicoGPT-JS (standalone) — train &amp; analyze in the browser</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { --ink:#222; --edge:#d0d4da; --accent:#1976d2; }
+  body { font: 14px/1.5 system-ui, sans-serif; color: var(--ink); margin: 0 auto;
+         max-width: 1060px; padding: 18px; background: #fafbfc; }
+  h1 { font-size: 22px; margin: 0 0 2px; }
+  h2 { font-size: 16px; margin: 0 0 8px; }
+  .sub { color: #667; margin-bottom: 16px; }
+  section { background: #fff; border: 1px solid var(--edge); border-radius: 10px;
+            padding: 14px 16px; margin-bottom: 14px; }
+  textarea { width: 100%; box-sizing: border-box; font: 12px/1.45 ui-monospace, monospace;
+             border: 1px solid var(--edge); border-radius: 6px; padding: 8px; }
+  button { font: 13px system-ui; padding: 5px 14px; border-radius: 6px;
+           border: 1px solid var(--edge); background: #f2f5f8; cursor: pointer; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button:disabled { opacity: .5; cursor: default; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 8px 0; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  canvas { width: 100%; height: 150px; display: block; }
+  canvas.attn { height: 210px; }
+  .stat { font: 12px ui-monospace, monospace; color: #445; }
+  .cap { font-size: 12px; color: #667; margin: 2px 0 6px; }
+  input[type=number] { width: 70px; }
+  pre.gen { font: 12px/1.4 ui-monospace, monospace; background: #f6f8fa;
+            border-radius: 6px; padding: 8px; white-space: pre-wrap; min-height: 3em; }
+</style>
+</head>
+<body>
+<h1>PicoGPT-JS</h1>
+<div class="sub" id="cfgline">loading…</div>
+
+<section>
+  <h2>1 · Corpus &amp; training</h2>
+  <div class="cap">Char-level LM, vocab 64. Trains live in your tab — watch cross-entropy fall
+    toward (and below) the Markov baselines.</div>
+  <textarea id="corpus" rows="6"></textarea>
+  <div class="row">
+    <button class="primary" id="trainBtn">Train</button>
+    <button id="resetBtn">Reset model</button>
+    lr <input type="number" id="lr" value="0.003" step="0.001">
+    window <input type="number" id="winT" value="48" step="8" min="16" max="128">
+    <span class="stat" id="trainStat">step 0</span>
+  </div>
+  <canvas id="lossChart" height="150"></canvas>
+  <div class="cap">Model bits/char (train windows) vs Markov baselines fit on the same corpus —
+    the Shannon question: how much structure beyond order-k statistics does the model capture?</div>
+  <canvas id="bitsChart" height="150"></canvas>
+  <div class="row">
+    <button id="genBtn">Generate 200 chars from learned character distribution</button>
+    temp <input type="number" id="temp" value="0.8" step="0.1" min="0">
+  </div>
+  <pre class="gen" id="genOut"></pre>
+</section>
+
+<section>
+  <h2>2 · Inspect a sequence</h2>
+  <div class="cap">Forward-pass anatomy on one input: attention maps per layer/head and the
+    residual-stream norm along the network.</div>
+  <div class="row">
+    <input id="probe" style="flex:1; font:12px ui-monospace; padding:6px;
+      border:1px solid var(--edge); border-radius:6px" value="the cat sat on the mat.">
+    <button class="primary" id="probeBtn">Analyze</button>
+  </div>
+  <div class="grid" id="attnGrid"></div>
+  <div class="cap" style="margin-top:8px">Residual-stream mean L2 norm per stage</div>
+  <canvas id="resChart" height="150"></canvas>
+</section>
+
+<section>
+  <h2>3 · Shannon — entropy &amp; surprisal</h2>
+  <div class="cap">Per-position predictive entropy H(p) and surprisal −log2 p(actual next char).
+    Flat high entropy = model unsure; spikes in surprisal = characters the model finds hard.</div>
+  <canvas id="shannonChart" height="150"></canvas>
+  <div class="stat" id="shannonStat"></div>
+</section>
+
+<section>
+  <h2>4 · Markov — model vs n-gram</h2>
+  <div class="cap">Per-position surprisal: PicoGPT-JS vs order-1/order-2 Markov chains fit on the
+    corpus. Where the transformer beats the bigram, it is using longer context.</div>
+  <canvas id="markovChart" height="150"></canvas>
+  <div class="stat" id="markovStat"></div>
+</section>
+
+<section>
+  <h2>5 · Fisher — curvature of the prediction</h2>
+  <div class="cap">Per-token Fisher information H_z = diag(p) − p pᵀ (the categorical curvature
+    at the model's output — the same H_z the Python repo's Hessian analysis factors through).
+    Effective-dimension diagnostics of its spectrum, per position.</div>
+  <canvas id="fisherChart" height="150"></canvas>
+  <div class="cap">Fisher eigenvalue spectrum at the selected position
+    (click a point index) — participation ratio r_PR counts the "effectively active" directions.</div>
+  <div class="row">position <input type="number" id="fisherPos" value="0" min="0"></div>
+  <canvas id="fisherSpec" height="150"></canvas>
+  <div class="stat" id="fisherStat"></div>
+</section>
+
+<section>
+  <h2>Information — how to read the results</h2>
+  <details>
+    <summary>Tokens: characters, not words</summary>
+    <p>The tokenizer is character-level with a fixed vocabulary of 64 symbols
+    (a–z, digits, punctuation). Every prediction and every generated token is one
+    character; "words" exist only insofar as the model learns them from data.</p>
+  </details>
+  <details>
+    <summary>1 · Loss &amp; bits/char vs Markov</summary>
+    <p><b>Units.</b> The training loss is the negative log-likelihood of the
+    next character, −log p(target), averaged over positions. Taken with the
+    natural log it is measured in <b>nats</b> (base e); divided by ln 2 the
+    same quantity becomes <b>bits</b> (base 2). So 1 nat ≈ 1.44 bits — the
+    loss chart shows nats, the bits/char chart shows the identical loss
+    converted, which makes it directly comparable to Shannon entropies and
+    the Markov baselines.</p>
+    <p>An untrained model guesses uniformly: log₂ 64 = 6 bits/char. Markov-1
+    (bigram) reaches ~2–2.5 bits on English-like text, markov-2 lower. The
+    interesting moment is when the model line crosses below markov-2: from then
+    on the transformer extracts structure no fixed 2-character context can —
+    attention is paying for itself. On the small repeated default corpus a
+    trained model goes far below 1 bit/char: the text is nearly deterministic
+    given enough context (that is memorization — paste a few KB of varied text
+    for an honest gap).</p>
+  </details>
+  <details>
+    <summary>2 · Attention maps &amp; residual norms</summary>
+    <p>Early in training the maps are a uniform lower-triangle smear (causal
+    mask, no learned structure). Trained, heads differentiate: typically one
+    goes near-diagonal (local/previous-character copying) and another develops
+    off-diagonal stripes jumping back to earlier occurrences of the same word —
+    the long-context advantage the Markov panel quantifies. Residual-stream
+    norms growing across stages is normal for pre-norm transformers; the final
+    LayerNorm absorbs the scale.</p>
+  </details>
+  <details>
+    <summary>3 · Shannon — entropy &amp; surprisal</summary>
+    <p>Blue = the model's uncertainty before seeing the next character; red =
+    how surprised it actually was. Inside a memorized word both drop toward 0
+    (after "th", predicting "e" is easy). Spikes sit at genuine branch points —
+    after a space or period, where several continuations are legal. Red far
+    above blue = confidently wrong. Mean entropy vs the 6-bit maximum gives
+    redundancy; character-level English is highly redundant, so 60–80%+ after
+    training is expected.</p>
+  </details>
+  <details>
+    <summary>4 · Markov — where context depth wins</summary>
+    <p>Bars per position: wherever the model bar is shorter than markov-2 —
+    typically at the start of a repeated phrase — the model is using context
+    deeper than 2 characters. Ties on short common pairs are expected; a bigram
+    is already optimal there.</p>
+  </details>
+  <details>
+    <summary>5 · Fisher — curvature of the prediction</summary>
+    <p>H_z = diag(p) − p pᵀ is the curvature of the loss in prediction space
+    (the same per-token object the Python repo's Hessian analysis factors
+    through). Trace = 1 − Σp²: a confident prediction has curvature ≈ 0, an
+    uncertain one has high trace, and r_PR / erank count how many characters
+    are genuinely still in play — a three-way branch point shows r_PR ≈ 2–3,
+    not 64. It tracks the entropy curve in shape but measures something
+    different: not how unsure the model is, but how many directions of the
+    output distribution the data at that position can still bend. Watch it
+    collapse as training pins predictions down — the per-token seed of
+    effective-dimension analysis.</p>
+  </details>
+</section>
+
+<script>
+'use strict';
+// ---- src/autograd.js ----
+/**
+ * Minimal tape-based matrix autograd for the browser.
+ *
+ * One abstraction: a Tensor is a Float32Array + [rows, cols] shape.
+ * Ops build a graph define-by-run; backward() walks it in reverse
+ * topological order. Enough ops for a pre-norm transformer, nothing more.
+ */
+
+class Tensor {
+  constructor(data, rows, cols, requiresGrad = false) {
+    this.d = data;            // Float32Array, row-major
+    this.r = rows;
+    this.c = cols;
+    this.rg = requiresGrad;
+    this.g = null;            // grad, lazily allocated
+    this._prev = [];
+    this._back = null;        // closure: uses this.g to accumulate into prevs
+  }
+  static zeros(r, c, rg = false) {
+    return new Tensor(new Float32Array(r * c), r, c, rg);
+  }
+  grad() {
+    if (!this.g) this.g = new Float32Array(this.r * this.c);
+    return this.g;
+  }
+}
+
+/** Seeded RNG (mulberry32) so demos are reproducible. */
+function rng(seed) {
+  let a = seed >>> 0;
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/** Xavier-uniform parameter tensor. */
+function xavier(r, c, rand) {
+  const t = Tensor.zeros(r, c, true);
+  const lim = Math.sqrt(6 / (r + c));
+  for (let i = 0; i < t.d.length; i++) t.d[i] = (rand() * 2 - 1) * lim;
+  return t;
+}
+
+// ---- ops ------------------------------------------------------------------
+
+function matmul(a, b) {
+  if (a.c !== b.r) throw new Error(`matmul ${a.r}x${a.c} · ${b.r}x${b.c}`);
+  const out = Tensor.zeros(a.r, b.c, true);
+  for (let i = 0; i < a.r; i++) {
+    for (let k = 0; k < a.c; k++) {
+      const av = a.d[i * a.c + k];
+      if (av === 0) continue;
+      for (let j = 0; j < b.c; j++) out.d[i * b.c + j] += av * b.d[k * b.c + j];
+    }
+  }
+  out._prev = [a, b];
+  out._back = () => {
+    const go = out.g;
+    if (a.rg || a._back || a._prev.length) {
+      const ga = a.grad();
+      for (let i = 0; i < a.r; i++)
+        for (let j = 0; j < b.c; j++) {
+          const gv = go[i * b.c + j];
+          if (gv === 0) continue;
+          for (let k = 0; k < a.c; k++) ga[i * a.c + k] += gv * b.d[k * b.c + j];
+        }
+    }
+    if (b.rg || b._back || b._prev.length) {
+      const gb = b.grad();
+      for (let i = 0; i < a.r; i++)
+        for (let k = 0; k < a.c; k++) {
+          const av = a.d[i * a.c + k];
+          if (av === 0) continue;
+          for (let j = 0; j < b.c; j++) gb[k * b.c + j] += av * go[i * b.c + j];
+        }
+    }
+  };
+  return out;
+}
+
+function transpose(a) {
+  const out = Tensor.zeros(a.c, a.r, true);
+  for (let i = 0; i < a.r; i++)
+    for (let j = 0; j < a.c; j++) out.d[j * a.r + i] = a.d[i * a.c + j];
+  out._prev = [a];
+  out._back = () => {
+    const ga = a.grad();
+    for (let i = 0; i < a.r; i++)
+      for (let j = 0; j < a.c; j++) ga[i * a.c + j] += out.g[j * a.r + i];
+  };
+  return out;
+}
+
+/** Columns [c0, c1) of a. */
+function colslice(a, c0, c1) {
+  const w = c1 - c0;
+  const out = Tensor.zeros(a.r, w, true);
+  for (let i = 0; i < a.r; i++)
+    for (let j = 0; j < w; j++) out.d[i * w + j] = a.d[i * a.c + c0 + j];
+  out._prev = [a];
+  out._back = () => {
+    const ga = a.grad();
+    for (let i = 0; i < a.r; i++)
+      for (let j = 0; j < w; j++) ga[i * a.c + c0 + j] += out.g[i * w + j];
+  };
+  return out;
+}
+
+function colconcat(parts) {
+  const r = parts[0].r;
+  const c = parts.reduce((s, p) => s + p.c, 0);
+  const out = Tensor.zeros(r, c, true);
+  let off = 0;
+  for (const p of parts) {
+    for (let i = 0; i < r; i++)
+      for (let j = 0; j < p.c; j++) out.d[i * c + off + j] = p.d[i * p.c + j];
+    off += p.c;
+  }
+  out._prev = parts.slice();
+  out._back = () => {
+    let o = 0;
+    for (const p of parts) {
+      const gp = p.grad();
+      for (let i = 0; i < r; i++)
+        for (let j = 0; j < p.c; j++) gp[i * p.c + j] += out.g[i * c + o + j];
+      o += p.c;
+    }
+  };
+  return out;
+}
+
+/** Elementwise a + b (same shape). */
+function add(a, b) {
+  const out = Tensor.zeros(a.r, a.c, true);
+  for (let i = 0; i < a.d.length; i++) out.d[i] = a.d[i] + b.d[i];
+  out._prev = [a, b];
+  out._back = () => {
+    const ga = a.grad(), gb = b.grad();
+    for (let i = 0; i < a.d.length; i++) { ga[i] += out.g[i]; gb[i] += out.g[i]; }
+  };
+  return out;
+}
+
+/** a + constant array (no grad to the constant, e.g. positional encoding). */
+function addConst(a, constArr) {
+  const out = Tensor.zeros(a.r, a.c, true);
+  for (let i = 0; i < a.d.length; i++) out.d[i] = a.d[i] + constArr[i];
+  out._prev = [a];
+  out._back = () => {
+    const ga = a.grad();
+    for (let i = 0; i < a.d.length; i++) ga[i] += out.g[i];
+  };
+  return out;
+}
+
+function scale(a, s) {
+  const out = Tensor.zeros(a.r, a.c, true);
+  for (let i = 0; i < a.d.length; i++) out.d[i] = a.d[i] * s;
+  out._prev = [a];
+  out._back = () => {
+    const ga = a.grad();
+    for (let i = 0; i < a.d.length; i++) ga[i] += out.g[i] * s;
+  };
+  return out;
+}
+
+function relu(a) {
+  const out = Tensor.zeros(a.r, a.c, true);
+  for (let i = 0; i < a.d.length; i++) out.d[i] = a.d[i] > 0 ? a.d[i] : 0;
+  out._prev = [a];
+  out._back = () => {
+    const ga = a.grad();
+    for (let i = 0; i < a.d.length; i++) if (a.d[i] > 0) ga[i] += out.g[i];
+  };
+  return out;
+}
+
+/** Row-wise LayerNorm with learnable gain g [1,C] and bias b [1,C]. */
+function layernorm(x, g, b, eps = 1e-5) {
+  const { r, c } = x;
+  const out = Tensor.zeros(r, c, true);
+  const xhat = new Float32Array(r * c);
+  const invstd = new Float32Array(r);
+  for (let i = 0; i < r; i++) {
+    let mu = 0;
+    for (let j = 0; j < c; j++) mu += x.d[i * c + j];
+    mu /= c;
+    let v = 0;
+    for (let j = 0; j < c; j++) { const t = x.d[i * c + j] - mu; v += t * t; }
+    v /= c;
+    const is = 1 / Math.sqrt(v + eps);
+    invstd[i] = is;
+    for (let j = 0; j < c; j++) {
+      const xh = (x.d[i * c + j] - mu) * is;
+      xhat[i * c + j] = xh;
+      out.d[i * c + j] = xh * g.d[j] + b.d[j];
+    }
+  }
+  out._prev = [x, g, b];
+  out._back = () => {
+    const gx = x.grad(), gg = g.grad(), gb = b.grad();
+    for (let i = 0; i < r; i++) {
+      let mDxh = 0, mDxhXh = 0;
+      for (let j = 0; j < c; j++) {
+        const dy = out.g[i * c + j];
+        const dxh = dy * g.d[j];
+        mDxh += dxh;
+        mDxhXh += dxh * xhat[i * c + j];
+        gg[j] += dy * xhat[i * c + j];
+        gb[j] += dy;
+      }
+      mDxh /= c; mDxhXh /= c;
+      for (let j = 0; j < c; j++) {
+        const dxh = out.g[i * c + j] * g.d[j];
+        gx[i * c + j] += invstd[i] * (dxh - mDxh - xhat[i * c + j] * mDxhXh);
+      }
+    }
+  };
+  return out;
+}
+
+/** Row-wise softmax over columns j <= i (causal); j > i gets exactly 0. */
+function causalSoftmax(a) {
+  const { r, c } = a;
+  const out = Tensor.zeros(r, c, true);
+  for (let i = 0; i < r; i++) {
+    const lim = Math.min(i, c - 1);
+    let mx = -Infinity;
+    for (let j = 0; j <= lim; j++) mx = Math.max(mx, a.d[i * c + j]);
+    let s = 0;
+    for (let j = 0; j <= lim; j++) {
+      const e = Math.exp(a.d[i * c + j] - mx);
+      out.d[i * c + j] = e; s += e;
+    }
+    for (let j = 0; j <= lim; j++) out.d[i * c + j] /= s;
+  }
+  out._prev = [a];
+  out._back = () => {
+    const ga = a.grad();
+    for (let i = 0; i < r; i++) {
+      const lim = Math.min(i, c - 1);
+      let dot = 0;
+      for (let j = 0; j <= lim; j++) dot += out.g[i * c + j] * out.d[i * c + j];
+      for (let j = 0; j <= lim; j++)
+        ga[i * c + j] += out.d[i * c + j] * (out.g[i * c + j] - dot);
+    }
+  };
+  return out;
+}
+
+/** Embedding lookup: rows of W indexed by ids. */
+function gatherRows(W, ids) {
+  const out = Tensor.zeros(ids.length, W.c, true);
+  for (let i = 0; i < ids.length; i++)
+    out.d.set(W.d.subarray(ids[i] * W.c, (ids[i] + 1) * W.c), i * W.c);
+  out._prev = [W];
+  out._back = () => {
+    const gw = W.grad();
+    for (let i = 0; i < ids.length; i++)
+      for (let j = 0; j < W.c; j++) gw[ids[i] * W.c + j] += out.g[i * W.c + j];
+  };
+  return out;
+}
+
+/**
+ * Mean cross-entropy of logits [T,V] against integer targets.
+ * Returns { loss: Tensor[1,1], probs: Float32Array[T*V] } — probs are the
+ * softmax rows, handy for Shannon/Fisher analyses without recompute.
+ */
+function crossEntropy(logits, targets) {
+  const { r, c } = logits;
+  const probs = new Float32Array(r * c);
+  let lsum = 0;
+  for (let i = 0; i < r; i++) {
+    let mx = -Infinity;
+    for (let j = 0; j < c; j++) mx = Math.max(mx, logits.d[i * c + j]);
+    let s = 0;
+    for (let j = 0; j < c; j++) { const e = Math.exp(logits.d[i * c + j] - mx); probs[i * c + j] = e; s += e; }
+    for (let j = 0; j < c; j++) probs[i * c + j] /= s;
+    lsum += -Math.log(probs[i * c + targets[i]] + 1e-12);
+  }
+  const loss = new Tensor(new Float32Array([lsum / r]), 1, 1, true);
+  loss._prev = [logits];
+  loss._back = () => {
+    const gl = logits.grad();
+    const s = loss.g[0] / r;
+    for (let i = 0; i < r; i++)
+      for (let j = 0; j < c; j++)
+        gl[i * c + j] += s * (probs[i * c + j] - (j === targets[i] ? 1 : 0));
+  };
+  return { loss, probs };
+}
+
+/** Reverse-topological backward pass from a scalar loss. */
+function backward(loss) {
+  const topo = [], seen = new Set();
+  (function visit(t) {
+    if (seen.has(t)) return;
+    seen.add(t);
+    for (const p of t._prev) visit(p);
+    topo.push(t);
+  })(loss);
+  loss.grad()[0] = 1;
+  for (let i = topo.length - 1; i >= 0; i--) if (topo[i]._back) topo[i]._back();
+}
+
+// ---- src/model.js ----
+/**
+ * PicoGPT-JS: the PicoGPT architecture in the browser.
+ *
+ * Same architecture as picogpt/model.py — pre-norm transformer, tied
+ * embeddings, sinusoidal positional encoding, bias-free attention/FFN,
+ * ReLU FFN with expansion 2 — at demo scale: 2 layers, 2 heads,
+ * d_head 64 (d_model 128), vocab 64.
+ *
+ * forward() returns a full trace (attention maps, residual norms, probs)
+ * so visualizations never need a second code path.
+ */
+
+
+const DEFAULT_CONFIG = {
+  vocab: 64, nLayers: 2, nHeads: 2, dHead: 64, ffnExpansion: 2, maxT: 128, seed: 1337,
+};
+
+class PicoGPT {
+  constructor(config = {}) {
+    const c = { ...DEFAULT_CONFIG, ...config };
+    c.dModel = c.nHeads * c.dHead;
+    c.dFF = c.dModel * c.ffnExpansion;
+    this.cfg = c;
+    const rand = rng(c.seed);
+
+    const lnPair = () => {
+      const g = Tensor.zeros(1, c.dModel, true); g.d.fill(1);
+      const b = Tensor.zeros(1, c.dModel, true);
+      return [g, b];
+    };
+    this.emb = Tensor.zeros(c.vocab, c.dModel, true);
+    for (let i = 0; i < this.emb.d.length; i++)
+      this.emb.d[i] = (rand() * 2 - 1) * (1 / Math.sqrt(c.dModel));
+    this.layers = [];
+    for (let l = 0; l < c.nLayers; l++) {
+      const [g1, b1] = lnPair(), [g2, b2] = lnPair();
+      this.layers.push({
+        Wqkv: xavier(c.dModel, 3 * c.dModel, rand),
+        Wo: xavier(c.dModel, c.dModel, rand),
+        W1: xavier(c.dModel, c.dFF, rand),
+        W2: xavier(c.dFF, c.dModel, rand),
+        g1, b1, g2, b2,
+      });
+    }
+    [this.gF, this.bF] = lnPair();
+
+    // Sinusoidal PE table, precomputed to maxT
+    this.pe = new Float32Array(c.maxT * c.dModel);
+    for (let t = 0; t < c.maxT; t++)
+      for (let i = 0; i < c.dModel / 2; i++) {
+        const w = t / Math.pow(10000, (2 * i) / c.dModel);
+        this.pe[t * c.dModel + 2 * i] = Math.sin(w);
+        this.pe[t * c.dModel + 2 * i + 1] = Math.cos(w);
+      }
+
+    this._adam = null;
+  }
+
+  params() {
+    const ps = [this.emb, this.gF, this.bF];
+    for (const L of this.layers) ps.push(L.Wqkv, L.Wo, L.W1, L.W2, L.g1, L.b1, L.g2, L.b2);
+    return ps;
+  }
+
+  paramCount() { return this.params().reduce((s, p) => s + p.d.length, 0); }
+
+  /**
+   * Run the model on integer tokens.
+   * Returns { logits, trace }. trace = {
+   *   attn:      [layer][head] Float32Array T*T softmax rows,
+   *   resNorms:  per-stage mean L2 norm of the residual stream,
+   *   stages:    stage names aligned with resNorms,
+   * }
+   */
+  forward(tokens) {
+    const c = this.cfg, T = tokens.length;
+    if (T > c.maxT) throw new Error(`T=${T} exceeds maxT=${c.maxT}`);
+    const trace = { attn: [], resNorms: [], stages: [] };
+    const note = (name, x) => {
+      let s = 0;
+      for (let i = 0; i < x.d.length; i++) s += x.d[i] * x.d[i];
+      trace.resNorms.push(Math.sqrt(s / x.r));
+      trace.stages.push(name);
+    };
+
+    let x = gatherRows(this.emb, tokens);
+    x = scale(x, Math.sqrt(c.dModel));
+    x = addConst(x, this.pe.subarray(0, T * c.dModel));
+    note('embed+pe', x);
+
+    for (let l = 0; l < c.nLayers; l++) {
+      const L = this.layers[l];
+      // attention
+      const h1 = layernorm(x, L.g1, L.b1);
+      const qkv = matmul(h1, L.Wqkv);
+      const heads = [], attnMaps = [];
+      for (let h = 0; h < c.nHeads; h++) {
+        const q = colslice(qkv, h * c.dHead, (h + 1) * c.dHead);
+        const k = colslice(qkv, c.dModel + h * c.dHead, c.dModel + (h + 1) * c.dHead);
+        const v = colslice(qkv, 2 * c.dModel + h * c.dHead, 2 * c.dModel + (h + 1) * c.dHead);
+        const scores = scale(matmul(q, transpose(k)), 1 / Math.sqrt(c.dHead));
+        const A = causalSoftmax(scores);
+        attnMaps.push(Float32Array.from(A.d));
+        heads.push(matmul(A, v));
+      }
+      trace.attn.push(attnMaps);
+      x = add(x, matmul(colconcat(heads), L.Wo));
+      note(`L${l}.attn`, x);
+      // ffn
+      const h2 = layernorm(x, L.g2, L.b2);
+      x = add(x, matmul(relu(matmul(h2, L.W1)), L.W2));
+      note(`L${l}.ffn`, x);
+    }
+
+    x = layernorm(x, this.gF, this.bF);
+    const logits = matmul(x, transpose(this.emb)); // tied output projection
+    return { logits, trace };
+  }
+
+  /** Cross-entropy training loss on a token window (predict next token). */
+  loss(tokens) {
+    const inputs = tokens.slice(0, -1), targets = tokens.slice(1);
+    const { logits, trace } = this.forward(inputs);
+    const { loss, probs } = crossEntropy(logits, targets);
+    return { loss, probs, trace, targets };
+  }
+
+  /** One Adam step on a token window. Returns scalar loss. */
+  trainStep(tokens, lr = 3e-3) {
+    const ps = this.params();
+    for (const p of ps) if (p.g) p.g.fill(0);
+    const { loss } = this.loss(tokens);
+    backward(loss);
+    if (!this._adam) {
+      this._adam = { t: 0, m: ps.map(p => new Float32Array(p.d.length)), v: ps.map(p => new Float32Array(p.d.length)) };
+    }
+    const A = this._adam, b1 = 0.9, b2 = 0.999, eps = 1e-8;
+    A.t++;
+    const c1 = 1 - Math.pow(b1, A.t), c2 = 1 - Math.pow(b2, A.t);
+    ps.forEach((p, k) => {
+      const g = p.g, m = A.m[k], v = A.v[k];
+      for (let i = 0; i < p.d.length; i++) {
+        m[i] = b1 * m[i] + (1 - b1) * g[i];
+        v[i] = b2 * v[i] + (1 - b2) * g[i] * g[i];
+        p.d[i] -= lr * (m[i] / c1) / (Math.sqrt(v[i] / c2) + eps);
+      }
+    });
+    return loss.d[0];
+  }
+
+  /** Softmax next-token distribution after a context. */
+  predict(tokens) {
+    const { logits } = this.forward(tokens);
+    const V = this.cfg.vocab, off = (tokens.length - 1) * V;
+    let mx = -Infinity;
+    for (let j = 0; j < V; j++) mx = Math.max(mx, logits.d[off + j]);
+    let s = 0;
+    const p = new Float32Array(V);
+    for (let j = 0; j < V; j++) { p[j] = Math.exp(logits.d[off + j] - mx); s += p[j]; }
+    for (let j = 0; j < V; j++) p[j] /= s;
+    return p;
+  }
+
+  generate(tokens, n, temperature = 1.0, rand = Math.random) {
+    const out = tokens.slice();
+    for (let i = 0; i < n; i++) {
+      const ctx = out.slice(-this.cfg.maxT);
+      const p = this.predict(ctx);
+      let tok;
+      if (temperature <= 0) {
+        tok = 0;
+        for (let j = 1; j < p.length; j++) if (p[j] > p[tok]) tok = j;
+      } else {
+        const q = Array.from(p, x => Math.pow(x, 1 / temperature));
+        const s = q.reduce((a, b) => a + b, 0);
+        let u = rand() * s;
+        tok = 0;
+        while (tok < q.length - 1 && (u -= q[tok]) > 0) tok++;
+      }
+      out.push(tok);
+    }
+    return out;
+  }
+}
+
+/**
+ * Char tokenizer with a fixed 64-symbol vocabulary (mirrors mini64's size).
+ * Uppercase folds to lowercase; anything else maps to '?'.
+ */
+class CharTokenizer {
+  constructor() {
+    this.chars = "abcdefghijklmnopqrstuvwxyz0123456789 .,;:!?'\"()-_\n" + "$%&*+/<=>@[]^~";
+    if (this.chars.length !== 64) throw new Error(`vocab ${this.chars.length} != 64`);
+    this.idx = new Map([...this.chars].map((ch, i) => [ch, i]));
+  }
+  encode(text) {
+    const unk = this.idx.get('?');
+    return [...text.toLowerCase()].map(ch => this.idx.get(ch) ?? unk);
+  }
+  decode(tokens) { return tokens.map(t => this.chars[t]).join(''); }
+}
+
+// ---- src/analyses.js ----
+/**
+ * Information-theoretic analyses of a categorical predictor.
+ *
+ * Everything operates on plain probability rows (Float32Array [T*V]) or
+ * integer token arrays — no model dependency, so the same functions apply
+ * to PicoGPT-JS, an n-gram model, or anything else that emits distributions.
+ *
+ * Fisher note: for a categorical softmax output, the Fisher information of
+ * the distribution wrt the logits is H_z = diag(p) − p pᵀ — exactly the
+ * per-token "categorical H_z" the Python repo's curvature analysis is built
+ * on. Its spectrum (effective rank etc.) is computed here in closed JS.
+ */
+
+const LOG2 = Math.log(2);
+
+// ---- Shannon --------------------------------------------------------------
+
+/** Entropy in bits of one probability row. */
+function entropy(p, off = 0, V = p.length) {
+  let h = 0;
+  for (let j = 0; j < V; j++) {
+    const q = p[off + j];
+    if (q > 1e-12) h -= q * Math.log(q);
+  }
+  return h / LOG2;
+}
+
+/** Per-position entropies (bits) from probs [T*V]. */
+function entropySeries(probs, V) {
+  const T = probs.length / V;
+  return Array.from({ length: T }, (_, i) => entropy(probs, i * V, V));
+}
+
+/** Per-position surprisal −log2 p(target) from probs [T*V]. */
+function surprisalSeries(probs, V, targets) {
+  return targets.map((t, i) => -Math.log(probs[i * V + t] + 1e-12) / LOG2);
+}
+
+/** Redundancy 1 − H/Hmax for mean entropy over positions. */
+function redundancy(meanBits, V) { return 1 - meanBits / (Math.log(V) / LOG2); }
+
+// ---- Markov ---------------------------------------------------------------
+
+/**
+ * Order-k Markov (n-gram) model with add-alpha smoothing over vocab V.
+ * Same predict/probs surface as the transformer, so analyses interchange.
+ */
+class Markov {
+  constructor(order, V, alpha = 0.1) {
+    this.k = order; this.V = V; this.alpha = alpha;
+    this.counts = new Map();   // context key -> Float32Array[V]
+    this.ctxTotal = new Map();
+  }
+  _key(tokens, i) { return tokens.slice(i - this.k, i).join(','); }
+  fit(tokens) {
+    for (let i = this.k; i < tokens.length; i++) {
+      const key = this._key(tokens, i);
+      let row = this.counts.get(key);
+      if (!row) { row = new Float32Array(this.V); this.counts.set(key, row); }
+      row[tokens[i]]++;
+      this.ctxTotal.set(key, (this.ctxTotal.get(key) || 0) + 1);
+    }
+    return this;
+  }
+  /** P(next | context ending at position i in tokens). */
+  predict(tokens, i) {
+    const p = new Float32Array(this.V);
+    const key = i >= this.k ? this._key(tokens, i) : null;
+    const row = key !== null ? this.counts.get(key) : null;
+    const total = (row ? this.ctxTotal.get(key) : 0) + this.alpha * this.V;
+    for (let j = 0; j < this.V; j++) p[j] = ((row ? row[j] : 0) + this.alpha) / total;
+    return p;
+  }
+  /** probs [T*V] aligned with targets = tokens[1..], like model.loss(). */
+  probsFor(tokens) {
+    const T = tokens.length - 1;
+    const out = new Float32Array(T * this.V);
+    for (let i = 0; i < T; i++) out.set(this.predict(tokens, i + 1), i * this.V);
+    return out;
+  }
+  /** Mean NLL in bits/char on a token stream. */
+  bitsPerChar(tokens) {
+    const probs = this.probsFor(tokens);
+    const s = surprisalSeries(probs, this.V, tokens.slice(1));
+    return s.reduce((a, b) => a + b, 0) / s.length;
+  }
+}
+
+// ---- Fisher ---------------------------------------------------------------
+
+/** Jacobi eigenvalues of a symmetric n×n matrix (Float64Array n*n). */
+function symEigenvalues(A, n, sweeps = 12) {
+  const M = Float64Array.from(A);
+  for (let s = 0; s < sweeps; s++) {
+    let off = 0;
+    for (let p = 0; p < n - 1; p++)
+      for (let q = p + 1; q < n; q++) off += M[p * n + q] * M[p * n + q];
+    if (off < 1e-18) break;
+    for (let p = 0; p < n - 1; p++)
+      for (let q = p + 1; q < n; q++) {
+        const apq = M[p * n + q];
+        if (Math.abs(apq) < 1e-15) continue;
+        const theta = (M[q * n + q] - M[p * n + p]) / (2 * apq);
+        const t = Math.sign(theta || 1) / (Math.abs(theta) + Math.sqrt(theta * theta + 1));
+        const c = 1 / Math.sqrt(t * t + 1), sn = t * c;
+        for (let i = 0; i < n; i++) {
+          const aip = M[i * n + p], aiq = M[i * n + q];
+          M[i * n + p] = c * aip - sn * aiq;
+          M[i * n + q] = sn * aip + c * aiq;
+        }
+        for (let i = 0; i < n; i++) {
+          const api = M[p * n + i], aqi = M[q * n + i];
+          M[p * n + i] = c * api - sn * aqi;
+          M[q * n + i] = sn * api + c * aqi;
+        }
+      }
+  }
+  const ev = [];
+  for (let i = 0; i < n; i++) ev.push(M[i * n + i]);
+  return ev.sort((a, b) => b - a);
+}
+
+/**
+ * Fisher information of one predictive distribution: H_z = diag(p) − p pᵀ.
+ * Returns spectrum + the repo's effective-dimension diagnostics:
+ * trace (= 1 − Σp²), λmax, participation-ratio rank r_PR, entropy rank erank.
+ */
+function fisherStats(p, off = 0, V = p.length) {
+  const H = new Float64Array(V * V);
+  for (let i = 0; i < V; i++) {
+    const pi = p[off + i];
+    for (let j = 0; j < V; j++) H[i * V + j] = (i === j ? pi : 0) - pi * p[off + j];
+  }
+  const ev = symEigenvalues(H, V).filter(x => x > 1e-12);
+  const tr = ev.reduce((a, b) => a + b, 0);
+  const fro2 = ev.reduce((a, b) => a + b * b, 0);
+  let ent = 0;
+  for (const l of ev) { const q = l / tr; if (q > 1e-15) ent -= q * Math.log(q); }
+  return {
+    eigenvalues: ev,
+    trace: tr,
+    lambdaMax: ev[0] || 0,
+    rPR: fro2 > 0 ? (tr * tr) / fro2 : 0,
+    erank: Math.exp(ent),
+  };
+}
+
+/** fisherStats per position from probs [T*V]. */
+function fisherSeries(probs, V) {
+  const T = probs.length / V;
+  return Array.from({ length: T }, (_, i) => fisherStats(probs, i * V, V));
+}
+
+// ---- src/viz.js ----
+/**
+ * Small reusable canvas visualizations: heatmap, line chart, bar chart.
+ * Each takes a <canvas>, draws immediately, no state, no dependencies.
+ */
+
+const FONT = '11px system-ui, sans-serif';
+
+function prep(canvas) {
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.clientWidth || canvas.width, h = canvas.clientHeight || canvas.height;
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, w, h);
+  ctx.font = FONT;
+  return { ctx, w, h };
+}
+
+/** Viridis-ish colormap for t in [0,1]. */
+function colormap(t) {
+  t = Math.max(0, Math.min(1, t));
+  const r = Math.round(255 * Math.min(1, Math.max(0, 4 * t - 1.6)));
+  const g = Math.round(255 * Math.min(1, Math.max(0, 1.6 * t + 0.1)));
+  const b = Math.round(255 * Math.min(1, Math.max(0, 1.6 - 2.2 * t)));
+  return `rgb(${r},${g},${b})`;
+}
+
+/**
+ * Heatmap of a row-major matrix [rows x cols].
+ * opts: { rowLabels, colLabels, vmax } — labels drawn when cells are big enough.
+ */
+function heatmap(canvas, data, rows, cols, opts = {}) {
+  const { ctx, w, h } = prep(canvas);
+  const m = opts.rowLabels ? 18 : 2;   // label margin
+  const cw = (w - m) / cols, ch = (h - m) / rows;
+  let vmax = opts.vmax;
+  if (vmax == null) { vmax = 0; for (const v of data) vmax = Math.max(vmax, v); }
+  for (let i = 0; i < rows; i++)
+    for (let j = 0; j < cols; j++) {
+      ctx.fillStyle = colormap(vmax > 0 ? data[i * cols + j] / vmax : 0);
+      ctx.fillRect(m + j * cw, m + i * ch, Math.ceil(cw), Math.ceil(ch));
+    }
+  ctx.fillStyle = '#444';
+  if (opts.rowLabels && ch >= 9) {
+    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    opts.rowLabels.forEach((s, i) => ctx.fillText(s, m - 3, m + (i + 0.5) * ch));
+  }
+  if (opts.colLabels && cw >= 9) {
+    ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    opts.colLabels.forEach((s, j) => ctx.fillText(s, m + (j + 0.5) * cw, m - 1));
+  }
+}
+
+/**
+ * Line chart. series = [{ points: number[], color, label }].
+ * opts: { yMin, yMax, xLabels }.
+ */
+function lineChart(canvas, series, opts = {}) {
+  const { ctx, w, h } = prep(canvas);
+  const padL = 34, padB = 16, padT = 12, padR = 6;
+  const pw = w - padL - padR, ph = h - padT - padB;
+  let lo = opts.yMin ?? Infinity, hi = opts.yMax ?? -Infinity;
+  if (opts.yMin == null || opts.yMax == null)
+    for (const s of series) for (const v of s.points) { lo = Math.min(lo, v); hi = Math.max(hi, v); }
+  if (!(hi > lo)) { hi = lo + 1; }
+  const n = Math.max(...series.map(s => s.points.length));
+  const X = i => padL + (n > 1 ? (i / (n - 1)) * pw : pw / 2);
+  const Y = v => padT + (1 - (v - lo) / (hi - lo)) * ph;
+
+  ctx.strokeStyle = '#ddd';
+  ctx.beginPath();
+  for (let k = 0; k <= 4; k++) { const y = padT + (k / 4) * ph; ctx.moveTo(padL, y); ctx.lineTo(w - padR, y); }
+  ctx.stroke();
+  ctx.fillStyle = '#666'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  for (let k = 0; k <= 4; k++)
+    ctx.fillText((hi - (k / 4) * (hi - lo)).toPrecision(3), padL - 4, padT + (k / 4) * ph);
+
+  for (const s of series) {
+    ctx.strokeStyle = s.color || '#1976d2';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    s.points.forEach((v, i) => i ? ctx.lineTo(X(i), Y(v)) : ctx.moveTo(X(i), Y(v)));
+    ctx.stroke();
+  }
+  let lx = padL + 4;
+  ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+  for (const s of series) {
+    if (!s.label) continue;
+    ctx.fillStyle = s.color || '#1976d2';
+    ctx.fillText(s.label, lx, 1);
+    lx += ctx.measureText(s.label).width + 14;
+  }
+  if (opts.xLabels) {
+    ctx.fillStyle = '#666'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    const step = Math.ceil(opts.xLabels.length / Math.max(1, Math.floor(pw / 22)));
+    opts.xLabels.forEach((s, i) => { if (i % step === 0) ctx.fillText(s, X(i), h - 2); });
+  }
+}
+
+/**
+ * Bar chart. groups = [{ values: number[], color }] drawn side by side per index.
+ * opts: { xLabels, yMax, labels } (labels = one legend entry per group).
+ */
+function barChart(canvas, groups, opts = {}) {
+  const { ctx, w, h } = prep(canvas);
+  const padL = 34, padB = 16, padT = 12, padR = 6;
+  const pw = w - padL - padR, ph = h - padT - padB;
+  const n = Math.max(...groups.map(g => g.values.length));
+  let vmax = opts.yMax ?? 0;
+  if (!opts.yMax) for (const g of groups) for (const v of g.values) vmax = Math.max(vmax, v);
+  if (vmax <= 0) vmax = 1;
+  const slot = pw / n, bw = slot / (groups.length + 0.5);
+
+  ctx.fillStyle = '#666'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  for (let k = 0; k <= 4; k++)
+    ctx.fillText((vmax - (k / 4) * vmax).toPrecision(3), padL - 4, padT + (k / 4) * ph);
+
+  groups.forEach((g, gi) => {
+    ctx.fillStyle = g.color || '#1976d2';
+    g.values.forEach((v, i) => {
+      const bh = (v / vmax) * ph;
+      ctx.fillRect(padL + i * slot + gi * bw + bw * 0.25, padT + ph - bh, bw * 0.9, bh);
+    });
+  });
+  if (opts.labels) {
+    let lx = padL + 4;
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    groups.forEach((g, gi) => {
+      ctx.fillStyle = g.color || '#1976d2';
+      ctx.fillText(opts.labels[gi], lx, 1);
+      lx += ctx.measureText(opts.labels[gi]).width + 14;
+    });
+  }
+  if (opts.xLabels) {
+    ctx.fillStyle = '#666'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    const step = Math.ceil(n / Math.max(1, Math.floor(pw / 18)));
+    opts.xLabels.forEach((s, i) => { if (i % step === 0) ctx.fillText(s, padL + (i + 0.5) * slot, h - 2); });
+  }
+}
+
+// ---- page ----
+
+
+
+
+const $ = id => document.getElementById(id);
+const tok = new CharTokenizer();
+let model = new PicoGPT();
+const V = model.cfg.vocab;
+
+$('cfgline').textContent =
+  `layers ${model.cfg.nLayers} · heads ${model.cfg.nHeads} · d_head ${model.cfg.dHead} ` +
+  `· d_model ${model.cfg.dModel} · vocab ${V} · params ${model.paramCount().toLocaleString()} ` +
+  `· same architecture as picogpt/model.py (pre-norm, tied embeddings, sinusoidal PE)`;
+
+$('corpus').value =
+`the quick brown fox jumps over the lazy dog. the lazy dog sleeps in the sun.
+a cat sat on the mat and watched the dog. the fox ran into the woods.
+the sun set over the woods and the dog slept. the cat watched the moon rise.
+every morning the fox jumps and every evening the dog sleeps.
+the moon and the sun trade places over the quiet woods.
+`.repeat(3);
+
+// ---- training loop --------------------------------------------------------
+let running = false, step = 0;
+const lossHist = [], bitsHist = { model: [], m1: [], m2: [] };
+let corpusTokens = [], markov1 = null, markov2 = null;
+
+function fitBaselines() {
+  corpusTokens = tok.encode($('corpus').value);
+  markov1 = new Markov(1, V).fit(corpusTokens);
+  markov2 = new Markov(2, V).fit(corpusTokens);
+}
+
+function trainLoop() {
+  if (!running) return;
+  const T = Math.min(+$('winT').value, model.cfg.maxT);
+  const start = Math.floor(Math.random() * Math.max(1, corpusTokens.length - T - 1));
+  const window_ = corpusTokens.slice(start, start + T + 1);
+  const loss = model.trainStep(window_, +$('lr').value);
+  step++;
+  lossHist.push(loss); // nats
+  if (lossHist.length > 400) lossHist.shift();
+  if (step % 10 === 0) {
+    bitsHist.model.push(loss / Math.log(2));
+    bitsHist.m1.push(markov1.bitsPerChar(window_));
+    bitsHist.m2.push(markov2.bitsPerChar(window_));
+    if (bitsHist.model.length > 200) for (const k in bitsHist) bitsHist[k].shift();
+    lineChart($('bitsChart'), [
+      { points: bitsHist.model, color: '#1976d2', label: 'model' },
+      { points: bitsHist.m1, color: '#e65100', label: 'markov-1' },
+      { points: bitsHist.m2, color: '#2e7d32', label: 'markov-2' },
+    ], { yMin: 0 });
+  }
+  $('trainStat').textContent = `step ${step} · loss ${loss.toFixed(3)} nats · ${(loss / Math.log(2)).toFixed(2)} bits/char`;
+  lineChart($('lossChart'), [{ points: lossHist, color: '#1976d2', label: 'train loss (nats)' }], { yMin: 0 });
+  requestAnimationFrame(trainLoop);
+}
+
+$('trainBtn').onclick = () => {
+  running = !running;
+  $('trainBtn').textContent = running ? 'Pause' : 'Train';
+  if (running) { fitBaselines(); trainLoop(); }
+};
+$('resetBtn').onclick = () => {
+  running = false; $('trainBtn').textContent = 'Train';
+  model = new PicoGPT(); step = 0; lossHist.length = 0;
+  for (const k in bitsHist) bitsHist[k].length = 0;
+  $('trainStat').textContent = 'step 0';
+};
+$('genBtn').onclick = () => {
+  const seed = tok.encode('the ');
+  const out = model.generate(seed, 200, +$('temp').value);
+  $('genOut').textContent = tok.decode(out);
+};
+
+// ---- inspection -----------------------------------------------------------
+let lastProbs = null, lastTargets = null, lastFisher = null;
+
+function analyze() {
+  fitBaselines();
+  const text = $('probe').value;
+  const tokens = tok.encode(text).slice(0, model.cfg.maxT);
+  if (tokens.length < 3) return;
+  const chars = [...tok.decode(tokens)].map(c => c === '\n' ? '⏎' : c);
+  const { loss, probs, trace, targets } = model.loss(tokens);
+  lastProbs = probs; lastTargets = targets;
+  const T = targets.length;
+
+  // attention maps
+  const grid = $('attnGrid');
+  grid.innerHTML = '';
+  trace.attn.forEach((maps, l) => maps.forEach((A, h) => {
+    const wrap = document.createElement('div');
+    wrap.innerHTML = `<div class="cap">layer ${l} · head ${h}</div>`;
+    const cv = document.createElement('canvas');
+    cv.className = 'attn';
+    wrap.appendChild(cv);
+    grid.appendChild(wrap);
+    const n = tokens.length;
+    heatmap(cv, A, n, n, { rowLabels: chars, colLabels: chars, vmax: 1 });
+  }));
+
+  // residual norms
+  barChart($('resChart'), [{ values: trace.resNorms, color: '#6a4fa3' }],
+    { xLabels: trace.stages });
+
+  // shannon
+  const ent = entropySeries(probs, V);
+  const sup = surprisalSeries(probs, V, targets);
+  const xl = chars.slice(1);
+  lineChart($('shannonChart'), [
+    { points: ent, color: '#1976d2', label: 'entropy H(p) bits' },
+    { points: sup, color: '#c62828', label: 'surprisal −log2 p(target)' },
+  ], { yMin: 0, xLabels: xl });
+  const meanH = ent.reduce((a, b) => a + b, 0) / ent.length;
+  $('shannonStat').textContent =
+    `mean entropy ${meanH.toFixed(2)} bits (max ${Math.log2(V)}) · ` +
+    `redundancy ${(redundancy(meanH, V) * 100).toFixed(0)}% · ` +
+    `cross-entropy ${(loss.d[0] / Math.log(2)).toFixed(2)} bits/char`;
+
+  // markov comparison
+  const p1 = markov1.probsFor(tokens), p2 = markov2.probsFor(tokens);
+  const s1 = surprisalSeries(p1, V, targets), s2 = surprisalSeries(p2, V, targets);
+  barChart($('markovChart'), [
+    { values: sup, color: '#1976d2' },
+    { values: s1, color: '#e65100' },
+    { values: s2, color: '#2e7d32' },
+  ], { labels: ['model', 'markov-1', 'markov-2'], xLabels: xl });
+  const mean = a => a.reduce((x, y) => x + y, 0) / a.length;
+  $('markovStat').textContent =
+    `mean bits/char — model ${mean(sup).toFixed(2)} · markov-1 ${mean(s1).toFixed(2)} · markov-2 ${mean(s2).toFixed(2)}`;
+
+  // fisher
+  lastFisher = fisherSeries(probs, V);
+  lineChart($('fisherChart'), [
+    { points: lastFisher.map(f => f.rPR), color: '#1976d2', label: 'r_PR' },
+    { points: lastFisher.map(f => f.erank), color: '#6a4fa3', label: 'erank' },
+    { points: lastFisher.map(f => f.trace * 10), color: '#c62828', label: 'trace ×10' },
+  ], { yMin: 0, xLabels: xl });
+  $('fisherPos').max = T - 1;
+  drawFisherSpec();
+}
+
+function drawFisherSpec() {
+  if (!lastFisher) return;
+  const i = Math.min(+$('fisherPos').value, lastFisher.length - 1);
+  const f = lastFisher[i];
+  barChart($('fisherSpec'), [{ values: f.eigenvalues.slice(0, 32), color: '#1976d2' }]);
+  $('fisherStat').textContent =
+    `position ${i}: trace ${f.trace.toFixed(4)} · λmax ${f.lambdaMax.toFixed(4)} · ` +
+    `r_PR ${f.rPR.toFixed(2)} · erank ${f.erank.toFixed(2)} of ${V}`;
+}
+
+$('probeBtn').onclick = analyze;
+$('fisherPos').oninput = drawFisherSpec;
+fitBaselines();
+// smoke-test hook: ?autorun exercises training + full analysis on load
+if (location.search.includes('autorun')) {
+  for (let i = 0; i < 3; i++) model.trainStep(corpusTokens.slice(0, 33), 0.003);
+  analyze();
+  $('genBtn').onclick();
+  document.title = 'AUTORUN_OK';
+}
+
+</script>
+</body>
+</html>
