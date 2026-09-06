@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>autograd.js — annotated walkthrough</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  body { font: 14px/1.6 system-ui, sans-serif; color: #222; margin: 0 auto;
+         max-width: 900px; padding: 18px; background: #fafbfc; }
+  h1 { font-size: 20px; margin: 0 0 2px; }
+  h2 { font-size: 15px; margin: 28px 0 6px; color: #1a237e; }
+  nav { margin: 6px 0 14px; font-size: 13px; } nav a { margin-right: 14px; }
+
+  /* code block */
+  .cb { font: 13px/1.65 ui-monospace, monospace; background: #1e1e2e; color: #cdd6f4;
+        border-radius: 8px; padding: 10px 0; overflow-x: auto; margin: 8px 0; }
+  .ln { display: inline-block; color: #6c7086; min-width: 3.2em; text-align: right;
+        padding-right: 1.2em; user-select: none; }
+  .lc { white-space: pre; }
+  .row { display: block; padding: 0 12px 0 0; }
+  .row.hl  { background: rgba(249,226,  0,.10); }   /* activation gradient / weight gradient */
+  .row.hl2 { background: rgba( 80,200,120,.10); }   /* structure */
+  .row.hl3 { background: rgba(100,160,255,.10); }   /* graph wiring */
+  .row.cm  { color: #6c7086; }                      /* comment lines */
+
+  /* annotation */
+  .note { background: #fff; border-left: 3px solid #1976d2; padding: 10px 14px;
+          border-radius: 0 6px 6px 0; margin: 4px 0 20px; font-size: 13.5px;
+          line-height: 1.65; }
+  .note b { color: #1a237e; }
+  .note .tag { display: inline-block; font: 700 11px ui-monospace,monospace;
+               background: #1976d2; color: #fff; border-radius: 3px;
+               padding: 1px 6px; margin-right: 6px; }
+  .note .tag.ag { background: #6a1b9a; }   /* activation gradient */
+  .note .tag.wg { background: #e65100; }   /* weight gradient */
+  .m  { font-family: ui-monospace,monospace; background: #f4f6f9; padding: 1px 5px;
+        border-radius: 4px; font-size: 12.5px; }
+  .math { font-family: ui-monospace,monospace; background: #f0f4ff; border: 1px solid #c5d0f0;
+          border-radius: 6px; padding: 7px 12px; font-size: 13px; margin: 8px 0; }
+  .bridge { background: #f3eeff; border: 1px solid #c9b8ee; border-radius: 8px;
+            padding: 11px 14px; margin: 6px 0 16px; font-size: 13px; line-height: 1.7; }
+  .bridge b { color: #4a148c; }
+</style>
+</head>
+<body>
+<h1>autograd.js — annotated walkthrough</h1>
+<nav>
+  <a href="backprop.html">backprop (math)</a>
+  <b>autograd (code)</b>
+</nav>
+
+<div class="bridge">
+  <b>What this file is.</b> <a href="backprop.html">backprop.html</a> derives the
+  backpropagation algorithm in math. This file shows how that math maps to the
+  ~380 lines of <code>autograd.js</code> in PicoGPT-JS — line by line.
+  <br><br>
+  The math defines two kinds of gradient that matter:
+  <ul style="margin:4px 0 4px 18px; padding:0">
+    <li><b style="color:#6a1b9a">Activation gradient δ_l = ∂Loss/∂h_l</b> — how sensitive the loss is to
+        each layer's output. Travels backward through the network (right ← left in the diagram).
+        Stored in <code>.grad</code> on intermediate tensors (h₁, h₂, …).</li>
+    <li><b style="color:#e65100">Weight gradient ∂Loss/∂W_l</b> — how much each weight should change.
+        Computed as (activation from forward pass) × (activation gradient from backward pass).
+        Stored in <code>.grad</code> on parameter tensors (Wqkv, Wout, …). Used directly by
+        the optimizer to update weights.</li>
+  </ul>
+  The two types share the same <code>.grad</code> field — what it means depends on whether
+  the tensor is an intermediate activation or a learnable parameter.
+  <br><br>
+  <b>How the graph is built.</b> There is no separate "tape" object. As the forward pass
+  runs, each operation writes two fields into its output tensor: <code>.inputs</code>
+  (which tensors fed into it) and <code>.backward</code> (a closure that can push gradients
+  back into those inputs). This list of closures <i>is</i> the tape — it is implicit in
+  the tensor graph, not a separate data structure. When <code>backward(loss)</code> is
+  called, it traverses the graph, collects all closures in reverse order, and calls them
+  one by one. Each closure performs one step of the chain rule.
+</div>
+
+<!-- ================================================================ -->
+<h2>1 · Tensor — what every value in the network carries</h2>
+
+<div class="note">
+  <span class="tag">structure</span>
+  Every scalar, vector, or matrix in PicoGPT-JS lives in a <b>Tensor</b>.
+  It holds two data arrays and two graph fields. The data arrays carry the forward
+  computation; the graph fields build the backward pass automatically.
+
+  <b>.data</b> — the forward value, a <code>Float32Array</code>. For a weight matrix W
+  this is the current weight values; for an activation h_l this is the output of layer l.
+
+  <b>.grad</b> — the gradient, a <code>Float32Array</code> of the same shape, filled during
+  the backward pass. For an intermediate tensor (h_l), <code>.grad</code> holds the
+  <b style="color:#6a1b9a">activation gradient δ_l = ∂Loss/∂h_l</b>. For a parameter
+  tensor (W_l), <code>.grad</code> holds the <b style="color:#e65100">weight gradient
+  ∂Loss/∂W_l</b>. Same field, different meaning. null until backward() reaches this tensor.
+
+  <b>.inputs</b> — the list of tensors this one was computed from. This is the backward
+  edge of the computation graph: "to push gradient into me, push through these."
+
+  <b>.backward</b> — a closure registered when this tensor is created by an operation.
+  It reads <code>this.grad</code> (already filled by the node closer to the loss) and
+  accumulates the correct gradient into each tensor in <code>.inputs</code>. Each closure
+  implements one application of the chain rule (equations 2–3 in <a href="backprop.html">backprop.html</a>).
+
+  <b>ensureGrad()</b> lazily allocates the gradient array on first use. Tensors that
+  are never differentiated (e.g. targets, masks) stay null and waste no memory.
+</div>
+<div class="cb">
+  <span class="row hl2"><span class="ln">10</span><span class="lc">export class Tensor {</span></span>
+  <span class="row hl2"><span class="ln">11</span><span class="lc">  constructor(data, rows, cols, requiresGrad = false) {</span></span>
+  <span class="row hl "><span class="ln">12</span><span class="lc">    this.data = data;           // Float32Array — forward values (activations or weights)</span></span>
+  <span class="row"    ><span class="ln">13</span><span class="lc">    this.rows = rows;</span></span>
+  <span class="row"    ><span class="ln">14</span><span class="lc">    this.cols = cols;</span></span>
+  <span class="row"    ><span class="ln">15</span><span class="lc">    this.requiresGrad = requiresGrad;</span></span>
+  <span class="row hl "><span class="ln">16</span><span class="lc">    this.grad = null;           // Float32Array — activation gradient δ or weight gradient ∂L/∂W</span></span>
+  <span class="row hl3"><span class="ln">17</span><span class="lc">    this.inputs = [];           // tensors this was computed from — graph edges for backward</span></span>
+  <span class="row hl3"><span class="ln">18</span><span class="lc">    this.backward = null;       // closure: reads this.grad, accumulates into inputs' .grad</span></span>
+  <span class="row"    ><span class="ln">19</span><span class="lc">  }</span></span>
+  <span class="row"    ><span class="ln">21</span><span class="lc">  static zeros(rows, cols, requiresGrad = false) {</span></span>
+  <span class="row"    ><span class="ln">22</span><span class="lc">    return new Tensor(new Float32Array(rows * cols), rows, cols, requiresGrad);</span></span>
+  <span class="row"    ><span class="ln">23</span><span class="lc">  }</span></span>
+  <span class="row hl "><span class="ln">26</span><span class="lc">  ensureGrad() {</span></span>
+  <span class="row hl "><span class="ln">27</span><span class="lc">    if (!this.grad) this.grad = new Float32Array(this.rows * this.cols);</span></span>
+  <span class="row hl "><span class="ln">28</span><span class="lc">    return this.grad;</span></span>
+  <span class="row hl "><span class="ln">29</span><span class="lc">  }</span></span>
+  <span class="row"    ><span class="ln">30</span><span class="lc">}</span></span>
+</div>
+
+<!-- ================================================================ -->
+<h2>2 · matmul — how one operation computes both gradient types</h2>
+
+<div class="note">
+  <span class="tag ag">activation gradient</span>
+  <span class="tag wg">weight gradient</span>
+  Every operation follows a three-part pattern:
+  (1) compute the forward output,
+  (2) record <code>.inputs</code> so the graph knows where gradient should flow,
+  (3) register <code>.backward</code> as a closure that computes and accumulates gradients.
+
+  <b>matmul is the clearest example</b> of how both gradient types arise from one closure.
+  For <code>out = matmul(a, b)</code>:
+  <ul style="margin:4px 0 4px 18px; padding:0">
+    <li>If <b>a</b> is an activation h_{l−1}: then <code>a.grad</code> after backward =
+        <b style="color:#6a1b9a">δ_{l−1} = ∂Loss/∂h_{l−1}</b> — the activation gradient
+        that will be used by the layer below to compute its own weight gradient.</li>
+    <li>If <b>b</b> is a weight matrix W_l: then <code>b.grad</code> after backward =
+        <b style="color:#e65100">∂Loss/∂W_l = h_{l−1}ᵀ · δ_l</b> — the weight gradient
+        used by the optimizer to update W_l.</li>
+  </ul>
+  The same closure produces both. The math from <a href="backprop.html">backprop.html</a>
+  equation (6) is implemented directly here.
+</div>
+
+<div class="math">
+  backprop.html eq (6):  ∂Loss/∂W[i][j] = δ_out[j] · h_in[i]
+  &nbsp;&nbsp;→ matrix form: ∂Loss/∂W = h_inᵀ · δ_out &nbsp;&nbsp;(= gradB below)
+  backprop.html eq (8):  δ_{l−1} = δ_l · J_l
+  &nbsp;&nbsp;→ for linear layer: δ_{l−1} = δ_out · Wᵀ &nbsp;&nbsp;(= gradA below)
+</div>
+
+<div class="cb">
+  <span class="row hl2"><span class="ln">60</span><span class="lc">export function matmul(a, b) {</span></span>
+  <span class="row"    ><span class="ln">61</span><span class="lc">  if (a.cols !== b.rows)</span></span>
+  <span class="row"    ><span class="ln">62</span><span class="lc">    throw new Error(`matmul shape mismatch: ${a.rows}×${a.cols} · ${b.rows}×${b.cols}`);</span></span>
+  <span class="row"    ><span class="ln">65</span><span class="lc">  const out = Tensor.zeros(a.rows, b.cols, true);</span></span>
+  <span class="row"    ><span class="ln">66</span><span class="lc">  for (let i = 0; i &lt; a.rows; i++)           // forward: compute a·b</span></span>
+  <span class="row"    ><span class="ln">67</span><span class="lc">    for (let k = 0; k &lt; a.cols; k++) {</span></span>
+  <span class="row"    ><span class="ln">68</span><span class="lc">      const aVal = a.data[i * a.cols + k];</span></span>
+  <span class="row"    ><span class="ln">70</span><span class="lc">      for (let j = 0; j &lt; b.cols; j++)</span></span>
+  <span class="row"    ><span class="ln">71</span><span class="lc">        out.data[i * b.cols + j] += aVal * b.data[k * b.cols + j];</span></span>
+  <span class="row hl3"><span class="ln">74</span><span class="lc">  out.inputs = [a, b];                       // graph edge: out ← a, b</span></span>
+  <span class="row hl3"><span class="ln">75</span><span class="lc">  out.backward = () => {                     // closure stored now, called during backward()</span></span>
+  <span class="row"    ><span class="ln">76</span><span class="lc">    const outGrad = out.grad;                // out.grad = δ_out = ∂Loss/∂out (already filled)</span></span>
+  <span class="row hl "><span class="ln">79</span><span class="lc">      const gradA = a.ensureGrad();          // a.grad will hold δ_{l−1} = ∂Loss/∂a (activation gradient)</span></span>
+  <span class="row hl "><span class="ln">85</span><span class="lc">            gradA[i * a.cols + k] += outGradVal * b.data[k * b.cols + j];</span></span>
+  <span class="row cm" ><span class="ln">  </span><span class="lc">            // δ_{l−1} = δ_out · Wᵀ  — activation gradient flowing to the layer below</span></span>
+  <span class="row hl "><span class="ln">90</span><span class="lc">      const gradB = b.ensureGrad();          // b.grad will hold ∂Loss/∂W (weight gradient)</span></span>
+  <span class="row hl "><span class="ln">96</span><span class="lc">            gradB[k * b.cols + j] += aVal * outGrad[i * b.cols + j];</span></span>
+  <span class="row cm" ><span class="ln">  </span><span class="lc">            // ∂Loss/∂W = h_inᵀ · δ_out  — weight gradient used by optimizer to update W</span></span>
+  <span class="row cm" ><span class="ln">  </span><span class="lc">            // += not = : gradients from multiple uses of this tensor accumulate (eq 3, sum of routes)</span></span>
+  <span class="row hl3"><span class="ln">99</span><span class="lc">  };                                         // end of closure</span></span>
+  <span class="row"    ><span class="ln">100</span><span class="lc">  return out;</span></span>
+  <span class="row"    ><span class="ln">101</span><span class="lc">}</span></span>
+</div>
+
+<!-- ================================================================ -->
+<h2>3 · crossEntropy — the loss and the gradient at the output layer</h2>
+
+<div class="note">
+  <span class="tag">surprisal</span>
+  The forward pass of <b>crossEntropy</b> does three things: convert logits to
+  probabilities via softmax, compute surprisal (−log q_θ) for each token position, then
+  average. The average is the cross-entropy H(p, q_θ) — a single scalar, the loss.
+
+  <b>Why softmax first.</b> The logit for token j is the model's raw score; it can be any
+  real number. Softmax converts all V logits into a proper probability distribution
+  (positive, sums to 1). The subtracted <code>maxLogit</code> is a numerical stability
+  trick — it does not change the output.
+</div>
+<div class="cb">
+  <span class="row hl2"><span class="ln">315</span><span class="lc">export function crossEntropy(logits, targets) {</span></span>
+  <span class="row"    ><span class="ln">316</span><span class="lc">  const numPositions = logits.rows;  // T — one prediction per input token position</span></span>
+  <span class="row"    ><span class="ln">317</span><span class="lc">  const vocabSize    = logits.cols;  // V — one logit per vocabulary entry</span></span>
+  <span class="row"    ><span class="ln">319</span><span class="lc">  const probs = new Float32Array(numPositions * vocabSize);</span></span>
+  <span class="row"    ><span class="ln">320</span><span class="lc">  let totalSurprisal = 0;</span></span>
+  <span class="row"    ><span class="ln">322</span><span class="lc">  for (let i = 0; i &lt; numPositions; i++) {   // for each token position i</span></span>
+  <span class="row"    ><span class="ln">324</span><span class="lc">    let maxLogit = -Infinity;</span></span>
+  <span class="row"    ><span class="ln">325</span><span class="lc">    for (let j = 0; j &lt; vocabSize; j++) maxLogit = Math.max(maxLogit, logits.data[i * vocabSize + j]);</span></span>
+  <span class="row"    ><span class="ln">326</span><span class="lc">    let sumExp = 0;</span></span>
+  <span class="row hl2"><span class="ln">327</span><span class="lc">    for (let j = 0; j &lt; vocabSize; j++) {</span></span>
+  <span class="row hl2"><span class="ln">328</span><span class="lc">      const e = Math.exp(logits.data[i * vocabSize + j] - maxLogit);  // subtract max for stability</span></span>
+  <span class="row hl2"><span class="ln">329</span><span class="lc">      probs[i * vocabSize + j] = e; sumExp += e;</span></span>
+  <span class="row hl2"><span class="ln">330</span><span class="lc">    }</span></span>
+  <span class="row hl2"><span class="ln">331</span><span class="lc">    for (let j = 0; j &lt; vocabSize; j++) probs[i * vocabSize + j] /= sumExp;</span></span>
+  <span class="row cm" ><span class="ln">  </span><span class="lc">    // probs[i,*] is now q_θ(·|context_i) — the model's probability distribution over tokens</span></span>
+  <span class="row hl "><span class="ln">334</span><span class="lc">    totalSurprisal += -Math.log(probs[i * vocabSize + targets[i]] + 1e-12);</span></span>
+  <span class="row cm" ><span class="ln">  </span><span class="lc">    // −log q_θ(correct token at position i) = surprisal: how surprised the model was</span></span>
+  <span class="row"    ><span class="ln">335</span><span class="lc">  }</span></span>
+  <span class="row hl "><span class="ln">338</span><span class="lc">  const loss = new Tensor(new Float32Array([totalSurprisal / numPositions]), 1, 1, true);</span></span>
+  <span class="row cm" ><span class="ln">  </span><span class="lc">  // average surprisal over all T positions = H(p, q_θ) = the cross-entropy loss scalar</span></span>
+</div>
+
+<div class="note">
+  <span class="tag ag">activation gradient</span>
+  <b>The backward closure here is the starting point for all gradient flow.</b>
+
+  The loss tensor is the root of the graph. Its <code>.grad</code> is seeded to 1 in
+  <code>backward()</code> (dLoss/dLoss = 1, equation (9) seed). This closure then computes
+  the <b style="color:#6a1b9a">activation gradient at the logit layer</b>:
+  <code>logits.grad[i,j] = ∂Loss/∂logits[i,j]</code>.
+
+  The formula is <code>q_θ(j) − p(j)</code> where p is the one-hot true distribution.
+  When the model is correct (q_θ(correct)≈1), this is near zero — no gradient, no update.
+  When the model is wrong, it is large, pointing toward the correct token.
+
+  This gradient at the logit layer is δ for the output matmul. It will flow backward
+  through every matmul, producing activation gradients for each layer and weight gradients
+  for every weight matrix, via the closure in §2.
+</div>
+<div class="cb">
+  <span class="row hl3"><span class="ln">339</span><span class="lc">  loss.inputs = [logits];</span></span>
+  <span class="row hl3"><span class="ln">340</span><span class="lc">  loss.backward = () => {                    // called first by backward() — it is the seed</span></span>
+  <span class="row"    ><span class="ln">343</span><span class="lc">    const logitGrad = logits.ensureGrad();   // will hold δ at the logit layer = ∂Loss/∂logits</span></span>
+  <span class="row"    ><span class="ln">344</span><span class="lc">    const scaleByBatch = loss.grad[0] / numPositions;  // loss.grad[0] = 1 (seeded), /T for average</span></span>
+  <span class="row"    ><span class="ln">345</span><span class="lc">    for (let i = 0; i &lt; numPositions; i++)</span></span>
+  <span class="row"    ><span class="ln">346</span><span class="lc">      for (let j = 0; j &lt; vocabSize; j++)</span></span>
+  <span class="row hl "><span class="ln">347</span><span class="lc">        logitGrad[i * vocabSize + j] +=</span></span>
+  <span class="row hl "><span class="ln">348</span><span class="lc">          scaleByBatch * (probs[i * vocabSize + j] - (j === targets[i] ? 1 : 0));</span></span>
+  <span class="row cm" ><span class="ln">  </span><span class="lc">        //  q_θ(j) − p(j)  — activation gradient at the logit layer (δ for the output matmul)</span></span>
+  <span class="row cm" ><span class="ln">  </span><span class="lc">        //  zero when the model is correct; nonzero when it is wrong — this is the training signal</span></span>
+  <span class="row"    ><span class="ln">349</span><span class="lc">  };</span></span>
+  <span class="row"    ><span class="ln">350</span><span class="lc">  return { loss, probs };</span></span>
+  <span class="row"    ><span class="ln">351</span><span class="lc">}</span></span>
+</div>
+
+<!-- ================================================================ -->
+<h2>4 · backward() — propagate gradients through every layer</h2>
+
+<div class="note">
+  <span class="tag">propagation</span>
+  <b>backward()</b> is the traversal engine. It does two things:
+
+  <b>1. Topological sort.</b> Depth-first visit starting from the loss. Each tensor is
+  added to <code>topoOrder</code> only after all its inputs, so the list runs from
+  the loss's direct inputs back to the raw embeddings and weight matrices. Reversed,
+  it processes tensors from loss → inputs — i.e. the backward direction.
+
+  <b>2. Seed and walk.</b> <code>loss.ensureGrad()[0] = 1</code> seeds dLoss/dLoss = 1,
+  then the loop calls each closure in reverse order. Each closure reads the
+  <b style="color:#6a1b9a">activation gradient</b> already placed in its output tensor's
+  <code>.grad</code>, and writes two things:
+  <ul style="margin:4px 0 4px 18px; padding:0">
+    <li>into the <i>activation</i> input's <code>.grad</code>: the
+        <b style="color:#6a1b9a">activation gradient δ</b> for the layer below
+        (equation 8: δ_{l−1} = δ_l · J_l)</li>
+    <li>into the <i>weight</i> input's <code>.grad</code>: the
+        <b style="color:#e65100">weight gradient ∂Loss/∂W</b>
+        (equation 6: ∂Loss/∂W = h_inᵀ · δ_out)</li>
+  </ul>
+  By the time backward() returns, every weight matrix has its <code>.grad</code> filled
+  with <b style="color:#e65100">∂Loss/∂W_l = h_{l−1}ᵀ · (δ_L · J_L ··· J_{l+1})</b>
+  — the full product from <a href="backprop.html">backprop.html</a> equation (10).
+  The optimizer in model.js reads these and subtracts η·grad from each weight.
+</div>
+
+<div class="math">
+  backprop.html eq (10):  ∂Loss/∂W_l = h_{l−1}ᵀ · ( δ_L · J_L · J_{L−1} ··· J_{l+1} )
+  │
+  ├─ h_{l−1}ᵀ : stored in a.data during the forward pass, available in the matmul closure
+  └─ δ_L·J_L···J_{l+1} : accumulated in out.grad by the time this layer's closure runs
+</div>
+
+<div class="cb">
+  <span class="row hl2"><span class="ln">357</span><span class="lc">export function backward(loss) {</span></span>
+  <span class="row"    ><span class="ln">360</span><span class="lc">  const topoOrder = [];</span></span>
+  <span class="row"    ><span class="ln">361</span><span class="lc">  const visited = new Set();</span></span>
+  <span class="row hl3"><span class="ln">362</span><span class="lc">  function visit(node) {</span></span>
+  <span class="row"    ><span class="ln">363</span><span class="lc">    if (visited.has(node)) return;</span></span>
+  <span class="row"    ><span class="ln">364</span><span class="lc">    visited.add(node);</span></span>
+  <span class="row hl3"><span class="ln">365</span><span class="lc">    for (const input of node.inputs) visit(input);  // inputs before self</span></span>
+  <span class="row hl3"><span class="ln">366</span><span class="lc">    topoOrder.push(node);                    // self last — inputs → outputs order</span></span>
+  <span class="row"    ><span class="ln">367</span><span class="lc">  }</span></span>
+  <span class="row"    ><span class="ln">368</span><span class="lc">  visit(loss);</span></span>
+  <span class="row hl "><span class="ln">371</span><span class="lc">  loss.ensureGrad()[0] = 1;                  // seed: dLoss/dLoss = 1 (eq 9 starting point)</span></span>
+  <span class="row hl "><span class="ln">375</span><span class="lc">  for (let i = topoOrder.length - 1; i &gt;= 0; i--)  // walk loss → inputs</span></span>
+  <span class="row hl "><span class="ln">376</span><span class="lc">    if (topoOrder[i].backward) topoOrder[i].backward();  // each closure: reads .grad, fills inputs</span></span>
+  <span class="row"    ><span class="ln">377</span><span class="lc">}</span></span>
+</div>
+
+<div class="note">
+  <span class="tag wg">weight gradient</span>
+  <b>After backward() returns</b>, every parameter tensor (Wqkv, Wout, Wfc1, Wfc2,
+  gain, bias, …) has its <code>.grad</code> holding <b style="color:#e65100">∂Loss/∂W</b>.
+  This is the gradient of the cross-entropy loss with respect to that weight — the
+  signal the optimizer uses. It is nonzero because the model's distribution q_θ does
+  not yet match the data distribution p, meaning the activation gradient at the logit
+  layer (§3) is nonzero, which propagates backward through every layer (§4), giving
+  each weight a nonzero weight gradient. When q_θ = p everywhere, all weight gradients
+  become zero and training has converged.
+  <br><br>
+  The optimizer in <a href="model_annotated.html">model.js</a> then reads each
+  <code>param.grad</code> and applies the Adam update to <code>param.data</code>.
+</div>
+
+</body>
+</html>

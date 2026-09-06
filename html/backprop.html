@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>PicoGPT-JS — Backpropagation and vanishing gradients</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  body { font: 14px/1.6 system-ui, sans-serif; color: #222; margin: 0 auto;
+         max-width: 1000px; padding: 18px; background: #fafbfc; }
+  h1 { font-size: 20px; margin: 0 0 2px; }
+  h2 { font-size: 16px; margin: 0 0 8px; }
+  nav { margin: 6px 0 14px; font-size: 13px; } nav a { margin-right: 14px; }
+  section { background: #fff; border: 1px solid #d0d4da; border-radius: 10px;
+            padding: 14px 16px; margin-bottom: 14px; }
+  .purpose { background: #f0f4ff; border: 1px solid #c5d0f0; border-radius: 10px;
+             padding: 12px 16px; margin-bottom: 14px; font-size: 13.5px; line-height: 1.65; }
+  .insight { background: #fff8e8; border-left: 4px solid #f59e0b; padding: 10px 14px;
+             border-radius: 0 6px 6px 0; margin: 12px 0; font-size: 13.5px; line-height: 1.65; }
+  .insight b { color: #92400e; }
+  .m { font-family: ui-monospace, monospace; background: #f4f6f9; padding: 1px 5px;
+       border-radius: 4px; font-size: 13px; }
+  .eq { font-family: ui-monospace, monospace; background: #f4f6f9; padding: 8px 12px;
+        border-radius: 6px; margin: 8px 0; font-size: 13.5px; overflow-x: auto; }
+  .eqn { display: flex; justify-content: space-between; align-items: center; gap: 12px;
+         font-family: ui-monospace, monospace; background: #f4f6f9; padding: 7px 12px;
+         border-radius: 6px; margin: 6px 0; font-size: 13.5px; overflow-x: auto; }
+  .eqn .no { color: #1976d2; font-weight: 700; white-space: nowrap; }
+  .from { font-size: 12px; color: #667; margin: -2px 0 10px 4px; }
+  .cap { font-size: 12.5px; color: #667; margin: 2px 0 8px; }
+  .row { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin: 8px 0;
+         font-size: 13px; }
+  canvas { display: block; width: 100%; }
+  button { font: 13px system-ui; padding: 5px 14px; border-radius: 6px;
+           border: 1px solid #d0d4da; background: #f2f5f8; cursor: pointer; }
+  button.primary { background: #1976d2; border-color: #1976d2; color: #fff; }
+  table { border-collapse: collapse; font-size: 12.5px; width: 100%; }
+  th, td { padding: 4px 9px; border-bottom: 1px solid #eceff3; text-align: right;
+           font-family: ui-monospace, monospace; }
+  th { background: #f2f5f8; } td:first-child, th:first-child { text-align: left; }
+  .ref { font-size: 13px; margin: 6px 0; }
+  .ref b { font-weight: 600; }
+  mark { background: #fff3c4; padding: 0 3px; }
+  svg.diagram { display: block; width: 100%; max-width: 720px; margin: 12px auto; }
+</style>
+</head>
+<body>
+<h1>Backpropagation and vanishing gradients</h1>
+<nav>
+  <b>backprop (math)</b> &nbsp;·&nbsp;
+  <a href="autograd_annotated.html">autograd (code)</a>
+</nav>
+
+<div class="purpose">
+  <b>What this page covers.</b> Backpropagation is the algorithm that computes, for every
+  weight in a neural network, how much that weight should change to reduce the loss.
+  This page derives the algorithm step by step from two calculus facts, shows why
+  training stalls in deep networks without skip connections (vanishing gradients),
+  and explains a fix for it that stabilizes the gradients - called residual stream.
+</div>
+
+<!-- ── simplified diagram ─────────────────────────────────────────────────── -->
+
+<div style="font-size:13px; margin: 8px 0 4px; line-height: 1.7;">
+  <b>Notation in the diagram.</b>
+  <span style="color:#2e7d32"><b>W</b></span> = weight matrices (learned parameters, what training adjusts).
+  <span style="color:#1b5e20"><b>h</b></span> = activations (hidden states, output of each layer during the forward pass; stored but never directly updated except indirectly via weight updates).
+  <span style="color:#6a1b9a"><b>δ</b></span> = <b>activation gradients</b> = ∂Loss/∂h, how much the loss would change if that layer's output (activation h) were nudged slightly. These travel backward and are used to compute <b>weight gradients</b> ∂Loss/∂W — the actual update signal for each weight. See below the diagram for how δ is calculated.
+</div>
+
+<svg class="diagram" viewBox="0 0 700 220" font-family="ui-monospace,monospace" font-size="12">
+
+  <!-- arrowhead markers — both use same shape (orient=auto rotates to line direction) -->
+  <defs>
+    <marker id="ga" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#388e3c"/>
+    </marker>
+    <marker id="gc" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#6a1b9a"/>
+    </marker>
+  </defs>
+
+  <!-- forward pass label -->
+  <text x="10" y="38" font-weight="bold" fill="#1a237e">Forward pass (data flows left → right)</text>
+
+  <!-- nodes: x=h0, h1, h2, Loss -->
+  <rect x="40"  y="50" width="52" height="28" rx="5" fill="#e8f5e9" stroke="#388e3c"/>
+  <text x="66"  y="69" text-anchor="middle" fill="#1b5e20">x = h₀</text>
+
+  <rect x="200" y="50" width="44" height="28" rx="5" fill="#e8f5e9" stroke="#388e3c"/>
+  <text x="222" y="69" text-anchor="middle" fill="#1b5e20">h₁</text>
+
+  <rect x="370" y="50" width="44" height="28" rx="5" fill="#e8f5e9" stroke="#388e3c"/>
+  <text x="392" y="69" text-anchor="middle" fill="#1b5e20">h₂</text>
+
+  <rect x="540" y="50" width="52" height="28" rx="5" fill="#fce4ec" stroke="#c62828"/>
+  <text x="566" y="69" text-anchor="middle" fill="#b71c1c">Loss</text>
+
+  <!-- forward arrows with weight labels -->
+  <line x1="92"  y1="64" x2="196" y2="64" stroke="#388e3c" stroke-width="1.5" marker-end="url(#ga)"/>
+  <text x="144"  y="58" text-anchor="middle" fill="#2e7d32">W₁</text>
+
+  <line x1="244" y1="64" x2="366" y2="64" stroke="#388e3c" stroke-width="1.5" marker-end="url(#ga)"/>
+  <text x="305"  y="58" text-anchor="middle" fill="#2e7d32">W₂</text>
+
+  <line x1="414" y1="64" x2="536" y2="64" stroke="#388e3c" stroke-width="1.5" marker-end="url(#ga)"/>
+  <text x="475"  y="58" text-anchor="middle" fill="#2e7d32">W₃</text>
+
+  <!-- backward pass label -->
+  <text x="10" y="130" font-weight="bold" fill="#6a1b9a">Backward pass (δ flows right ← left)</text>
+
+  <!-- backward arrows — drawn right-to-left; orient=auto rotates the marker to point left -->
+  <line x1="530" y1="148" x2="418" y2="148" stroke="#6a1b9a" stroke-width="1.5" marker-end="url(#gc)"/>
+  <line x1="360" y1="148" x2="248" y2="148" stroke="#6a1b9a" stroke-width="1.5" marker-end="url(#gc)"/>
+  <line x1="190" y1="148" x2="96"  y2="148" stroke="#6a1b9a" stroke-width="1.5" marker-end="url(#gc)"/>
+
+  <!-- delta labels above backward arrows -->
+  <text x="144" y="142" text-anchor="middle" fill="#6a1b9a">δ₁</text>
+  <text x="307" y="142" text-anchor="middle" fill="#6a1b9a">δ₂</text>
+  <text x="474" y="142" text-anchor="middle" fill="#6a1b9a">δ₃</text>
+
+  <!-- seed annotation at Loss -->
+  <text x="566" y="136" text-anchor="middle" fill="#9e3a3a" font-size="10">seeded = 1</text>
+  <line x1="566" y1="138" x2="534" y2="148" stroke="#9e3a3a" stroke-width="0.8" stroke-dasharray="3,2"/>
+
+  <!-- weight update formula boxes -->
+  <rect x="95" y="172" width="200" height="36" rx="4" fill="#fff8e8" stroke="#f59e0b"/>
+  <text x="195" y="186" text-anchor="middle" fill="#78350f">∂L/∂W₁ = h₀ᵀ · δ₁</text>
+  <text x="195" y="200" text-anchor="middle" fill="#92400e" font-size="10">activation × activation gradient</text>
+
+  <rect x="320" y="172" width="200" height="36" rx="4" fill="#fff8e8" stroke="#f59e0b"/>
+  <text x="420" y="186" text-anchor="middle" fill="#78350f">∂L/∂W₂ = h₁ᵀ · δ₂</text>
+  <text x="420" y="200" text-anchor="middle" fill="#92400e" font-size="10">activation × activation gradient</text>
+
+</svg>
+
+<div style="font-size:13px; background:#f3eeff; border:1px solid #c9b8ee; border-radius:8px; padding:11px 14px; margin: 6px 0 12px;">
+  <b>How δ is calculated — and why it is called a gradient.</b><br>
+  δ_l is literally the partial derivative of the loss with respect to the activation h_l at layer l:
+  <span style="font-family:ui-monospace,monospace; font-size:13px; background:#ede8fb; padding:1px 5px; border-radius:4px;">δ_l = ∂Loss/∂h_l</span>.
+  It is a vector — one entry per activation dimension — telling you how much the loss would change if you nudged that dimension up by a tiny amount.
+  <br><br>
+  <b>Seeding.</b> At the loss node, δ_L is seeded to 1 (the loss with respect to itself is 1). This is the starting point.
+  <br>
+  <b>Propagating backward.</b> At each layer, δ is multiplied by that layer's Jacobian (the matrix of all partial derivatives of the layer's output with respect to its input). This gives the δ for the layer below. The chain rule guarantees this is the correct gradient. In PicoGPT's <span style="font-family:ui-monospace,monospace; font-size:12px">autograd.js</span>, each operation stores a <code>backward()</code> closure that performs exactly this multiplication and accumulates into the input's gradient.
+  <br><br>
+  <b>Why you care.</b> The <b>weight gradient</b> ∂Loss/∂W at any layer is the outer product of the activation that entered that layer and the δ that arrives from above (equation 6 below). If δ shrinks to near zero as it travels backward through many layers — the vanishing gradient problem — every <b>weight gradient</b> at those early layers also becomes near zero. The weights stop updating. The layer stops learning. The activations at that layer can be arbitrarily large and it makes no difference.
+</div>
+
+<div class="insight">
+  <b>The central dependency.</b> Every <b>weight gradient</b> ∂Loss/∂W at a layer = (activation stored during the forward pass) × (<b>activation gradient</b> δ arriving from the loss). If δ vanishes before reaching a layer, every weight in that layer receives a near-zero update and stops learning, regardless of activation magnitude.
+  <b>Everything depends on δ arriving with useful magnitude.</b>
+</div>
+
+<!-- ================================================================ -->
+<section>
+  <h2>1 · What backpropagation computes — parameter gradients and activation gradients</h2>
+  <p>Training updates weights: for every weight W we need <span class="m">∂L/∂W</span>,
+  then <span class="m">W ← W − η·∂L/∂W</span>. The input x is fixed; we never update it.
+  The derivation below shows, step by step, why <b>activation gradients</b> (the δ values)
+  control every weight gradient. Two calculus facts are all that is needed: the chain
+  rule and "derivative of a sum = sum of derivatives".</p>
+
+  <p><b>Setup.</b> x is one training sequence — a batch of T token positions processed together.
+  Each position's embedding is a vector in ℝ^d_model, so x has shape T × d_model. The loss
+  is averaged over all T positions. h_l is the activation (hidden state) coming out of layer l;
+  in a transformer, this is the residual stream at that depth. W_l are the weight matrices of
+  layer l. f_l is the computation layer l performs (attention + FFN in a transformer block):</p>
+  <div class="eqn"><span>h₀ = x,&nbsp;&nbsp; h_l = f_l(h_{l−1}, W_l) for l = 1…L,&nbsp;&nbsp; Loss = loss(h_L)</span><span class="no">(1)</span></div>
+
+  <p><b>Two calculus facts.</b> In (2) and (3) below, u and v stand for any two intermediate
+  quantities in the computation — for example, u could be a weight entry W[i][j] and v
+  could be an activation vector h_l. The chain rule says: to find how a change in u affects
+  the loss, multiply how u affects v by how v affects the loss.</p>
+  <p>One-variable chain rule, and its several-variable form — if u affects the loss through
+  multiple intermediate quantities v[j], each route contributes one term and the routes add:</p>
+  <div class="eqn"><span>y = g(u), u = k(v)  ⟹  dy/dv = (dy/du)·(du/dv)</span><span class="no">(2)</span></div>
+  <div class="eqn"><span>∂Loss/∂u = Σ_j (∂Loss/∂v[j]) · (∂v[j]/∂u)   — one term per route u→v[j]→Loss</span><span class="no">(3)</span></div>
+  <div class="from">from (2): apply it along each route, then add routes (derivative of a sum).</div>
+
+  <p><b>The messenger δ.</b> Define, for every layer boundary, the row vector of partials
+  of the loss with respect to that activation:</p>
+  <div class="eqn"><span>δ_l := ∂Loss/∂h_l,&nbsp;&nbsp; i.e. δ_l[j] = ∂Loss/∂h_l[j]</span><span class="no">(4)</span></div>
+  <p>δ_l answers: "how much does the loss change if I nudge h_l[j] slightly?" It is not
+  used to update h_l — activations are never updated. It is the information that travels
+  backward so that <b>weight gradients</b> can be computed at each layer. The term
+  "<b>activation gradient</b>" means: gradient of the loss with respect to an activation,
+  not gradient of the activation itself.</p>
+
+  <p><b>What one matmul contributes to one weight.</b> Take a linear step
+  <span class="m">h_out = h_in·W</span>, written per entry so the partial is a one-liner:</p>
+  <div class="eqn"><span>h_out[j] = Σ_i h_in[i]·W[i][j]  ⟹  ∂h_out[j]/∂W[i][j] = h_in[i],&nbsp; ∂h_out[j′]/∂W[i][j] = 0 for j′≠j</span><span class="no">(5)</span></div>
+  <div class="from">differentiate the sum term by term; W[i][j] appears in exactly one output entry.</div>
+
+  <p><b>The weight gradient formula.</b> W[i][j] reaches the loss only through h_out[j]
+  (one route), so (3) has a single term:</p>
+  <div class="eqn"><span><mark>∂Loss/∂W[i][j] = δ_out[j] · h_in[i]</mark>&nbsp;&nbsp;— in matrix form ∂Loss/∂W = h_inᵀ·δ_out</span><span class="no">(6)</span></div>
+  <div class="from">from (3) with one route, (4) naming ∂Loss/∂h_out[j], and (5) for the local partial.</div>
+  <p>Every <b>weight gradient</b> is a product of two factors: the activation h_in stored
+  during the forward pass, and the <b>activation gradient</b> δ_out arriving from the loss.
+  The first factor is local and always available. The second factor is what depth puts at risk.</p>
+
+  <p><b>Propagating the messenger.</b> Collect all partials of one step into its Jacobian:</p>
+  <div class="eqn"><span>J_l[j][i] := ∂h_l[j]/∂h_{l−1}[i]</span><span class="no">(7)</span></div>
+  <p>h_{l−1}[i] reaches the loss through all entries of h_l — (3) with routes
+  h_{l−1}[i] → h_l[j] → Loss:</p>
+  <div class="eqn"><span>δ_{l−1}[i] = Σ_j δ_l[j]·J_l[j][i]&nbsp;&nbsp;— in matrix form δ_{l−1} = δ_l·J_l</span><span class="no">(8)</span></div>
+  <div class="from">from (3) with routes through h_l, (4) for δ_l, (7) for the partials.</div>
+  <div class="eqn"><span>apply (8) repeatedly:&nbsp; δ_l = δ_L · J_L · J_{L−1} ··· J_{l+1}</span><span class="no">(9)</span></div>
+
+  <p><b>Combining (6) and (9) — the key result:</b></p>
+  <div class="eqn"><span><mark>∂Loss/∂W_l = h_{l−1}ᵀ · ( δ_L · J_L ··· J_{l+1} )</mark></span><span class="no">(10)</span></div>
+  <div class="from">from (6) with δ_out given by (9).</div>
+  <p>We never use ∂Loss/∂x to update anything — but by (10) the Jacobian product is a
+  shared factor in every weight gradient at layer l. If each Jacobian shrinks vectors
+  by at most a factor s (its largest singular value; this is |slope| in the 1-dim case):</p>
+  <div class="eqn"><span>‖δ_l‖ ≤ ‖δ_L‖ · s^{L−l}&nbsp;&nbsp;⟹ by (10), ‖∂Loss/∂W_l‖ ≤ ‖h_{l−1}‖·‖δ_L‖·s^{L−l}</span><span class="no">(11)</span></div>
+  <div class="from">from (9), bounding each factor; then (10). s&lt;1 ⟹ geometric decay with depth — Bengio 1994's vanishing-gradient result.</div>
+
+  <p><b>With the residual stream.</b> A pre-norm block writes <i>into</i> the stream
+  instead of replacing it:</p>
+  <div class="eqn"><span>h_l = h_{l−1} + F_l(h_{l−1})&nbsp;&nbsp;⟹&nbsp; J_l = I + F_l′</span><span class="no">(12)</span></div>
+  <div class="from">differentiate (12) term by term using (7): ∂h_{l−1}[j]/∂h_{l−1}[i] gives the identity matrix I, plus the branch Jacobian F′.</div>
+  <div class="eqn"><span>δ_l = δ_L·(I+F_L′)···(I+F_{l+1}′) = δ_L·( I + Σ_k F_k′ + cross terms )&nbsp;&nbsp;— <mark>the term δ_L·I contains no weights</mark></span><span class="no">(13)</span></div>
+  <div class="from">substitute (12) into (9); multiply out — one term per subset of blocks (§3). This is He et al. 2016, eq. (5).</div>
+  <div class="eqn"><span>∂Loss/∂W_l = h_{l−1}ᵀ · δ_L·( I + … )&nbsp;&nbsp;— weight gradients inherit the unkillable identity term</span><span class="no">(14)</span></div>
+  <div class="from">from (10) with (13). Contrast with (11): no s^{L−l} factor multiplies the leading term, so deep-layer weights keep learning.</div>
+</section>
+
+<section>
+  <h2>2 · Vanishing gradient: what happens without the residual connection</h2>
+
+  <p>This demo shows what happens when gradient signal travels backward through a network
+  with no residual connections, compared to one that has them. From equation (9),
+  the gradient at each layer is the gradient from the layer above multiplied by that
+  layer's local slope. Without a residual connection, that multiplication happens at
+  every layer. If the slope is less than 1, the gradient shrinks at every step — a
+  geometric decay that leaves early layers with almost no signal. At slope 0.5 and
+  12 layers, the first layer receives 0.5¹² ≈ 1/4096 of the loss gradient, and every
+  weight update in that layer is scaled by that same factor.</p>
+
+  <p><b>Why normalizing the gradient does not fix this.</b>
+  A natural response is to keep only the gradient's direction and discard its magnitude,
+  similar to what LayerNorm does for activations in the forward pass. This does not work
+  for two reasons. First, the gradient's magnitude carries information: a near-zero
+  gradient means "this weight barely affects the loss right now — leave it alone."
+  Normalizing it to unit length causes a large, unwarranted update. Second, normalizing
+  at one layer does not help layers further down. The attenuated signal still passes
+  through every remaining Jacobian before reaching those layers, shrinking at each one.
+  You would have to normalize after every single layer, and each normalization discards
+  the information that earlier layers need about how much to change.</p>
+
+  <p>The residual connection does something different: it adds 1 to every Jacobian
+  (equation 12). The backward pass then includes one path through which the loss signal
+  travels unchanged, skipping every layer's weights (the identity path). This path
+  cannot vanish no matter how small the weights become — there are no weights in it.</p>
+
+  <p><b>Drag the slope slider</b> to see gradient magnitude change across layers (top
+  diagram) and how gradient mass shifts across path lengths (bottom diagram). Both
+  diagrams respond to the same slider. <b>Gradient mass</b> is the share of the total
+  gradient signal flowing through paths of a given length — where length counts how many
+  layer branches the signal passes through rather than skipping.</p>
+
+  <div class="row">
+    layers L <input type="range" id="Lslider" min="4" max="24" step="1" value="12">
+    <span class="m" id="Lval">12</span>
+    &nbsp; local slope a <input type="range" id="aslider" min="-0.9" max="1.2" step="0.05" value="0.5">
+    <span class="m" id="aval">0.50</span>
+</div>
+
+  <canvas id="chain" style="height:290px"></canvas>
+  <div class="eq" id="chainEq"></div>
+  <p class="cap">Red row: plain network. Each box multiplies the gradient by slope a.
+  Green row: residual network. Each box multiplies by 1+a. The colored bar below each
+  box is the gradient magnitude at that point, on a log scale — taller bars mean more
+  signal. The dashed line marks gradient = 1. By equation (10), every weight gradient
+  at a given depth carries the same factor as the messenger bar shown there.</p>
+
+  <canvas id="paths" style="height:170px; margin-top:14px"></canvas>
+  <div class="cap" id="pathsCap"></div>
+  <p class="cap">The bar at k=0 (leftmost) is the pure identity path — the gradient
+  arrives unchanged, bypassing all layer weights. With slope less than 1, most gradient
+  mass concentrates at short path lengths. Veit et al. 2016 measured this in a 110-layer
+  ResNet: effective paths are only 10–34 layers deep, even in a 110-layer network.</p>
+</section>
+
+<section>
+  <h2>3 · The path expansion — why +1 before the product works</h2>
+  <p>Multiply out the residual chain's backward factor (algebra, no calculus):</p>
+  <div class="eq">(1+a₁)(1+a₂)···(1+aₙ) = 1 + Σaᵢ + Σaᵢaⱼ + ··· + a₁a₂···aₙ
+      — one term per <b>subset</b> of blocks = one term per <b>path</b> (2ⁿ paths)</div>
+  <p>The leading <span class="m">1</span> is the all-skip path: it delivers δ_L to the
+  bottom unchanged. This is equation (5) of He et al. 2016
+  [<a href="https://arxiv.org/abs/1603.05027">1603.05027</a>], quoted verbatim in §4:
+  the gradient splits into <span class="m">∂E/∂x_L · (1 + ∂/∂x_l ΣF)</span> —
+  our equation (13) — and therefore
+  <i>"the gradient of a layer does not vanish even when the weights are arbitrarily small."</i>
+  In a plain chain, making weights small kills every path; in the residual chain the
+  identity path contains no weights, so no weight can kill it.</p>
+</section>
+
+<section>
+  <h2>4 · Sources</h2>
+  <div class="ref"><b>Hochreiter 1991; Bengio, Simard &amp; Frasconi 1994</b> — <i>Learning
+  long-term dependencies with gradient descent is difficult</i> (IEEE Trans. Neural Networks).
+  First precise statement of the problem: backpropagated error is a product of Jacobians, and
+  with contractive factors it decays exponentially in depth/time.</div>
+  <div class="ref"><b>He, Zhang, Ren, Sun 2015</b> — <i>Deep Residual Learning for Image
+  Recognition</i> [<a href="https://arxiv.org/abs/1512.03385">1512.03385</a>]. Introduced the
+  residual block to fix the <i>degradation problem</i>: deeper plain nets had higher
+  <i>training</i> error — an optimization failure, not overfitting.</div>
+  <div class="ref"><b>He, Zhang, Ren, Sun 2016</b> — <i>Identity Mappings in Deep Residual
+  Networks</i> [<a href="https://arxiv.org/abs/1603.05027">1603.05027</a>]. The math this page
+  animates. Eq. (4): <span class="m">x_L = x_l + Σ_{i=l}^{L−1} F(x_i, W_i)</span> — any deep
+  feature is a shallow feature plus a sum of residual writes (our "bus" panel). Eq. (5):
+  <span class="m">∂E/∂x_l = ∂E/∂x_L · (1 + ∂/∂x_l Σ_{i=l}^{L−1} F(x_i, W_i))</span> — the
+  additive gradient decomposition, with the conclusion:
+  <i>"the gradient of a layer does not vanish even when the weights are arbitrarily small."</i></div>
+  <div class="ref"><b>Veit, Wilber, Belongie 2016</b> — <i>Residual Networks Behave Like
+  Ensembles of Relatively Shallow Networks</i>
+  [<a href="https://arxiv.org/abs/1605.06431">1605.06431</a>]. Unrolls the 2ⁿ-path expansion
+  (§3) and measures where gradient flows: in a 110-layer ResNet, most gradient comes
+  from paths only 10–34 layers deep; deleting single blocks barely hurts (ensemble behavior).</div>
+  <div class="ref"><b>Balduzzi et al. 2017</b> — <i>The Shattered Gradients Problem: If resnets
+  are the answer, then what is the question?</i>
+  [<a href="https://arxiv.org/abs/1702.08591">1702.08591</a>]. In plain deep nets, gradients wrt
+  the input decorrelate like white noise (correlations decay ~2^−L); with skips the decay is
+  sublinear — gradients stay structured and carry usable learning signal.</div>
+  <div class="ref"><b>Elhage et al. 2021</b> — <i>A Mathematical Framework for Transformer
+  Circuits</i> [<a href="https://transformer-circuits.pub/2021/framework/index.html">
+  transformer-circuits.pub</a>]. The residual-stream-as-communication-bus framing used across
+  these pages: blocks read from and write to a shared linear stream; the stream itself is
+  untouched. Pre-norm transformers like PicoGPT are He-2016-style identity mappings.</div>
+</section>
+
+<script>
+// barChart inlined from src/viz.js so this file runs standalone over file://
+function barChart(canvas, groups, opts = {}) {
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.clientWidth || canvas.width, h = canvas.clientHeight || canvas.height;
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, w, h);
+  ctx.font = '11px system-ui, sans-serif';
+
+  const padL = 34, padB = 16, padT = 12, padR = 6;
+  const pw = w - padL - padR, ph = h - padT - padB;
+  const n = Math.max(...groups.map(g => g.values.length));
+  let vmax = opts.yMax ?? 0;
+  if (!opts.yMax) for (const g of groups) for (const v of g.values) vmax = Math.max(vmax, v);
+  if (vmax <= 0) vmax = 1;
+  const slot = pw / n, bw = slot / (groups.length + 0.5);
+
+  ctx.fillStyle = '#666'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  for (let k = 0; k <= 4; k++)
+    ctx.fillText((vmax - (k / 4) * vmax).toPrecision(3), padL - 4, padT + (k / 4) * ph);
+
+  groups.forEach((g, gi) => {
+    ctx.fillStyle = g.color || '#1976d2';
+    g.values.forEach((v, i) => {
+      const bh = (v / vmax) * ph;
+      ctx.fillRect(padL + i * slot + gi * bw + bw * 0.25, padT + ph - bh, bw * 0.9, bh);
+    });
+  });
+  if (opts.labels) {
+    let lx = padL + 4;
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    groups.forEach((g, gi) => {
+      ctx.fillStyle = g.color || '#1976d2';
+      ctx.fillText(opts.labels[gi], lx, 1);
+      lx += ctx.measureText(opts.labels[gi]).width + 14;
+    });
+  }
+  if (opts.xLabels) {
+    ctx.fillStyle = '#666'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    const step = Math.ceil(n / Math.max(1, Math.floor(pw / 18)));
+    opts.xLabels.forEach((s, i) => { if (i % step === 0) ctx.fillText(s, padL + (i + 0.5) * slot, h - 2); });
+  }
+}
+
+const $ = id => document.getElementById(id);
+
+// ============ §2 scalar chain animation ====================================
+const chainCv = $('chain');
+let pulseT = 0, lastMs = 0;
+
+function chainState() {
+  const L = +$('Lslider').value, a = +$('aslider').value;
+  const plain = [1], res = [1];
+  for (let i = 0; i < L; i++) {
+    plain.push(plain[i] * a);
+    res.push(res[i] * (1 + a));
+  }
+  return { L, a, plain, res };
+}
+
+function drawChain(ms) {
+  const dpr = window.devicePixelRatio || 1;
+  const Wc = chainCv.clientWidth, Hc = 290;
+  chainCv.width = Wc * dpr; chainCv.height = Hc * dpr;
+  const ctx = chainCv.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, Wc, Hc);
+  const { L, a, plain, res } = chainState();
+  $('Lval').textContent = L;
+  $('aval').textContent = a.toFixed(2);
+
+  pulseT += ((ms - lastMs) / 1600) * 0.2;   // fixed slow speed
+  lastMs = ms;
+  const prog = pulseT % 1;
+
+  const pad = 46, bw = Math.min(46, (Wc - 2 * pad) / L - 8);
+  const xOf = i => Wc - pad - (i / L) * (Wc - 2 * pad);
+  const rows = [
+    { y: 66,  deltas: plain, label: `plain   x←f(x)      slope a=${a.toFixed(2)}`,       color: '#c62828' },
+    { y: 186, deltas: res,   label: `residual x←x+f(x)   slope 1+a=${(1+a).toFixed(2)}`, color: '#2e7d32' },
+  ];
+  ctx.textBaseline = 'middle';
+  for (const row of rows) {
+    ctx.fillStyle = '#444'; ctx.font = 'bold 11px ui-monospace'; ctx.textAlign = 'left';
+    ctx.fillText(row.label, 8, row.y - 44);
+    ctx.strokeStyle = '#999';
+    ctx.beginPath(); ctx.moveTo(xOf(L), row.y); ctx.lineTo(xOf(0), row.y); ctx.stroke();
+    for (let i = 1; i <= L; i++) {
+      const x = xOf(i - 0.5);
+      ctx.fillStyle = '#f2f5f8'; ctx.strokeStyle = '#8a8f98';
+      ctx.beginPath(); ctx.roundRect(x - bw/2, row.y - 14, bw, 28, 5); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#556'; ctx.font = '9px ui-monospace'; ctx.textAlign = 'center';
+      ctx.fillText(row === rows[0] ? '·a' : '·(1+a)', x, row.y);
+    }
+    ctx.fillStyle = '#222'; ctx.font = '10px ui-monospace'; ctx.textAlign = 'center';
+    ctx.fillText('loss δ=1', xOf(0), row.y - 24);
+    ctx.fillText('input', xOf(L), row.y - 24);
+    for (let i = 0; i <= L; i++) {
+      const v = Math.abs(row.deltas[i]);
+      const lg = Math.max(-6, Math.min(4, Math.log10(v + 1e-12)));
+      const h = ((lg + 6) / 10) * 34;
+      ctx.fillStyle = row.color;
+      ctx.globalAlpha = 0.75;
+      ctx.fillRect(xOf(i) - 3, row.y + 34 - h, 6, h);
+      ctx.globalAlpha = 1;
+    }
+    ctx.strokeStyle = '#ddd';
+    ctx.beginPath();
+    ctx.moveTo(xOf(L) - 8, row.y + 34 - (6/10)*34);
+    ctx.lineTo(xOf(0) + 8, row.y + 34 - (6/10)*34);
+    ctx.stroke();
+    ctx.fillStyle = '#999'; ctx.font = '8.5px ui-monospace'; ctx.textAlign = 'left';
+    ctx.fillText('|δ|=1', xOf(0) + 10, row.y + 34 - (6/10)*34);
+    const fi = prog * L;
+    const v = Math.abs(row.deltas[Math.min(Math.floor(fi), L)]);
+    const r = 3 + Math.max(0, (Math.log10(v + 1e-12) + 6) / 10) * 9;
+    ctx.fillStyle = row.color;
+    ctx.beginPath(); ctx.arc(xOf(fi), row.y, r, 0, 2*Math.PI); ctx.fill();
+  }
+  const dp = plain[L], dr = res[L];
+  $('chainEq').textContent =
+    `plain:    δ_input = a^${L} = ${(+$('aslider').value).toFixed(2)}^${L} = ${dp.toExponential(2)}\n` +
+    `residual: δ_input = (1+a)^${L} = ${(1 + +$('aslider').value).toFixed(2)}^${L} = ${dr.toExponential(2)}` +
+    `    — every weight gradient at that depth carries this factor, by eq (10)`;
+  drawPaths();
+  requestAnimationFrame(drawChain);
+}
+
+// ============ §2 path-length histogram =====================================
+function drawPaths() {
+  const { L, a } = chainState();
+  const absA = Math.abs(a);
+  const mass = [];
+  let C = 1;
+  for (let k = 0; k <= L; k++) {
+    mass.push(C * Math.pow(absA, k));
+    C = C * (L - k) / (k + 1);
+  }
+  const tot = mass.reduce((x, y) => x + y, 0);
+  barChart($('paths'), [{ values: mass.map(m => m / tot), color: '#6a4fa3' }],
+    { xLabels: mass.map((_, k) => String(k)) });
+  const mean = mass.reduce((s, m, k) => s + k * m, 0) / tot;
+  $('pathsCap').textContent =
+    `Gradient mass by path length k — how many layer branches the signal passes through ` +
+    `(${L}-block chain, slope |a|=${absA.toFixed(2)}). ` +
+    `k=0 is the identity path: no layers traversed, gradient arrives unchanged. ` +
+    `Mean path length ${mean.toFixed(1)} of ${L} possible.`;
+}
+
+requestAnimationFrame(ms => { lastMs = ms; requestAnimationFrame(drawChain); });
+if (location.search.includes('autorun')) document.title = 'AUTORUN_OK';
+</script>
+</body>
+</html>
