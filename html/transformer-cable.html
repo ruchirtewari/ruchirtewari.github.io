@@ -61,8 +61,11 @@
 </head>
 <body>
 <header>
-<h1>Illustration of a transformer head as a cable during a forward pass</h1>
-  <p>Picture an LLM as one thick cable of d_model wires running through the full length of the model, one such cable per token. At each attention head the cable is unbundled into individual subcables (colored in different colors below). The number of subcables is the same as the number of heads (num_heads). Each of these heads or subcables carries d_head wires inside. Each of these wires carries a single dimension or coordinate of the embedding vector. So the embedding vector has d_model dimensions and occupies the full cable.</p><p><br></p><p>One token = One vector = One embedding = One fat cable = d_head subcables = d_model wires or dimensions/token.</p><p><br></p><p>Each of the dimensions (wires) is typically FP16 or 16 bits or 2 bytes. GPT-2 small had an embedding size of d_model=768 dimensions, and 12 heads for 64 dimensions/head.</p><p><br></p><p>The diagram illustrates transformer processing steps using a cable diagram to build intuition. </p>
+<h1>Illustration of a transformer head as a cable with multiple wires/channels,  during a forward pass </h1>
+  <br>
+  <p> Step through the diagram using the Next/Prev buttons at the bottom </p>
+  <br>
+  <p>Picture an LLM as one thick cable of d_model wires running through the full length of the model, one such cable per token. At each attention head the cable is unbundled into individual subcables (colored in different colors below). The number of subcables is the same as the number of heads (num_heads). Each of these heads or subcables carries d_head wires inside. Each of these wires carries a single dimension or coordinate of the embedding vector. So the embedding vector has d_model dimensions and occupies the full cable.</p><p><br></p><p>One token = One vector = One embedding = One fat cable = d_head subcables = d_model wires or dimensions/token.</p><p><br></p><p>Each of the dimensions (wires or channels) is typically an FP16 = 16 bits = 2 bytes of information. GPT-2 small had an embedding size of d_model=768 dimensions, and 12 heads for 64 dimensions/head.</p><p><br></p><p>The diagram illustrates transformer processing steps using a cable diagram to build intuition. </p>
 </header>
 
 <div class="controls">
@@ -168,8 +171,8 @@
     { y:[Y.attnBot, Y.woTop], label:'concat', title:'Concat: the reverse of the split',
       text:'Head outputs are laid side by side \u2014 ' + '' + 'heads \u00d7 d_head = 8 wires again, in head order. No mixing between heads has happened yet: a teal wire is still purely the teal head\u2019s output.',
       math:(T,H,dh)=>`Z = [A_1 | \u2026 | A_${H}] \u2208 \u211d^{${T}\u00d78}   (${H}\u00d7${dh} = 8, no arithmetic)` },
-    { y:[Y.woTop, Y.woBot+8], label:'W_O', title:'W_O: the splice box',
-      text:'One d_model \u00d7 d_model matrix, outside all heads. Every output wire is a weighted blend of all 8 inputs \u2014 every head\u2019s colour feeds every wire out, so wires leave in slate: head ownership is gone, dimension count unchanged. It never looks sideways at other tokens.',
+    { y:[Y.woTop, Y.woBot+8], label:'W_O', title:'W_O: ',
+      text:'One d_model \u00d7 d_model matrix, outside all heads. https://transformer-circuits.pub/2021/framework/index.html discusses the W_O step is equivalent to multiplying each head with its own output matrix, i.e. not a splice across heads for the current token. This step never looks sideways at other tokens.',
       math:(T)=>`\u0394_attn = ZW_O : (${T}\u00d78)(8\u00d78) = ${T}\u00d78` },
     { y:[Y.woBot+8, Y.ln2-9], label:'+ residual', title:'Residual add: wire-for-wire, no mixing',
       text:'The cable pinches into the (+) node where the raw bypass joins it: wire 1 adds to wire 1, wire 2 to wire 2. No matrix, no crossing \u2014 the block\u2019s output lands as a correction on top of what was already flowing.',
