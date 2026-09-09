@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Representation Hypotheses — An Atlas</title>
+<meta name="description" content="Every named representation hypothesis plotted on its dimensions of disagreement: scope, endpoint count, claim strength, and granularity." />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23171614'/%3E%3Cpath d='M6 26 L26 6' stroke='%234f98a3' stroke-width='2'/%3E%3Ccircle cx='11' cy='21' r='3' fill='%235591c7'/%3E%3Ccircle cx='21' cy='11' r='3' fill='%23fdab43'/%3E%3C/svg%3E" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+<style>
+/* ---------- tokens ---------- */
+:root, [data-theme='light'] {
+  --color-bg:#f7f6f2; --color-surface:#fbfaf7; --color-surface-2:#f1efe9;
+  --color-border:#d8d4ca; --color-grid:#e5e2d9;
+  --color-text:#26241c; --color-text-muted:#73716a; --color-text-faint:#a5a29a;
+  --color-primary:#01696f; --color-primary-highlight:#d5e2de;
+  --c-conv:#1d55b8; --c-struct:#0a7a52; --c-neuro:#b86414; --c-crit:#b02828; --c-metric:#7040b8;
+  --node-stroke:#f7f6f2;
+  --shadow-md:0 4px 14px oklch(0.2 0.01 80 / 0.09);
+  --radius-md:.5rem; --radius-lg:.75rem; --radius-full:9999px;
+  --text-xs:clamp(0.75rem,0.7rem + 0.25vw,0.875rem);
+  --text-sm:clamp(0.875rem,0.8rem + 0.35vw,1rem);
+  --text-base:clamp(1rem,0.95rem + 0.25vw,1.125rem);
+  --text-lg:clamp(1.125rem,1rem + 0.75vw,1.5rem);
+  --text-xl:clamp(1.5rem,1.2rem + 1.25vw,2.25rem);
+  --font-body:'Inter',system-ui,sans-serif;
+  --font-mono:'JetBrains Mono',ui-monospace,monospace;
+}
+[data-theme='dark'] {
+  --color-bg:#151412; --color-surface:#1c1b18; --color-surface-2:#242320;
+  --color-border:#3a3833; --color-grid:#292723;
+  --color-text:#d4d2cc; --color-text-muted:#8a8881; --color-text-faint:#5d5b55;
+  --color-primary:#4f98a3; --color-primary-highlight:#26333a;
+  --c-conv:#6b9be8; --c-struct:#4bbf8f; --c-neuro:#e89a4a; --c-crit:#e06a6a; --c-metric:#a97fe0;
+  --node-stroke:#151412;
+  --shadow-md:0 4px 14px oklch(0 0 0 / 0.35);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --color-bg:#151412; --color-surface:#1c1b18; --color-surface-2:#242320;
+    --color-border:#3a3833; --color-grid:#292723;
+    --color-text:#d4d2cc; --color-text-muted:#8a8881; --color-text-faint:#5d5b55;
+    --color-primary:#4f98a3; --color-primary-highlight:#26333a;
+    --c-conv:#6b9be8; --c-struct:#4bbf8f; --c-neuro:#e89a4a; --c-crit:#e06a6a; --c-metric:#a97fe0;
+    --node-stroke:#151412;
+    --shadow-md:0 4px 14px oklch(0 0 0 / 0.35);
+  }
+}
+/* ---------- base ---------- */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+body{min-height:100dvh;line-height:1.55;font-family:var(--font-body);font-size:var(--text-sm);color:var(--color-text);background:var(--color-bg)}
+:focus-visible{outline:2px solid var(--color-primary);outline-offset:2px;border-radius:4px}
+button{font:inherit;color:inherit;cursor:pointer;background:none;border:none}
+a,button{transition:color 160ms ease,background 160ms ease,border-color 160ms ease,opacity 160ms ease}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
+/* ---------- header ---------- */
+header{max-width:1200px;margin:0 auto;padding:clamp(1.5rem,4vw,3rem) clamp(1rem,3vw,2rem) clamp(1rem,2vw,1.5rem)}
+.brand{display:flex;align-items:center;gap:.625rem;font-family:var(--font-mono);font-size:var(--text-xs);letter-spacing:.14em;text-transform:uppercase;color:var(--color-text-muted)}
+.brand svg{color:var(--color-primary)}
+h1{font-family:var(--font-body);font-weight:600;font-size:var(--text-xl);letter-spacing:-.02em;line-height:1.1;margin-top:1.25rem;max-width:22ch}
+.sub{margin-top:.625rem;color:var(--color-text-muted);max-width:64ch;font-size:var(--text-sm)}
+/* ---------- main layout ---------- */
+main{max-width:1200px;margin:0 auto;padding:0 clamp(1rem,3vw,2rem) clamp(3rem,6vw,5rem);display:flex;flex-direction:column;gap:clamp(1.5rem,3vw,2.5rem)}
+.map-card{background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg);box-shadow:var(--shadow-md);overflow:hidden}
+.map-head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:.75rem 1.5rem;padding:1.25rem 1.5rem .75rem}
+.map-head h2{font-family:var(--font-mono);font-weight:700;font-size:var(--text-sm);letter-spacing:.02em}
+.map-head .q{color:var(--color-text-muted);font-size:var(--text-xs);margin-top:.25rem}
+/* legend */
+.legend{display:flex;flex-wrap:wrap;gap:.375rem .875rem;font-family:var(--font-mono);font-size:var(--text-xs);color:var(--color-text-muted)}
+.legend button{display:inline-flex;align-items:center;gap:.4rem;padding:.125rem .375rem;border-radius:var(--radius-md);color:inherit}
+.legend button:hover{background:var(--color-surface-2)}
+.legend button.off{opacity:.32}
+.legend .dot{width:9px;height:9px;border-radius:50%;flex:none}
+/* svg plot */
+.plot-wrap{padding:0 .5rem .25rem;overflow-x:auto}
+svg.plot{display:block;width:100%;min-width:620px;height:auto}
+.ax-label{font-family:var(--font-mono);font-size:12px;fill:var(--color-text-muted);letter-spacing:.08em;text-transform:uppercase}
+.ax-tick{font-family:var(--font-mono);font-size:11px;fill:var(--color-text-faint)}
+.grid-line{stroke:var(--color-grid);stroke-width:1}
+.axis-line{stroke:var(--color-border);stroke-width:1.5}
+.quad-note{font-family:var(--font-mono);font-size:10.5px;fill:var(--color-text-faint);letter-spacing:.05em}
+.edge{fill:none;stroke-width:1.5;opacity:.55}
+.edge-label{font-family:var(--font-mono);font-size:10px;fill:var(--color-text-faint)}
+.node{cursor:pointer}
+.node circle.body{stroke:var(--node-stroke);stroke-width:2;transition:opacity 160ms ease}
+.node text.nl{font-family:var(--font-mono);font-weight:500;font-size:12px;fill:var(--color-text);paint-order:stroke;stroke:var(--color-surface);stroke-width:3px;stroke-linejoin:round}
+.node text.ny{font-family:var(--font-mono);font-size:10px;fill:var(--color-text-faint);paint-order:stroke;stroke:var(--color-surface);stroke-width:3px}
+.node:hover circle.body{stroke:var(--color-text)}
+.node.selected circle.body{stroke:var(--color-text);stroke-width:2.5}
+.node.dimmed{opacity:.16}
+/* ---------- detail panel ---------- */
+.detail{border-top:1px solid var(--color-border);background:var(--color-surface-2);padding:1.125rem 1.5rem 1.375rem;display:none}
+.detail.open{display:block}
+.detail .d-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:.375rem .75rem}
+.detail h3{font-family:var(--font-mono);font-weight:700;font-size:var(--text-sm)}
+.detail .d-year{font-family:var(--font-mono);font-size:var(--text-xs);color:var(--color-text-faint)}
+.detail .d-fam{font-family:var(--font-mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;padding:.15rem .55rem;border-radius:var(--radius-full);color:#fff}
+[data-theme='dark'] .detail .d-fam{color:#151412}
+.detail dl{margin-top:.875rem;display:grid;gap:.625rem;max-width:76ch}
+.detail dt{font-family:var(--font-mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-text-muted)}
+.detail dd{font-size:var(--text-sm);margin-top:.1rem}
+.detail .d-links{margin-top:.875rem;display:flex;gap:1.25rem;font-family:var(--font-mono);font-size:var(--text-xs)}
+.detail .d-links a{color:var(--color-primary);text-decoration:none;border-bottom:1px solid transparent}
+.detail .d-links a:hover{border-bottom-color:var(--color-primary)}
+/* ---------- axis guide ---------- */
+.guide-grid{display:grid;grid-template-columns:1fr 1fr;gap:2rem;padding:.5rem 1.5rem 1.5rem}
+.guide-col h3{font-family:var(--font-mono);font-weight:700;font-size:var(--text-xs);letter-spacing:.06em;margin-bottom:.75rem;color:var(--color-text)}
+.guide-col dl{display:grid;gap:.75rem}
+.guide-col dt{font-family:var(--font-mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-text-muted)}
+.guide-col dd{font-size:var(--text-sm);margin-top:.15rem;color:var(--color-text)}
+@media (max-width:760px){.guide-grid{grid-template-columns:1fr;gap:1.5rem}}
+/* ---------- footer ---------- */
+footer{max-width:1200px;margin:0 auto;padding:0 clamp(1rem,3vw,2rem) 3rem;font-family:var(--font-mono);font-size:var(--text-xs);color:var(--color-text-faint);display:flex;flex-wrap:wrap;gap:.5rem 2rem;justify-content:space-between}
+footer .ax-key span{display:inline-block;margin-right:1.25rem}
+/* theme toggle */
+.theme-btn{position:absolute;top:1.25rem;right:clamp(1rem,3vw,2rem);color:var(--color-text-muted);padding:.4rem;border-radius:var(--radius-md)}
+.theme-btn:hover{background:var(--color-surface-2);color:var(--color-text)}
+@media (max-width:640px){
+  header{padding-top:3.25rem}
+  .map-head{padding:1rem 1rem .5rem}
+  .detail{padding:1rem}
+}
+</style>
+</head>
+<body>
+<button class="theme-btn" data-theme-toggle aria-label="Toggle dark mode"></button>
+
+<header>
+  <div class="brand">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-label="Atlas logo">
+      <path d="M4 20 L20 4"/><circle cx="8.5" cy="15.5" r="2.6" fill="currentColor" stroke="none"/><circle cx="15.5" cy="8.5" r="2.6" fill="none"/>
+    </svg>
+    rep-hypotheses / atlas
+  </div>
+  <h1>Representation hypotheses, plotted on their disagreements</h1>
+  <p class="sub">Eleven named claims, 2015–2026. Two maps: what they claim, and how they claim it. Select a point for the one-line claim and source. Points are positioned by judgment; the axes are the content.</p>
+</header>
+
+<main>
+  <!-- MAP 1 -->
+  <section class="map-card" id="map1">
+    <div class="map-head">
+      <div>
+        <h2>MAP 1 · SCOPE × ENDPOINTS</h2>
+        <p class="q">What do representations converge to — and how many winners are there?</p>
+      </div>
+      <div class="legend" id="legend1"></div>
+    </div>
+    <div class="plot-wrap"><svg class="plot" id="svg1" role="img" aria-label="Scatter plot of hypotheses by scope and number of representational endpoints"></svg></div>
+    <div class="detail" id="detail1"></div>
+  </section>
+
+  <!-- MAP 2 -->
+  <section class="map-card" id="map2">
+    <div class="map-head">
+      <div>
+        <h2>MAP 2 · CLAIM STRENGTH × GRANULARITY</h2>
+        <p class="q">Is it observed, exploited, or proven — and at what level of description?</p>
+      </div>
+      <div class="legend" id="legend2"></div>
+    </div>
+    <div class="plot-wrap"><svg class="plot" id="svg2" role="img" aria-label="Scatter plot of hypotheses by claim strength and granularity"></svg></div>
+    <div class="detail" id="detail2"></div>
+  </section>
+  <!-- AXIS GUIDE -->
+  <section class="map-card" id="guide">
+    <div class="map-head">
+      <div>
+        <h2>READING THE AXES</h2>
+        <p class="q">An endpoint is a representational destination at the limit of training and scale — one attractor means all good systems end up in the same representation space; plurality means several stable spaces persist.</p>
+      </div>
+    </div>
+    <div class="guide-grid">
+      <div class="guide-col">
+        <h3>Map 1 · Scope × Endpoints</h3>
+        <dl>
+          <div><dt>X — Scope of claim</dt><dd>Who the hypothesis is about. Left: inside one network (Manifold, Superposition, LRH). Middle: across trained models (Convergent, Anna Karenina, Perfect PRH). Right: all representation-learners including brains (PRH, Universality, URH).</dd></div>
+          <div><dt>Y — Number of endpoints</dt><dd>How many final representation spaces the hypothesis allows. Bottom: one global attractor (PRH, Strong PRH). Top: durable plurality (URH's ecological clusters, Superposition's per-model interference; CKA sits high because as a metric it registers dissimilarity as real structure).</dd></div>
+          <div><dt>The corners</dt><dd>PRH bottom-right: everything converges to one. URH top-right: everything is constrained but splits into clusters.</dd></div>
+        </dl>
+      </div>
+      <div class="guide-col">
+        <h3>Map 2 · Claim strength × Granularity</h3>
+        <dl>
+          <div><dt>X — Strength of claim</dt><dd>Epistemic status. Left: empirical observation (Convergent 2015, CKA). Middle: constructive demonstration (vec2vec built a translator) or falsifiable test (Universality's fMRI predictions). Right: mathematical proof (Perfect PRH) or calibrated formal claim (Aristotelian).</dd></div>
+          <div><dt>Y — Granularity</dt><dd>Level of description. Bottom: global geometry — distances, subspaces, linear maps (PRH, Manifold). Top: identifiable mechanisms — curve detectors, induction heads (Circuits; Superposition and Linear bridge partway up).</dd></div>
+          <div><dt>The tension</dt><dd>The strongest claims (right edge) are all geometric. The 2026 critiques sit between the rows, arguing geometry-level agreement may only be the linear part.</dd></div>
+        </dl>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="ax-key">
+    <span>● circle — hypothesis</span><span>◆ diamond — measurement tool</span><span>line — ancestry</span>
+  </div>
+  <div>Sources: arXiv · Distill · PMLR · TiCS · PNAS. All links in detail panels.</div>
+  <div>Made with Perplexity</div>
+</footer>
+
+<script>
+/* ================= DATA ================= */
+const FAMS = {
+  conv:   { name: 'Convergence',  color: 'var(--c-conv)'   },
+  struct: { name: 'Structure',    color: 'var(--c-struct)' },
+  neuro:  { name: 'Neuroscience', color: 'var(--c-neuro)'  },
+  crit:   { name: 'Critique',     color: 'var(--c-crit)'   },
+  metric: { name: 'Metric',       color: 'var(--c-metric)' },
+};
+
+/* x1: scope (0 single model → 1 all systems incl. brains)
+   y1: endpoints (0 one attractor → 1 structured plurality)
+   x2: claim strength (0 descriptive → 1 proven)
+   y2: granularity (0 geometry/metric → 1 mechanism/circuit)
+   nudge: label offset [dx, dy, anchor] */
+const NODES = [
+  { id:'manifold',  short:'Manifold',      name:'Manifold hypothesis', year:2016, fam:'struct',
+    x1:.08, y1:.88, x2:.18, y2:.05,
+    claim:'Natural data lies near a low-dimensional manifold.',
+    why:'Explains why high-dimensional learning is tractable. Constrains the data, not the models — says nothing about agreement between them.',
+    src:'Fefferman, Mitter & Narayanan — JAMS 2016',
+    links:[['arXiv:1310.0425','https://arxiv.org/abs/1310.0425']] },
+  { id:'convergent',short:'Convergent',    name:'Convergent learning', year:2015, fam:'conv',
+    x1:.38, y1:.55, x2:.28, y2:.32,
+    claim:'Different networks learn shared feature subspaces — shared subspaces, not shared bases.',
+    why:'First direct test of whether training converges. Answer: partially.',
+    src:'Li, Yosinski, Clune, Lipson & Hopcroft — ICLR 2016',
+    links:[['arXiv:1511.07543','https://arxiv.org/abs/1511.07543']] },
+  { id:'cka',       short:'CKA',           name:'CKA — the instrument', year:2019, fam:'metric', tool:true,
+    x1:.30, y1:.94, x2:.22, y2:.12,
+    claim:'Representations are compared by correlating pairwise stimulus-similarity matrices.',
+    why:'Not a hypothesis — the default measuring device. The 2026 critiques are about what this device actually registers.',
+    src:'Kornblith, Norouzi, Lee & Hinton — ICML 2019',
+    links:[['arXiv:1905.00414','https://arxiv.org/abs/1905.00414']] },
+  { id:'circuits',  short:'Circuits',      name:'Circuit universality', year:2020, fam:'struct',
+    x1:.42, y1:.60, x2:.38, y2:.85,
+    claim:'The same features and circuits — curve detectors, high–low frequency detectors, induction heads — recur across models and tasks.',
+    why:'Reverse-engineered vision nets kept showing identical motifs. Stronger than PRH (mechanisms, not geometry), narrower (motifs, not world models).',
+    src:'Olah et al. — Distill 2020',
+    links:[['distill.pub/2020/circuits/zoom-in','https://distill.pub/2020/circuits/zoom-in/']] },
+  { id:'ak',        short:'Anna Karenina', name:'Anna Karenina scenario', year:2021, fam:'conv',
+    x1:.46, y1:.20, x2:.55, y2:.28,
+    claim:'All well-performing nets learn similar representations; each weak net fails in its own way.',
+    why:'Model stitching — splicing the bottom of one net to the top of another — works without performance loss. Representations must be compatible.',
+    src:'Bansal, Nakkiran & Barak — NeurIPS 2021',
+    links:[['arXiv:2106.07682','https://arxiv.org/abs/2106.07682']] },
+  { id:'superpos',  short:'Superposition', name:'Superposition hypothesis', year:2022, fam:'struct',
+    x1:.10, y1:.72, x2:.40, y2:.62,
+    claim:'Networks encode more features than dimensions in almost-orthogonal directions; interference is the cost.',
+    why:'Toy models exhibited the packing directly. Complicates translation: same features, different interference patterns per model.',
+    src:'Elhage et al. — Anthropic 2022',
+    links:[['transformer-circuits.pub','https://transformer-circuits.pub/2022/toy_model/index.html']] },
+  { id:'lrh',       short:'LRH',           name:'Linear Representation Hypothesis', year:2023, fam:'struct',
+    x1:.12, y1:.45, x2:.55, y2:.50,
+    claim:'High-level concepts are linear directions in representation space, unified by a causal inner product.',
+    why:'Formalizes word2vec arithmetic, probes, and steering vectors. A claim about form within one model — until 2026.',
+    src:'Park, Choe & Veitch — ICML 2024',
+    links:[['arXiv:2311.03658','https://arxiv.org/abs/2311.03658']] },
+  { id:'prh',       short:'PRH',           name:'Platonic Representation Hypothesis', year:2024, fam:'conv',
+    x1:.80, y1:.14, x2:.45, y2:.15,
+    claim:'Models across objectives, data, and modalities converge toward a shared statistical model of reality; alignment grows with scale.',
+    why:'Alignment metrics (CKA, mutual nearest neighbors) trend upward with model competence across vision and language. A claim about the limit, not current equality.',
+    src:'Huh, Cheung, Wang & Isola — ICML 2024',
+    links:[['arXiv:2405.07987','https://arxiv.org/abs/2405.07987'],['project page','https://phillipi.github.io/prh/']] },
+  { id:'univ',      short:'Universality',  name:'Universality vs individuality', year:2024, fam:'neuro',
+    x1:.88, y1:.32, x2:.62, y2:.38,
+    claim:'Stimuli on which models agree are exactly the stimuli whose brain responses every model predicts.',
+    why:'Made PRH falsifiable: select stimuli by inter-model agreement, test against fMRI. Universality held in language and vision.',
+    src:'Hosseini et al. — bioRxiv 2024',
+    links:[['bioRxiv','https://www.biorxiv.org/content/10.1101/2024.12.26.629294v1'],['PMC','https://pmc.ncbi.nlm.nih.gov/articles/PMC11703180/']] },
+  { id:'sprh',      short:'Strong PRH',    name:'Strong PRH (vec2vec)', year:2025, fam:'conv',
+    x1:.66, y1:.10, x2:.76, y2:.22,
+    claim:'Convergence is strong enough to translate between embedding spaces with zero paired data.',
+    why:'vec2vec built the translator (adversarial + cycle-consistency). Upgrades PRH from correlational to constructive. Side effect: embeddings are invertible — vector databases leak.',
+    src:'Jha, Zhang, Shmatikov & Morris — NeurIPS 2025',
+    links:[['arXiv:2505.12540','https://arxiv.org/abs/2505.12540'],['code','https://github.com/rjha18/vec2vec']] },
+  { id:'pprh',      short:'Perfect PRH',   name:'Perfect PRH', year:2025, fam:'conv',
+    x1:.24, y1:.28, x2:.96, y2:.10,
+    claim:'Deep linear networks under SGD converge to identical representations, up to rotation.',
+    why:'A proof, not a measurement. Its assumptions double as the failure list: weight decay, label transforms, saddle points, input heterogeneity, gradient flow, edge of stability.',
+    src:'Ziyin & Chuang — 2025',
+    links:[['arXiv:2507.01098','https://arxiv.org/abs/2507.01098']] },
+  { id:'arist',     short:'Aristotelian',  name:'Aristotelian Representation Hypothesis', year:2026, fam:'crit',
+    x1:.72, y1:.46, x2:.82, y2:.55,
+    claim:'Only local neighborhood structure converges — who is near whom — not one global form.',
+    why:'CKA nulls inflate with width; layer-search inflates with depth. After permutation calibration, global convergence disappears; local agreement survives.',
+    src:'Gröger, Wen & Brbić — ICML 2026',
+    links:[['arXiv:2602.14486','https://arxiv.org/abs/2602.14486']] },
+  { id:'urh',       short:'URH',           name:'Umwelt Representation Hypothesis', year:2026, fam:'neuro',
+    x1:.92, y1:.80, x2:.52, y2:.40,
+    claim:'Alignment arises from overlapping ecological constraints — sensors, goals, data, objectives — not convergence to one optimum. Expect clusters, not an attractor.',
+    why:'Differences between species, individuals, and models are systematic and adaptive, not noise. The main conceptual rival to PRH.',
+    src:'Bosch, Sommers, Doerig & Kietzmann — TiCS 2026',
+    links:[['arXiv:2604.17960','https://arxiv.org/abs/2604.17960'],['TiCS','https://www.kietzmannlab.uni-osnabrueck.de/publications/']] },
+  { id:'bridge',    short:'Linear bridge', name:'Alignment rests on linear structure', year:2026, fam:'crit',
+    x1:.55, y1:.38, x2:.68, y2:.48,
+    claim:'Cross-model alignment is carried by linearly encoded object–attribute structure.',
+    why:'Sparse-autoencoder features align better across modalities than dense activations. Merges the two families: alignment metrics may only register shared linear features.',
+    src:'Bangachev, Bresler & Polyanskiy — 2026',
+    links:[['arXiv:2605.28870','https://arxiv.org/html/2605.28870v1']] },
+];
+
+/* ancestry edges, per map */
+const EDGES1 = [
+  ['manifold','convergent'],['convergent','ak'],['ak','prh'],
+  ['prh','sprh','exploit',0,-18],['prh','univ','test'],['prh','urh','oppose'],
+  ['prh','arist','recalibrate',-60,20],['prh','pprh','prove'],
+];
+const EDGES2 = [
+  ['convergent','ak'],['cka','prh','measure'],['ak','prh'],
+  ['prh','sprh','exploit'],['prh','arist'],
+  ['lrh','bridge','explain',18,-16],['bridge','arist'],
+];
+
+/* ================= RENDER ================= */
+const SVGNS = 'http://www.w3.org/2000/svg';
+function el(tag, attrs, parent){
+  const e = document.createElementNS(SVGNS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+/* simple per-node label nudges to avoid collisions, keyed [map][id] = [dx,dy,anchor] */
+const NUDGE = {
+  1:{ manifold:[12,-6,'start'], convergent:[12,2,'start'], cka:[12,2,'start'], circuits:[12,-8,'start'],
+      ak:[12,4,'start'], superpos:[12,-8,'start'], lrh:[12,-2,'start'], prh:[-12,-10,'end'],
+      univ:[-12,-12,'end'], sprh:[12,-10,'start'], pprh:[12,-2,'start'], arist:[-12,14,'end'],
+      urh:[-12,-8,'end'], bridge:[12,18,'start'] },
+  2:{ manifold:[12,-4,'start'], convergent:[-10,-8,'end'], cka:[12,-8,'start'], circuits:[-12,-8,'end'],
+      ak:[-12,-8,'end'], superpos:[12,-10,'start'], lrh:[10,-10,'start'], prh:[12,-6,'start'],
+      univ:[12,14,'start'], sprh:[12,-6,'start'], pprh:[-12,-8,'end'], arist:[-12,-8,'end'],
+      urh:[-12,-10,'end'], bridge:[0,24,'middle'] },
+};
+
+function renderMap(svgId, legendId, detailId, xKey, yKey, edges, axes){
+  const W = 1160, H = 520, M = {t:34, r:44, b:64, l:150};
+  const iw = W - M.l - M.r, ih = H - M.t - M.b;
+  const svg = document.getElementById(svgId);
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  const X = v => M.l + v * iw, Y = v => M.t + (1 - v) * ih;
+
+  /* grid + axes */
+  for (let i = 0; i <= 4; i++){
+    el('line', {class:'grid-line', x1:M.l + i*iw/4, y1:M.t, x2:M.l + i*iw/4, y2:M.t+ih}, svg);
+    el('line', {class:'grid-line', x1:M.l, y1:M.t + i*ih/4, x2:M.l+iw, y2:M.t + i*ih/4}, svg);
+  }
+  el('line', {class:'axis-line', x1:M.l, y1:M.t+ih, x2:M.l+iw, y2:M.t+ih}, svg);
+  el('line', {class:'axis-line', x1:M.l, y1:M.t, x2:M.l, y2:M.t+ih}, svg);
+
+  /* axis end labels */
+  const ax = (x,y,txt,anchor)=>{ const t=el('text',{class:'ax-label',x,y,'text-anchor':anchor||'middle'},svg); t.textContent=txt; };
+  const tk = (x,y,txt,anchor)=>{ const t=el('text',{class:'ax-tick',x,y,'text-anchor':anchor||'middle'},svg); t.textContent=txt; };
+  ax(M.l + iw/2, H-14, axes.xTitle);
+  tk(M.l, H-36, axes.xLo, 'start'); tk(M.l+iw, H-36, axes.xHi, 'end');
+  const yTitle = el('text',{class:'ax-label', transform:`rotate(-90 26 ${M.t+ih/2})`, x:26, y:M.t+ih/2, 'text-anchor':'middle'}, svg);
+  yTitle.textContent = axes.yTitle;
+  tk(M.l+10, M.t+ih-8, axes.yLo, 'start'); tk(M.l+10, M.t+16, axes.yHi, 'start');
+  axes.quads.forEach(q=>{
+    const t = el('text',{class:'quad-note', x:X(q.x), y:Y(q.y), 'text-anchor':q.a||'middle'}, svg);
+    t.textContent = q.txt;
+  });
+
+  /* edges */
+  edges.forEach(([a,b,label,edx=0,edy=0])=>{
+    const na = NODES.find(n=>n.id===a), nb = NODES.find(n=>n.id===b);
+    const x1=X(na[xKey]), y1=Y(na[yKey]), x2=X(nb[xKey]), y2=Y(nb[yKey]);
+    const mx=(x1+x2)/2, my=(y1+y2)/2 - 14;
+    el('path',{class:'edge', stroke:'var(--color-text-faint)', d:`M${x1},${y1} Q${mx},${my} ${x2},${y2}`}, svg);
+    if(label){ const t=el('text',{class:'edge-label',x:mx+edx,y:my-3+edy,'text-anchor':'middle'},svg); t.textContent=label; }
+  });
+
+  /* nodes */
+  const detail = document.getElementById(detailId);
+  NODES.forEach(n=>{
+    const g = el('g',{class:'node', 'data-fam':n.fam, tabindex:'0', role:'button', 'aria-label':n.name}, svg);
+    const cx=X(n[xKey]), cy=Y(n[yKey]);
+    if (n.tool){
+      el('rect',{class:'body', x:cx-6.5, y:cy-6.5, width:13, height:13, rx:2.5, fill:FAMS[n.fam].color,
+        transform:`rotate(45 ${cx} ${cy})`, style:'stroke:var(--node-stroke);stroke-width:2'}, g);
+    } else {
+      el('circle',{class:'body', cx, cy, r:7.5, fill:FAMS[n.fam].color}, g);
+    }
+    const [dx,dy,anchor] = NUDGE[svgId==='svg1'?1:2][n.id];
+    const t = el('text',{class:'nl', x:cx+dx, y:cy+dy+3, 'text-anchor':anchor}, g);
+    t.textContent = n.short;
+    const ty = el('text',{class:'ny', x:cx+dx, y:cy+dy+16, 'text-anchor':anchor}, g);
+    ty.textContent = n.year;
+    g.addEventListener('click', ()=> select(n, g, svg, detail));
+    g.addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); select(n,g,svg,detail); }});
+  });
+
+  /* legend */
+  const legend = document.getElementById(legendId);
+  Object.entries(FAMS).forEach(([key,f])=>{
+    const b = document.createElement('button');
+    b.innerHTML = `<span class="dot" style="background:${f.color}"></span>${f.name}`;
+    b.setAttribute('aria-pressed','true');
+    b.addEventListener('click', ()=>{
+      const off = b.classList.toggle('off');
+      b.setAttribute('aria-pressed', String(!off));
+      svg.querySelectorAll(`.node[data-fam="${key}"]`).forEach(g=>g.classList.toggle('dimmed', off));
+    });
+    legend.appendChild(b);
+  });
+}
+
+function select(n, g, svg, detail){
+  const was = g.classList.contains('selected');
+  svg.querySelectorAll('.node.selected').forEach(x=>x.classList.remove('selected'));
+  if (was){ detail.classList.remove('open'); detail.innerHTML=''; return; }
+  g.classList.add('selected');
+  const f = FAMS[n.fam];
+  detail.innerHTML = `
+    <div class="d-head">
+      <span class="d-fam" style="background:${f.color}">${f.name}</span>
+      <h3>${n.name}</h3>
+      <span class="d-year">${n.year} · ${n.src}</span>
+    </div>
+    <dl>
+      <div><dt>Claim</dt><dd>${n.claim}</dd></div>
+      <div><dt>Why it exists</dt><dd>${n.why}</dd></div>
+    </dl>
+    <div class="d-links">${n.links.map(([t,u])=>`<a href="${u}" target="_blank" rel="noopener">${t} ↗</a>`).join('')}</div>`;
+  detail.classList.add('open');
+}
+
+/* ================= BOOT ================= */
+renderMap('svg1','legend1','detail1','x1','y1',EDGES1,{
+  xTitle:'Scope of claim', xLo:'one model', xHi:'all systems, incl. brains',
+  yTitle:'Number of endpoints', yLo:'one attractor', yHi:'structured plurality',
+  quads:[
+    {x:.985,y:.045,txt:'universalists',a:'end'},
+    {x:.985,y:.93,txt:'pluralists',a:'end'},
+  ],
+});
+renderMap('svg2','legend2','detail2','x2','y2',EDGES2,{
+  xTitle:'Strength of claim', xLo:'described', xHi:'proven',
+  yTitle:'Granularity', yLo:'geometry / metrics', yHi:'mechanisms / circuits',
+  quads:[
+    {x:.5,y:.05,txt:'descriptive ↓ · exploited →'},
+  ],
+});
+
+/* theme toggle */
+(function(){
+  const t=document.querySelector('[data-theme-toggle]'), r=document.documentElement;
+  let d=matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light';
+  r.setAttribute('data-theme',d);
+  const sun='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>';
+  const moon='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
+  t.innerHTML = d==='dark'?sun:moon;
+  t.addEventListener('click',()=>{
+    d=d==='dark'?'light':'dark'; r.setAttribute('data-theme',d);
+    t.setAttribute('aria-label','Switch to '+(d==='dark'?'light':'dark')+' mode');
+    t.innerHTML=d==='dark'?sun:moon;
+  });
+})();
+</script>
+<script data-pplx-inline-edit>
+(function () {
+  if (window === window.top) return;
+
+  const allowedParentOrigins = ["https://www.perplexity.ai","https://perplexity.ai","https://testing.perplexity.ai","https://staging.perplexity.ai","https://*.preview.i.perplexity.ai","http://perplexity.localhost","http://localhost:1420","http://127.0.0.1:1420","http://localhost:3000","http://127.0.0.1:3000","http://localhost:5173","http://127.0.0.1:5173"];
+  const MAX_FONT_BYTES = 500 * 1024;
+  const MAX_TOTAL_FONT_BYTES = 2 * 1024 * 1024;
+  let scrollForwarding = false;
+  let scrollRaf = 0;
+  let trustedTopOrigin = null;
+
+  // Allow entries like "https://*.preview.i.perplexity.ai" — the wildcard
+  // matches a single DNS label (no dots), so "https://*.foo" cannot stretch
+  // across multiple labels.
+  function matchesAllowedOrigin(origin) {
+    if (!origin) return false;
+    for (const entry of allowedParentOrigins) {
+      if (!entry.includes("*")) {
+        if (entry === origin) return true;
+        continue;
+      }
+      const pattern = new RegExp(
+        "^" +
+          entry.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, "[^.]+") +
+          "$",
+      );
+      if (pattern.test(origin)) return true;
+    }
+    return false;
+  }
+
+  // Trust decision: when the sender is same-origin-visible (event.origin is a
+  // real origin like https://www.perplexity.ai) we trust event.origin directly.
+  // When event.origin is "null" (opaque broker srcdoc), we fall back to the
+  // broker's stamped `parentOrigin` to identify the top window. The fallback
+  // is claim-only — we rely on the browser's native `targetOrigin` enforcement
+  // on the response path (see postToTrustedTop) to ensure replies can't be
+  // delivered to anyone but the actual top window of that claimed origin.
+  function getTrustedParentOrigin(event) {
+    const forwardedParentOrigin =
+      typeof event.data.parentOrigin === "string" ? event.data.parentOrigin : null;
+    const parentOrigin = event.origin === "null" ? forwardedParentOrigin : event.origin;
+    return matchesAllowedOrigin(parentOrigin) ? parentOrigin : null;
+  }
+
+  // All responses go to window.top with targetOrigin = the allowlisted origin.
+  // An attacker that iframes us inside their own null-origin broker can claim
+  // any parentOrigin they like, but the browser will drop the reply whenever
+  // the real top's origin doesn't match — so the screenshot never leaves.
+  function postToTrustedTop(message) {
+    if (!trustedTopOrigin) return;
+    try {
+      window.top.postMessage(message, trustedTopOrigin);
+    } catch (_error) {}
+  }
+
+  function inlineAll(original, clone) {
+    if (original.nodeType !== 1 || clone.nodeType !== 1) return;
+
+    try {
+      const computedStyle = getComputedStyle(original);
+      // cssText on a computed style is the serialized declaration in modern
+      // Chromium/Safari — a single read beats enumerating ~400 longhand
+      // properties. Firefox returns "" here, so we fall back on empty.
+      const serialized = computedStyle.cssText;
+      if (serialized) {
+        clone.style.cssText = serialized;
+      } else {
+        const parts = new Array(computedStyle.length);
+        for (let index = 0; index < computedStyle.length; index += 1) {
+          const property = computedStyle[index];
+          parts[index] = `${property}:${computedStyle.getPropertyValue(property)};`;
+        }
+        clone.style.cssText = parts.join("");
+      }
+    } catch (_error) {}
+
+    const originalChildren = original.children;
+    const clonedChildren = clone.children;
+    for (
+      let index = 0;
+      index < originalChildren.length && index < clonedChildren.length;
+      index += 1
+    ) {
+      inlineAll(originalChildren[index], clonedChildren[index]);
+    }
+  }
+
+  function extractFontUrl(srcValue) {
+    const matches = [
+      ...srcValue.matchAll(
+        /url\(["']?([^"')]+)["']?\)(?:\s*format\(["']?([^"')]+)["']?\))?/gi,
+      ),
+    ];
+    if (matches.length === 0) return null;
+    const woff2 = matches.find((m) => m[2] && m[2].toLowerCase().includes("woff2"));
+    if (woff2) return woff2[1];
+    const woff = matches.find((m) => m[2] && m[2].toLowerCase().includes("woff"));
+    if (woff) return woff[1];
+    return matches[0][1];
+  }
+
+  // Cache resolved font URL -> data URI across captures. Fonts on a page
+  // essentially never change, and a batch run emits multiple captures back to
+  // back — without this we'd refetch + re-base64 every time.
+  const fontDataUriCache = new Map();
+  const SRC_DECLARATION_RE = /src\s*:\s*[^;}]+/i;
+
+  async function fetchAsDataUri(url) {
+    if (fontDataUriCache.has(url)) return fontDataUriCache.get(url);
+    let dataUri = null;
+    try {
+      const response = await fetch(url, { mode: "cors", credentials: "omit" });
+      if (response.ok) {
+        const blob = await response.blob();
+        if (blob.size <= MAX_FONT_BYTES) {
+          dataUri = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () =>
+              resolve(typeof reader.result === "string" ? reader.result : null);
+            reader.onerror = () => resolve(null);
+            reader.readAsDataURL(blob);
+          });
+        }
+      }
+    } catch (_error) {
+      dataUri = null;
+    }
+    fontDataUriCache.set(url, dataUri);
+    return dataUri;
+  }
+
+  function collectFontFaceRuleTexts() {
+    const rules = [];
+    for (const sheet of document.styleSheets) {
+      let cssRules;
+      try {
+        cssRules = sheet.cssRules;
+      } catch (_error) {
+        continue;
+      }
+      if (!cssRules) continue;
+      for (const rule of cssRules) {
+        const cssText = rule.cssText || "";
+        if (cssText.startsWith("@font-face")) rules.push(cssText);
+      }
+    }
+    return rules;
+  }
+
+  async function buildInlinedFontCss() {
+    const ruleTexts = collectFontFaceRuleTexts();
+    if (ruleTexts.length === 0) return null;
+
+    const resolved = ruleTexts.map((cssText) => {
+      if (!SRC_DECLARATION_RE.test(cssText)) return null;
+      const srcMatch = cssText.match(/src\s*:\s*([^;}]+)[;}]/i);
+      if (!srcMatch) return null;
+      const url = extractFontUrl(srcMatch[1]);
+      if (!url) return null;
+      try {
+        return { cssText, url: new URL(url, document.baseURI).href };
+      } catch (_error) {
+        return null;
+      }
+    });
+
+    const dataUris = await Promise.all(
+      resolved.map((entry) => (entry ? fetchAsDataUri(entry.url) : Promise.resolve(null))),
+    );
+
+    const inlined = [];
+    let totalBytes = 0;
+    for (let index = 0; index < resolved.length; index += 1) {
+      const entry = resolved[index];
+      const dataUri = dataUris[index];
+      if (!entry || !dataUri) continue;
+      const approxBytes = dataUri.length * 0.75;
+      if (totalBytes + approxBytes > MAX_TOTAL_FONT_BYTES) break;
+      totalBytes += approxBytes;
+      inlined.push(entry.cssText.replace(SRC_DECLARATION_RE, `src: url("${dataUri}")`));
+    }
+    return inlined.length > 0 ? inlined.join("\n") : null;
+  }
+
+  function stripExternal(clone) {
+    const images = clone.querySelectorAll("img");
+    for (let index = 0; index < images.length; index += 1) {
+      const src = images[index].getAttribute("src");
+      if (src && !src.startsWith("data:")) images[index].removeAttribute("src");
+    }
+
+    const elements = clone.querySelectorAll("*");
+    for (let index = 0; index < elements.length; index += 1) {
+      const style = elements[index].style.cssText;
+      if (style && style.includes("url(")) {
+        elements[index].style.cssText = style.replace(
+          /url\(["']?(?!data:)[^)"']*["']?\)/gi,
+          "none",
+        );
+      }
+    }
+  }
+
+  function emitScroll() {
+    scrollRaf = 0;
+    if (!scrollForwarding) return;
+    postToTrustedTop({
+      type: "INLINE_EDIT_SCROLL",
+      scrollX: window.scrollX,
+      scrollY: window.scrollY,
+    });
+  }
+
+  window.addEventListener(
+    "scroll",
+    function () {
+      if (!scrollForwarding || scrollRaf) return;
+      scrollRaf = requestAnimationFrame(emitScroll);
+    },
+    { passive: true, capture: true },
+  );
+
+  async function handleCaptureRequest(event) {
+    const requestId = event.data.requestId;
+    const scrollX = window.scrollX;
+    const scrollY = window.scrollY;
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+
+    function postResult(dataUrl) {
+      postToTrustedTop({
+        type: "INLINE_EDIT_SCREENSHOT_RESULT",
+        requestId,
+        dataUrl,
+        scrollX,
+        scrollY,
+      });
+    }
+
+    try {
+      // Wait for any pending web fonts to resolve so both inline metrics and
+      // the @font-face inlining below see the same loaded faces.
+      if (document.fonts && document.fonts.ready) {
+        try {
+          await document.fonts.ready;
+        } catch (_error) {}
+      }
+
+      const clone = document.documentElement.cloneNode(true);
+      inlineAll(document.documentElement, clone);
+
+      const removedNodes = clone.querySelectorAll("script,link[rel=\"stylesheet\"],style");
+      for (let index = 0; index < removedNodes.length; index += 1) {
+        removedNodes[index].remove();
+      }
+
+      stripExternal(clone);
+
+      // Re-embed web fonts as data-URI @font-face rules so the SVG rasterizer
+      // can resolve them — external font URLs aren't fetched during
+      // foreignObject rendering, which would otherwise force a fallback face
+      // and change text metrics.
+      const inlinedFontCss = await buildInlinedFontCss();
+      if (inlinedFontCss) {
+        const styleEl = document.createElement("style");
+        styleEl.textContent = inlinedFontCss;
+        const head = clone.querySelector("head");
+        if (head) head.appendChild(styleEl);
+        else clone.insertBefore(styleEl, clone.firstChild);
+      }
+
+      const html = new XMLSerializer().serializeToString(clone);
+      const svg =
+        `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">` +
+        '<foreignObject width="100%" height="100%">' +
+        `<div xmlns="http://www.w3.org/1999/xhtml" style="width:${width}px;height:${height}px;overflow:hidden">` +
+        `<div style="position:relative;left:-${scrollX}px;top:-${scrollY}px">` +
+        html +
+        "</div></div></foreignObject></svg>";
+      const svgUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+      const image = new Image();
+      image.onload = function () {
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext("2d").drawImage(image, 0, 0);
+        postResult(canvas.toDataURL("image/png"));
+      };
+      image.onerror = function () {
+        postResult(null);
+      };
+      image.src = svgUrl;
+    } catch (_error) {
+      postResult(null);
+    }
+  }
+
+  window.addEventListener("message", function (event) {
+    if (!event.data) return;
+    // Only accept messages from the direct parent frame. Blocks sibling /
+    // unrelated-window postMessage senders that could otherwise reach us.
+    if (event.source !== window.parent) return;
+
+    const trustedParentOrigin = getTrustedParentOrigin(event);
+    if (!trustedParentOrigin) return;
+    trustedTopOrigin = trustedParentOrigin;
+
+    if (event.data.type === "INLINE_EDIT_SCROLL_START") {
+      scrollForwarding = true;
+      emitScroll();
+      return;
+    }
+
+    if (event.data.type === "INLINE_EDIT_SCROLL_STOP") {
+      scrollForwarding = false;
+      if (scrollRaf) cancelAnimationFrame(scrollRaf);
+      scrollRaf = 0;
+      return;
+    }
+
+    if (event.data.type !== "INLINE_EDIT_CAPTURE_REQUEST") return;
+
+    handleCaptureRequest(event);
+  });
+})();
+
+
+</script>
+</body>
+</html>
