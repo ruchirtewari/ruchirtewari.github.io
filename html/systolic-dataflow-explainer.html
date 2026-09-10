@@ -1,0 +1,474 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Systolic Array — Dataflow Explainer</title>
+<style>
+  :root { --bg:#0b1020; --line:#2c3a58; --text:#e8eefc; --muted:#a9b6d2; --a:#5dd7ff; --b:#ffbd59; --p:#a9ff72; --hot:#ff6b93; --idle:#26324b; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:linear-gradient(145deg,#09101e,#111936 60%,#09111e); color:var(--text); font:15px/1.48 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; }
+  main { max-width:1280px; margin:auto; padding:24px; }
+  h1 { font-size:clamp(20px,2.6vw,34px); margin:0 0 8px; letter-spacing:-.02em; }
+  h2 { font-size:19px; margin:0 0 9px; }
+  p { margin:8px 0; color:var(--muted); }
+  .lede { max-width:1000px; font-size:17px; color:#c8d5ed; }
+  .callout { border-left:4px solid var(--a); background:#10243b; padding:12px 15px; border-radius:0 10px 10px 0; color:#d6e8fc; margin:18px 0 12px; }
+  .card { background:rgba(18,26,45,.92); border:1px solid var(--line); border-radius:14px; box-shadow:0 12px 32px #0003; }
+  .topbar { display:flex; flex-wrap:wrap; gap:10px; align-items:center; padding:10px 14px; margin:0 0 12px; background:rgba(18,26,45,.85); border:1px solid var(--line); border-radius:12px; }
+  .playbar { display:flex; gap:7px; align-items:center; padding:0 0 9px; flex-wrap:wrap; }
+  .playbar .readout { margin-left:auto; font-variant-numeric:tabular-nums; color:#c9d9fa; font-size:13px; }
+  button { cursor:pointer; border:1px solid #405579; color:var(--text); background:#1a2944; padding:7px 13px; border-radius:8px; font:inherit; font-size:14px; }
+  button:hover { background:#263b61; } button.active { background:#1d7194; border-color:#68d8ff; }
+  input[type=range] { accent-color:var(--a); width:130px; }
+  select { background:#1a2944; border:1px solid #405579; color:var(--text); padding:6px 8px; border-radius:8px; font:inherit; cursor:pointer; }
+  label { color:#c0cce8; font-size:14px; display:flex; align-items:center; gap:6px; }
+  .viz { display:grid; grid-template-columns:minmax(0,1fr) 290px; gap:14px; }
+  .canvas-col { display:flex; flex-direction:column; }
+  .canvasWrap { position:relative; overflow:hidden; border-radius:14px; }
+  canvas { width:100%; height:700px; display:block; }
+  .side { padding:15px; display:flex; flex-direction:column; }
+  .legend { display:grid; gap:7px; margin-bottom:11px; }
+  .legend span { display:flex; align-items:center; gap:8px; color:var(--muted); font-size:13px; }
+  .dot { width:12px; height:12px; border-radius:50%; display:inline-block; flex-shrink:0; }
+  .swatch { width:15px; height:3px; display:inline-block; border-radius:2px; flex-shrink:0; }
+  .counter { display:grid; grid-template-columns:1fr 1fr; gap:7px; }
+  .counter div { background:#0c1428; padding:9px 10px; border-radius:8px; border:1px solid #283755; }
+  .counter b { display:block; font-size:18px; color:#fff; font-variant-numeric:tabular-nums; }
+  .counter small { color:var(--muted); font-size:12px; }
+  .log { flex:1; min-height:90px; background:#0b1326; border:1px solid #253451; border-radius:8px; padding:10px 11px; margin-bottom:12px; color:#c4d4ee; font-size:13px; line-height:1.55; overflow:auto; }
+  .mode-desc { margin-top:10px; padding:12px 16px; background:rgba(18,26,45,.7); border:1px solid var(--line); border-radius:11px; }
+  .mode-desc h2 { margin:0 0 5px; color:#dce9ff; }
+  .mode-desc p { margin:4px 0; font-size:14px; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:14px; }
+  .card.pad { padding:17px; }
+  code { color:#d8e8ff; background:#0b1326; padding:1px 5px; border-radius:4px; font-size:13px; }
+  table { width:100%; border-collapse:collapse; margin-top:8px; font-size:13px; }
+  th,td { padding:7px 8px; text-align:left; border-bottom:1px solid #293754; vertical-align:top; }
+  th { color:#d8e7ff; } td { color:var(--muted); }
+  .formula { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; color:#e3edff; background:#0b1326; border:1px solid #273653; border-radius:8px; padding:10px; margin:8px 0; overflow:auto; font-size:13px; }
+  details { border-top:1px solid var(--line); margin-top:14px; padding-top:12px; }
+  summary { cursor:pointer; color:#dce9ff; font-weight:650; }
+  li { color:var(--muted); margin:5px 0; font-size:14px; }
+  .footer { color:#8290ad; font-size:12px; margin-top:16px; }
+  .glossary { margin-top:12px; background:rgba(12,20,40,.8); border:1px solid var(--line); border-radius:11px; padding:13px 17px; }
+  .glossary h3 { color:#dce9ff; font-size:12px; letter-spacing:.07em; text-transform:uppercase; margin:0 0 9px; }
+  .glossary dt { color:var(--a); font-weight:700; font-size:13px; float:left; clear:left; width:42px; margin:0 0 7px; padding-top:1px; }
+  .glossary dd { margin:0 0 7px 42px; color:var(--muted); font-size:13px; line-height:1.4; }
+  .glossary a { color:#8ecfff; text-decoration:none; border-bottom:1px solid #3a6080; }
+  .glossary a:hover { color:var(--a); border-color:var(--a); }
+  @media (max-width:920px) {
+    .viz,.grid2 { grid-template-columns:1fr; }
+    canvas { height:520px; }
+    .playbar .readout { margin-left:0; width:100%; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Dataflow is a schedule for calculating the values of a matrix multiply</h1>
+  <p class="lede">This animation shows one concrete, testable case: <strong>output-stationary systolic matrix multiplication</strong>, computing <code>C = A × B</code>. Each blue activation and amber weight is injected once at an edge, travels through neighboring cells, and is reused at each one it visits. The green partial sum stays local until its output is complete.</p>
+  <p class="lede" style="margin-top:10px;">The key insight is that reuse is <em>latent in the algebra but invisible to hardware by default.</em> To compute C[i,j] = Σ<sub>k</sub> A[i,k]·B[k,j], a conventional processor fetches each A[i,k] and B[k,j] from memory on demand — even though A[i,k] is needed for <em>every column j</em> of C, and B[k,j] for <em>every row i</em>. Nothing forces a cache to hold it for the next output; without explicit scheduling, N³ multiplications incur N³ memory reads and operand reuse is zero by default. The systolic schedule makes reuse <em>structural</em>: inject A[i,k] once at the left edge and let it travel east through all N cells in row i; inject B[k,j] once at the top and let it flow south through all N cells in column j. One memory read funds N multiplications — exactly the ratio a bandwidth-limited system needs.</p>
+  <div class="callout"><strong>Correct the mental image:</strong> the grid is not a river carrying a generic stream. It is a spatially scheduled computation. Each datum has a named role, a finite route, a known arrival cycle, and is discarded after its last consumer. "Dataflow" here means deciding <em>which operand stays local</em> and which values move, so one slow memory transfer buys many operations.</div>
+
+  <div class="topbar">
+    <label>Speed <input id="speed" type="range" min="1" max="10" value="5"></label>
+    <label>View
+      <select id="view">
+        <option value="systolic">Systolic / output-stationary</option>
+        <option value="naive">Naïve memory traffic</option>
+      </select>
+    </label>
+    <label>Grid
+      <select id="gridSize">
+        <option value="3">3×3</option>
+        <option value="4">4×4</option>
+        <option value="5">5×5</option>
+      </select>
+    </label>
+  </div>
+
+  <section class="viz">
+    <div class="canvas-col">
+      <div class="playbar">
+        <button id="play" class="active">Pause</button>
+        <button id="prev">Prev step</button>
+        <button id="step">Next step</button>
+        <button id="reset">Reset</button>
+        <span class="readout" id="readout"></span>
+      </div>
+      <div class="card canvasWrap"><canvas id="c"></canvas></div>
+      <div class="mode-desc">
+        <h2 id="modeTitle">Output-stationary systolic array</h2>
+        <p id="modeText">Blue <code>A[i,k]</code> values enter from the left; amber <code>B[k,j]</code> values enter from the top. Their injection times are staggered so matching <code>k</code> values arrive in a cell on the same cycle. Each PE first <strong>multiplies</strong> the two arriving operands (M), then <strong>accumulates</strong> the product into its local register (AC), keeping <code>C[i,j]</code> in place. Tokens appear at the bottom-left (A) and top-right (B) corners of the PE they are currently visiting.</p>
+        <p id="modeNote" style="font-size:13px;color:#7a8aaa;margin-top:5px;">Each token has a finite route: one MAC per cell it visits, then it exits the array.</p>
+      </div>
+    </div>
+    <aside class="card side">
+      <div class="log" id="log"></div>
+      <div class="legend">
+        <span><i class="dot" style="background:var(--a)"></i> <code>A[i,k]</code> activation — corner: bottom-left of PE</span>
+        <span><i class="dot" style="background:var(--b)"></i> <code>B[k,j]</code> weight — corner: top-right of PE</span>
+        <span><i class="dot" style="background:var(--p)"></i> <code>C[i,j]</code> partial sum — stays in PE</span>
+        <span><i class="swatch" style="background:var(--hot)"></i> Active MAC this cycle</span>
+      </div>
+      <div class="counter">
+        <div><b id="macs">0</b><small>useful MACs</small></div>
+        <div><b id="edgeReads">0</b><small>edge-memory reads</small></div>
+        <div><b id="reuse">0×</b><small>operand reuse</small></div>
+        <div><b id="cycle">0</b><small>clock cycle</small></div>
+      </div>
+    </aside>
+  </section>
+
+  <div class="glossary">
+    <h3>Glossary</h3>
+    <dl>
+      <dt>PE</dt>
+      <dd><a href="https://en.wikipedia.org/wiki/Processing_element" target="_blank" rel="noopener">Processing Element</a> — one cell in the array; holds a local accumulator register and performs one MAC per clock cycle.</dd>
+      <dt>MAC</dt>
+      <dd><a href="https://en.wikipedia.org/wiki/Multiply%E2%80%93accumulate_operation" target="_blank" rel="noopener">Multiply-Accumulate</a> — two sub-steps: <strong>M</strong> multiplies the two arriving operands; <strong>AC</strong> adds (accumulates) the product into the local register. Together: <code>acc += a × b</code>.</dd>
+      <dt>DMA</dt>
+      <dd><a href="https://en.wikipedia.org/wiki/Direct_memory_access" target="_blank" rel="noopener">Direct Memory Access</a> — hardware engine that moves tensor tiles from DRAM to the array's edge buffers without CPU involvement.</dd>
+      <dt>TPU</dt>
+      <dd><a href="https://en.wikipedia.org/wiki/Tensor_Processing_Unit" target="_blank" rel="noopener">Tensor Processing Unit</a> — Google's application-specific chip for neural-network workloads; its matrix multiply unit is a systolic array.</dd>
+      <dt>VLSI</dt>
+      <dd><a href="https://en.wikipedia.org/wiki/Very_Large_Scale_Integration" target="_blank" rel="noopener">Very Large Scale Integration</a> — the circuit-density era that motivated Kung's systolic work: arithmetic gates became cheap while off-chip I/O remained expensive.</dd>
+    </dl>
+  </div>
+
+  <section class="grid2">
+    <article class="card pad">
+      <h2>The exact computation</h2>
+      <p>The N×N grid calculates all N² entries of <code>C</code>, each a dot product of length N. For the 3×3 base case:</p>
+      <div class="formula">C[i,j] = A[i,0]·B[0,j] + A[i,1]·B[1,j] + A[i,2]·B[2,j]</div>
+      <p>Cell <code>(i,j)</code> owns only <code>C[i,j]</code>. On cycle <code>t</code>, it receives <code>A[i,k]</code> and <code>B[k,j]</code> when <code>t = i + j + k</code>. Both operands arrive simultaneously, so the multiply and accumulate happen in one clock. The staggered injection times are what guarantee this alignment.</p>
+    </article>
+    <article class="card pad">
+      <h2>The original problem</h2>
+      <p>Kung's systolic-architecture argument was driven by VLSI economics: arithmetic became cheap and plentiful faster than off-chip I/O and long, global interconnect. The goal was to obtain many computations per expensive memory access using simple, regular, locally connected processing elements.</p>
+      <p>Modern ML accelerators inherited that idea because dense linear algebra has exactly the regular reuse pattern the scheme needs. A TPU matrix unit is not a general replacement for memory; it is a specialized device for turning a tiled tensor transfer into a large amount of nearby MAC work.</p>
+      <table>
+        <thead><tr><th>Naïve</th><th>Systolic</th></tr></thead>
+        <tbody>
+          <tr><td>Fetch both operands from memory for every MAC.</td><td>Inject at edge, forward to neighbors, accumulate locally.</td></tr>
+          <tr><td>3×3: 54 reads for 27 MACs — zero reuse.</td><td>18 injections; each value used by 3 cells — 3× reuse.</td></tr>
+          <tr><td>Arbitrary reads, global arbitration.</td><td>Fixed routes, fixed timing, short wires.</td></tr>
+        </tbody>
+      </table>
+    </article>
+  </section>
+
+  <section class="grid2">
+    <article class="card pad">
+      <h2>What stays vs. moves</h2>
+      <p>"Dataflow" does <em>not</em> mean all data moves. Three common schedules differ in which operand stays local:</p>
+      <ul>
+        <li><strong>Output-stationary</strong> — partial sums stay; inputs and weights move. This animation.</li>
+        <li><strong>Weight-stationary</strong> — weights stay; activations and partial sums move.</li>
+        <li><strong>Input-stationary</strong> — activations stay; weights and partial sums move.</li>
+      </ul>
+      <p>The best choice depends on tensor shape, buffer size, energy cost per movement, and which operand benefits most from reuse.</p>
+      <p><strong>Array size ≠ matrix size.</strong> The physical PE grid does not need to match the dimensions of the matrices being multiplied. A 256×256 array can compute a 16384×16384 matrix multiply by <em>tiling</em>: break each matrix into 256×256 blocks, stream matching pairs of tiles through the array one pair at a time, and accumulate partial results across tiles. The array sees an infinite stream of small problems; the matrices can be arbitrarily large.</p>
+    </article>
+    <article class="card pad">
+      <h2>How the M and AC steps differ</h2>
+      <p>Each cycle in an active PE has two distinct sub-operations. <strong>M (Multiply)</strong>: the two arriving tokens — one from the left (A), one from above (B) — are multiplied together. The product is a transient value, never stored to memory.</p>
+      <p><strong>AC (Accumulate)</strong>: the product is immediately added into the PE's local register <code>C[i,j]</code>. This register persists across cycles and grows until all K products have been summed. Hot cells label both steps so you can see which operands feed the multiply and what they accumulate into.</p>
+    </article>
+  </section>
+
+  <section class="grid2">
+    <article class="card pad">
+      <h2>The role of software</h2>
+      <p>The hardware array provides a fast, fixed route for operands; it does not know what problem it is solving. Software — specifically the compiler and runtime — provides everything else:</p>
+      <ul>
+        <li><strong>Tiling.</strong> The compiler breaks large matrices into tiles that fit the array. For a 4096×4096 multiply on a 256×256 array, it emits a loop over 16×16 = 256 tile pairs.</li>
+        <li><strong>Injection scheduling.</strong> The staggered arrival times seen in this animation are not accidental — they are computed by the compiler. It calculates the exact cycle each operand must enter the edge so that matching A[i,k] and B[k,j] meet in cell (i,j). The hardware cannot do this itself.</li>
+        <li><strong>DMA orchestration.</strong> A DMA engine prefetches the next tile from DRAM into an on-chip buffer while the array is busy with the current tile, hiding memory latency. The compiler schedules these transfers to keep the array fed.</li>
+        <li><strong>Partial-sum accumulation.</strong> Each tile contributes a partial result. The runtime accumulates partial sums across tiles — either in the PE registers (if the reduction dimension fits) or in a separate on-chip buffer.</li>
+        <li><strong>Layout decisions.</strong> The compiler chooses whether to store matrices in row-major, column-major, or a tiled layout so that tile extraction requires minimal data movement.</li>
+      </ul>
+      <p>On a TPU, XLA performs all of the above. On a GPU using CUDA, the programmer (or a library like cuBLAS) handles tiling and scheduling explicitly. The systolic array makes the hardware simple and predictable; the complexity shifts entirely into the compiler.</p>
+    </article>
+    <article class="card pad">
+      <h2>Does this work for tensors?</h2>
+      <p>Yes — with one key observation: almost every tensor operation of practical interest decomposes into one or more matrix multiplications, and a systolic array is purpose-built for exactly that primitive.</p>
+      <ul>
+        <li><strong>Batched matmul.</strong> Transformer attention computes Q·Kᵀ and scores·V independently for each head and each batch element. Each is a separate matrix multiply; the array processes them sequentially or in a pipelined schedule. The tensor rank is higher (batch × heads × sequence × d_model), but the innermost operation is always a 2-D matmul.</li>
+        <li><strong>Convolutions.</strong> A spatial convolution over a feature map can be unrolled into a matrix multiply via im2col (each receptive field becomes a row of a matrix). The systolic array then computes the whole convolution as a single tiled matmul.</li>
+        <li><strong>General tensor contractions.</strong> Any tensor contraction C[a,b] = Σ<sub>c</sub> A[a,c]·B[c,b] is a matmul after appropriate reshaping. Contractions over multiple indices (like einsum) can be decomposed into a sequence of such operations.</li>
+        <li><strong>What does not map cleanly.</strong> Operations with data-dependent access patterns ★ (sparse attention, gather/scatter, tree reductions) do not fit the fixed-route, regular-reuse model. Systolic arrays are underutilized or idle during these phases — a key reason modern accelerators pair a systolic matrix unit with a separate vector/SIMD unit for element-wise and irregular work.</li>
+      </ul>
+    </article>
+  </section>
+
+  <details>
+    <summary>★ Data-dependent access patterns — why the systolic array can't handle them</summary>
+    <p><strong>Data-dependent access patterns</strong> are memory accesses where the <em>address</em> you need to read depends on a <em>value</em> produced at runtime — not on a loop index or a static offset the compiler can compute ahead of time.</p>
+
+    <p><strong>Why the systolic array cannot handle them.</strong> The array's entire efficiency argument rests on one thing: the compiler knows, before the first clock cycle fires, exactly which operand will be in which cell at which cycle. That foreknowledge is what lets it pre-schedule DMA transfers, stagger injection times, and guarantee that A[i,k] and B[k,j] arrive at PE(i,j) simultaneously. Take away that foreknowledge and the mechanism collapses — not because the hardware breaks, but because you can no longer tell it what to do.</p>
+
+    <p><strong>Concrete examples:</strong></p>
+    <ul>
+      <li><strong>Sparse matrix multiply.</strong> In a sparse matrix, the column index of each non-zero value is itself data stored in an index array. Before you can decide "this value goes to column j," you have to read the index. The systolic array routes by position, not by value. You would need to either pad the sparse matrix back to dense — restoring full cost and gaining nothing — or build a routing network that inspects values and redirects operands, which is a different, more expensive piece of hardware.</li>
+      <li><strong>Gather/scatter.</strong> A gather is <code>out[i] = in[idx[i]]</code>. The addresses read from <code>in</code> are the contents of <code>idx</code>, which are unknown until <code>idx</code> is fetched. A systolic DMA prefetch requires knowing what to fetch before the array needs it. With gather indices, you cannot issue the prefetch until after you have read <code>idx</code> — which is exactly when the array would have needed the data to already be there. The latency hiding disappears.</li>
+      <li><strong>Dynamic attention masking.</strong> If the set of active query-key pairs is determined by a score threshold computed from the data ("only keep the top-k attention scores"), you do not know the access pattern until after a first pass has already run. That first pass is itself a dense computation, so you end up with: dense matmul (array-friendly) → data-dependent pruning (array-hostile) → sparse matmul over pruned set (array-hostile again). The middle step breaks the pipeline.</li>
+      <li><strong>KV-cache eviction and retrieval.</strong> During long-context LLM inference, systems that evict and page cache entries must decide <em>which</em> entries to keep based on attention scores — a data-dependent selection. Fetching the right K and V entries back requires indexed loads whose addresses are not known until the scores are computed. The array has to wait, or the surrounding memory system must speculate wildly.</li>
+      <li><strong>Graph neural networks.</strong> Each node aggregates values from its neighbors. The neighbor list is graph structure — it is data. Two nodes in the same batch may have 3 neighbors and 300 neighbors respectively. The systolic array cannot be pre-programmed with a fixed schedule because the shape of the reduction is different for every node and every input graph.</li>
+    </ul>
+
+    <p><strong>The structured sparsity loophole.</strong> NVIDIA's "2:4 sparsity" (two non-zeros per four elements, enforced during training) converts an otherwise irregular pattern into a regular one. The positions of the two non-zeros per group can be encoded compactly, and the hardware can decode that encoding and redirect operands in a deterministic, compile-time-schedulable way. It is still data-dependent in the general sense, but the constraint (exactly 2-of-4, no exceptions) makes the worst case bounded and the routing circuit simple enough to embed in a modified tensor core. Fully unstructured sparsity has no such bound and cannot be handled this way.</p>
+
+    <p><strong>What handles these patterns instead.</strong> Modern chips deal with this by pairing the systolic array with other execution engines: a vector/SIMD unit for element-wise ops and irregular reductions; a general-purpose load/store unit with hardware-assisted gather/scatter; and in some designs (Cerebras, Graphcore) a fully programmable router per PE that handles irregular patterns natively, at the cost of the efficiency the fixed-route model gains from regularity.</p>
+  </details>
+
+  <details>
+    <summary>Checkable predictions of this picture</summary>
+    <ul>
+      <li>The first completed output appears only after a pipeline fill delay equal to 2(N−1)+(K−1) cycles.</li>
+      <li>Every cell performs exactly K useful MACs — no cell is skipped or double-counted.</li>
+      <li>Each A[i,k] injection is consumed once per output column it passes through (N times total). Same for B[k,j] and rows.</li>
+      <li>Switching to the naïve view shows the same MAC count with 2× the memory reads — no reuse by construction.</li>
+      <li>For a matrix–vector product, A reuse collapses (only one output column), leaving B reuse only. The array becomes partially idle — one reason systolic arrays are not universal for LLM token-by-token decode.</li>
+    </ul>
+  </details>
+  <p class="footer">Sources: <a href="https://en.wikipedia.org/wiki/H._T._Kung" target="_blank" rel="noopener" style="color:#8290ad;">Hsiang-Tsung (H.&nbsp;T.) Kung</a>, "Why Systolic Architectures?" (1982); TPU/systolic dataflow descriptions; Cerebras documentation for contrast with a routed mesh of independent local-memory PEs.</p>
+</main>
+<script>
+(() => {
+  const canvas = document.getElementById('c'), ctx = canvas.getContext('2d');
+  let N=3, K=3;
+  let running=true, tick=0, last=0, view='systolic';
+  const speedEl=document.getElementById('speed'), play=document.getElementById('play');
+  const colors={a:'#5dd7ff',b:'#ffbd59',p:'#a9ff72',hot:'#ff6b93',line:'#3a4b70',idle:'#1e2e48',text:'#e8eefc',muted:'#a9b6d2'};
+  let rect={};
+
+  function doneCell(i,j){ return Math.min(K, Math.max(0, tick-(i+j)+1)); }
+  function eventsAt(t){
+    const ev=[];
+    for(let i=0;i<N;i++) for(let j=0;j<N;j++) for(let k=0;k<K;k++) if(t===i+j+k) ev.push({i,j,k});
+    return ev;
+  }
+  function edgeReadCount(){
+    let n=0;
+    for(let i=0;i<N;i++) for(let k=0;k<K;k++) if(tick>=i+k) n++;
+    for(let j=0;j<N;j++) for(let k=0;k<K;k++) if(tick>=j+k) n++;
+    return Math.min(2*N*K, n);
+  }
+  function macCount(){ let s=0; for(let i=0;i<N;i++) for(let j=0;j<N;j++) s+=doneCell(i,j); return s; }
+
+  function roundRect(x,y,w,h,r){ ctx.beginPath();ctx.roundRect(x,y,w,h,r);ctx.fill();ctx.stroke(); }
+  function label(txt,x,y,color='#e8eefc',size=13,align='center'){
+    ctx.fillStyle=color; ctx.font=`${size}px ui-sans-serif,system-ui`; ctx.textAlign=align; ctx.textBaseline='middle'; ctx.fillText(txt,x,y);
+  }
+  function cellXY(i,j){
+    const s = Math.min(130, (rect.w-130)/(N+0.85), (rect.h-110)/(N+0.55));
+    const ox = (rect.w - N*s)/2 + 62, oy = 100;
+    return {x:ox+j*s, y:oy+i*s, s, ox, oy};
+  }
+  function token(x,y,color,txt,r=12){
+    ctx.save(); ctx.shadowColor=color; ctx.shadowBlur=14; ctx.fillStyle=color;
+    ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill(); ctx.restore();
+    label(txt,x,y,'#06101e',Math.max(6,Math.round(10*r/12)));
+  }
+
+  function drawCompass(cx,cy){
+    const r=24, al=r*0.72;
+    ctx.save();
+    ctx.strokeStyle='#2c3a58'; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.stroke();
+    // B: N→S
+    ctx.strokeStyle=colors.b; ctx.lineWidth=2.5;
+    ctx.beginPath(); ctx.moveTo(cx,cy-al); ctx.lineTo(cx,cy+al); ctx.stroke();
+    ctx.fillStyle=colors.b;
+    ctx.beginPath(); ctx.moveTo(cx,cy+al); ctx.lineTo(cx-5,cy+al-10); ctx.lineTo(cx+5,cy+al-10); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(cx,cy-al); ctx.lineTo(cx-3,cy-al+8); ctx.lineTo(cx+3,cy-al+8); ctx.closePath(); ctx.fill();
+    // A: W→E
+    ctx.strokeStyle=colors.a; ctx.lineWidth=2.5;
+    ctx.beginPath(); ctx.moveTo(cx-al,cy); ctx.lineTo(cx+al,cy); ctx.stroke();
+    ctx.fillStyle=colors.a;
+    ctx.beginPath(); ctx.moveTo(cx+al,cy); ctx.lineTo(cx+al-10,cy-4); ctx.lineTo(cx+al-10,cy+4); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(cx-al,cy); ctx.lineTo(cx-al+8,cy-3); ctx.lineTo(cx-al+8,cy+3); ctx.closePath(); ctx.fill();
+    ctx.fillStyle='#e8eefc'; ctx.beginPath(); ctx.arc(cx,cy,2.5,0,Math.PI*2); ctx.fill();
+    label('N',cx,cy-r-10,'#4e5e78',9);
+    label('S',cx,cy+r+10,'#4e5e78',9);
+    label('W',cx-r-11,cy,'#4e5e78',9);
+    label('E',cx+r+11,cy,'#4e5e78',9);
+    label('A →',cx+r+14,cy-6,colors.a,9,'left');
+    label('B ↓',cx+r+14,cy+6,colors.b,9,'left');
+    ctx.restore();
+  }
+
+  function drawSystolic(){
+    const c0=cellXY(0,0), {s,ox,oy}=c0;
+    const sc=s/130;
+    const f0  = Math.max(7,  Math.round(10*sc));
+    const f1  = Math.max(10, Math.round(15*sc));
+    const f2  = Math.max(8,  Math.round(12*sc));
+    const fop = Math.max(7,  Math.round(11*sc));
+    const cr  = Math.max(6,  Math.round(9*sc));   // corner token radius
+    const cm  = cr + 7;                            // margin from cell edge to token center
+
+    // ── Axis labels
+    label('B[k,j] — injected from top', ox+N*s/2, 18, colors.b, 13);
+    ctx.save(); ctx.translate(13, oy+N*s/2); ctx.rotate(-Math.PI/2);
+    label('A[i,k] — enters from left', 0, 0, colors.a, 12); ctx.restore();
+
+    // ── Formulae: top-right of canvas
+    label('C = A×B', rect.w-14, 32, '#6878a0', 13, 'right');
+    label('C[i,j] = Σk A[i,k]·B[k,j]', rect.w-14, 50, '#4a5878', 10, 'right');
+
+    // ── Feed lines
+    for(let j=0;j<N;j++){
+      ctx.strokeStyle='#3a2808'; ctx.setLineDash([4,6]); ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(ox+j*s+s/2,35); ctx.lineTo(ox+j*s+s/2,oy); ctx.stroke();
+    }
+    for(let i=0;i<N;i++){
+      ctx.strokeStyle='#0e2e3e'; ctx.setLineDash([4,6]); ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(22,oy+i*s+s/2); ctx.lineTo(ox,oy+i*s+s/2); ctx.stroke();
+    }
+    ctx.setLineDash([]);
+
+    // ── Injection indicators (what's entering this cycle)
+    for(let i=0;i<N;i++){
+      const k=tick-i;
+      if(k>=0&&k<K) label(`a${i}${k}→`, ox-6, oy+i*s+s/2, colors.a, Math.max(8,f0+1), 'right');
+    }
+    for(let j=0;j<N;j++){
+      const k=tick-j;
+      if(k>=0&&k<K) label(`↓b${k}${j}`, ox+j*s+s/2, oy-14, colors.b, Math.max(8,f0+1));
+    }
+
+    // ── Cells
+    const ev=eventsAt(tick);
+    for(let i=0;i<N;i++) for(let j=0;j<N;j++){
+      const {x,y}=cellXY(i,j), n=doneCell(i,j);
+      const hotE=ev.find(e=>e.i===i&&e.j===j);
+      const hot=!!hotE;
+
+      ctx.fillStyle=hot?'#3c1040':colors.idle;
+      ctx.strokeStyle=hot?colors.hot:colors.line;
+      ctx.lineWidth=hot?2.5:1;
+      roundRect(x+3,y+3,s-6,s-6,10);
+
+      // PE label — left-aligned top-left, leaves top-right clear for B token
+      label(`PE ${i},${j}`, x+7, y+s*0.10, '#4a5e7a', f0, 'left');
+
+      if(hot&&hotE){
+        label(`C[${i},${j}]`, x+s/2, y+s*0.27, colors.p, f1);
+        ctx.strokeStyle='#5c2060'; ctx.lineWidth=0.8;
+        ctx.beginPath(); ctx.moveTo(x+10,y+s*0.38); ctx.lineTo(x+s-10,y+s*0.38); ctx.stroke();
+        label(`M: a${i}${hotE.k}×b${hotE.k}${j}`, x+s/2, y+s*0.52, '#ffc860', fop);
+        label(`AC: +→ C[${i},${j}]`,              x+s/2, y+s*0.67, colors.p,  fop);
+        label(`${n}/${K} done`, x+s/2, y+s*0.84, n===K?colors.p:'#5a7090', Math.max(7,f0));
+      } else {
+        label(`C[${i},${j}]`,   x+s/2, y+s*0.36, colors.p,                 f1);
+        label(`${n}/${K} MACs`, x+s/2, y+s*0.58, n===K?colors.p:'#8098b8', f2);
+        if(n===K) label('DONE ✓', x+s/2, y+s*0.80, colors.p, Math.max(7,f2-1));
+      }
+
+      // ── Corner tokens
+      // k_cell: which k-index token is currently meeting in this cell
+      // A[i,k_cell] arrives from left, B[k_cell,j] arrives from top, when tick = i+j+k_cell
+      const k_cell = tick - i - j;
+      if(k_cell>=0 && k_cell<K){
+        // A token: bottom-left corner
+        token(x+cm, y+s-cm, colors.a, `a${i}${k_cell}`, cr);
+        // B token: top-right corner
+        token(x+s-cm, y+cm, colors.b, `b${k_cell}${j}`, cr);
+      }
+    }
+
+    // ── Approaching A tokens (one cycle before grid entry)
+    for(let i=0;i<N;i++) for(let k=0;k<K;k++){
+      if(tick===i+k-1){
+        const {ox:gox,oy:goy,s:gs}=cellXY(i,0);
+        token(gox-cr-12, goy+i*gs+gs/2, colors.a, `a${i}${k}`, cr);
+      }
+    }
+
+    // ── Compass
+    const compassX=Math.max(38, ox-72);
+    const compassY=Math.min(oy+N*s+62, rect.h-56);
+    drawCompass(compassX, compassY);
+  }
+
+  function drawNaive(){
+    const totalMACs=N*N*K, totalReads=2*N*N*K;
+    label('Naïve: every MAC independently fetches both operands from memory',rect.w/2,32,colors.text,15);
+    const boxW=155,boxH=68,memX=45,memY=rect.h/2-boxH/2,macX=rect.w-205,macY=memY;
+    ctx.fillStyle='#142644';ctx.strokeStyle=colors.a;roundRect(memX,memY,boxW,boxH,12);
+    label('Shared memory',memX+boxW/2,memY+25,colors.text,14);label('A and B tensors',memX+boxW/2,memY+46,colors.muted,12);
+    ctx.fillStyle='#251e33';ctx.strokeStyle=colors.hot;roundRect(macX,macY,boxW,boxH,12);
+    label('One MAC unit',macX+boxW/2,macY+25,colors.text,14);label('a × b → C',macX+boxW/2,macY+46,colors.muted,12);
+    const n=Math.min(totalMACs,tick+1);
+    for(let q=0;q<Math.min(n,10);q++){
+      const f=(q/10+.08)%1, y=memY+12+(q%5)*11, x=memX+boxW+f*(macX-memX-boxW);
+      ctx.strokeStyle=q%2?colors.a:colors.b; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.moveTo(memX+boxW,y); ctx.lineTo(x,y); ctx.stroke();
+      token(x,y,q%2?colors.a:colors.b,q%2?'A':'B',7);
+    }
+    label(`${Math.min(totalReads,(tick+1)*2)} operand reads so far`,rect.w/2,rect.h/2+110,colors.hot,18);
+    label('2 external reads per MAC — no guaranteed local reuse.',rect.w/2,rect.h/2+138,colors.muted,13);
+    label('(Caches can help, but the hardware does not guarantee the per-hop reuse a systolic schedule provides.)',rect.w/2,rect.h/2+163,colors.muted,11);
+  }
+
+  function draw(){ ctx.clearRect(0,0,rect.w,rect.h); if(view==='systolic') drawSystolic(); else drawNaive(); updateText(); }
+
+  function updateText(){
+    const totalMACs=N*N*K, totalEdge=2*N*K, totalNaiveReads=2*N*N*K;
+    const m=view==='systolic'?macCount():Math.min(totalMACs,tick+1);
+    const reads=view==='systolic'?edgeReadCount():Math.min(totalNaiveReads,(tick+1)*2);
+    document.getElementById('macs').textContent=`${m} / ${totalMACs}`;
+    document.getElementById('edgeReads').textContent=`${reads} / ${view==='systolic'?totalEdge:totalNaiveReads}`;
+    document.getElementById('reuse').textContent=view==='systolic'?(reads?`${(m/reads*2).toFixed(1)}×`:'0×'):'1×';
+    document.getElementById('cycle').textContent=tick;
+    const lastMACcycle=2*(N-1)+(K-1);
+    document.getElementById('readout').textContent=view==='systolic'
+      ?`Cycle ${tick} — pipeline completes at cycle ${lastMACcycle}`
+      :`Naïve MAC ${Math.min(totalMACs,tick+1)} of ${totalMACs}`;
+    const ev=eventsAt(tick);
+    document.getElementById('log').innerHTML=view==='systolic'
+      ?(ev.length
+        ?`<strong>Cycle ${tick}:</strong><br>${ev.map(e=>`<span style="color:#ffc860">M</span> a${e.i}${e.k}×b${e.k}${e.j} &nbsp;<span style="color:#a9ff72">AC</span> +→C[${e.i},${e.j}] &nbsp;<em style="color:#6a7a9a">PE(${e.i},${e.j})</em>`).join('<br>')}`
+        :`<strong>Cycle ${tick}:</strong> <span style="color:#6a7a9a">pipeline fill/drain — no operand pairs meet in the ${N}×${N} array this cycle.</span>`)
+      :`<strong>Step ${Math.min(totalMACs,tick+1)}:</strong> fetch A and B from shared memory, compute one MAC. No forwarding to neighbors.`;
+  }
+
+  function resize(){
+    const dpr=devicePixelRatio||1, w=canvas.clientWidth, h=canvas.clientHeight;
+    canvas.width=w*dpr; canvas.height=h*dpr; ctx.setTransform(dpr,0,0,dpr,0,0); rect={w,h}; draw();
+  }
+  addEventListener('resize',resize); resize();
+
+  function advance(){ tick++; if(view==='systolic'&&tick>2*N+K-1) tick=0; if(view==='naive'&&tick>N*N*K+1) tick=0; draw(); }
+  function retreat(){ tick=Math.max(0,tick-1); draw(); }
+
+  function loop(ts){
+    if(!last) last=ts;
+    if(running && ts-last>=1440/(+speedEl.value)){ advance(); last=ts; }
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+  play.onclick=()=>{ running=!running; play.textContent=running?'Pause':'Play'; play.classList.toggle('active',running); };
+  document.getElementById('prev').onclick=()=>{ running=false; play.textContent='Play'; play.classList.remove('active'); retreat(); };
+  document.getElementById('step').onclick=()=>{ running=false; play.textContent='Play'; play.classList.remove('active'); advance(); };
+  document.getElementById('reset').onclick=()=>{ tick=0; draw(); };
+  document.getElementById('gridSize').onchange=e=>{ N=K=+e.target.value; tick=0; draw(); };
+  document.getElementById('view').onchange=e=>{
+    view=e.target.value; tick=0;
+    const sys=view==='systolic';
+    document.getElementById('modeTitle').textContent=sys?'Output-stationary systolic array':'Naïve no-reuse comparison';
+    document.getElementById('modeText').textContent=sys
+      ?'Blue A[i,k] values enter from the left; amber B[k,j] values enter from the top. Their injection times are staggered so matching k values arrive in a cell on the same cycle. Each PE first multiplies the two arriving operands (M), then accumulates the product into its local register (AC). Tokens appear at the bottom-left (A) and top-right (B) corners of the PE they are visiting.'
+      :'Each MAC independently reads both of its operands from a shared memory. No operand is forwarded to a neighbor; every computation pays the full memory latency. Caches may reduce some traffic in practice, but the hardware provides no guarantee of the fixed, per-hop reuse a systolic schedule delivers.';
+    document.getElementById('modeNote').style.display=sys?'':'none';
+    draw();
+  };
+})();
+</script>
+<div style="text-align: center;"><a href="https://ruchirtewari.github.io/"> Back to neural interpretability home page </a> </div>
+</body>
+</html>
