@@ -57,11 +57,11 @@ button{font:inherit;color:inherit;cursor:pointer;background:none;border:none}
 a,button{transition:color 160ms ease,background 160ms ease,border-color 160ms ease,opacity 160ms ease}
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
 /* ---------- header ---------- */
-header{max-width:1200px;margin:0 auto;padding:clamp(1.5rem,4vw,3rem) clamp(1rem,3vw,2rem) clamp(1rem,2vw,1.5rem)}
-.brand{display:flex;align-items:center;gap:.625rem;font-family:var(--font-mono);font-size:var(--text-xs);letter-spacing:.14em;text-transform:uppercase;color:var(--color-text-muted)}
+header{max-width:1200px;margin:0 auto;padding:clamp(0.5rem,0vw,3rem) clamp(1rem,3vw,2rem) clamp(1rem,2vw,1.5rem)}
+.brand{display:flex;align-items:center;gap:.125rem;font-family:var(--font-mono);font-size:var(--text-xs);letter-spacing:.14em;text-transform:uppercase;color:var(--color-text-muted)}
 .brand svg{color:var(--color-primary)}
-h1{font-family:var(--font-body);font-weight:600;font-size:var(--text-xl);letter-spacing:-.02em;line-height:1.1;margin-top:1.25rem;max-width:22ch}
-.sub{margin-top:.625rem;color:var(--color-text-muted);max-width:64ch;font-size:var(--text-sm)}
+h1{font-family:var(--font-body);font-weight:600;font-size:var(--text-xl);letter-spacing:-.02em;line-height:1.1;margin-top:1.25rem;max-width:60}
+.sub{margin-top:.625rem;color:var(--color-text-muted);max-width:120;font-size:var(--text-sm)}
 /* ---------- main layout ---------- */
 main{max-width:1200px;margin:0 auto;padding:0 clamp(1rem,3vw,2rem) clamp(3rem,6vw,5rem);display:flex;flex-direction:column;gap:clamp(1.5rem,3vw,2.5rem)}
 .map-card{background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg);box-shadow:var(--shadow-md);overflow:hidden}
@@ -126,17 +126,10 @@ footer .ax-key span{display:inline-block;margin-right:1.25rem}
 </style>
 </head>
 <body>
-<button class="theme-btn" data-theme-toggle aria-label="Toggle dark mode"></button>
 
 <header>
-  <div class="brand">
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-label="Atlas logo">
-      <path d="M4 20 L20 4"/><circle cx="8.5" cy="15.5" r="2.6" fill="currentColor" stroke="none"/><circle cx="15.5" cy="8.5" r="2.6" fill="none"/>
-    </svg>
-    rep-hypotheses / atlas
-  </div>
-  <h1>Representation hypotheses, plotted on their disagreements</h1>
-  <p class="sub">Eleven named claims, 2015–2026. Two maps: what they claim, and how they claim it. Select a point for the one-line claim and source. Points are positioned by judgment; the axes are the content.</p>
+  <h1>Representation hypotheses - and their variations, plotted</h1>
+  <p class="sub">Do representations converge to a universal representation or is there a plurality of end states to which they converge ? Is the claim for one model or across shared across many models.  The Platonic Representation Hypothesis claims a single universal representation, the Umwelt Representation Hypothesis argues for a pluraity of them. Explore in two maps that plot eleven hypotheses about representations, 2015–2026. First map plots number of endstates vs scope,  separating universalists from pluralists. Second map plots granularity (global to local) vs strength (described to proven) of claim. Select a point for the one-line claim and source, see legend for more deails at bottom. </p>
 </header>
 
 <main>
@@ -144,7 +137,7 @@ footer .ax-key span{display:inline-block;margin-right:1.25rem}
   <section class="map-card" id="map1">
     <div class="map-head">
       <div>
-        <h2>MAP 1 · SCOPE × ENDPOINTS</h2>
+        <h2>MAP 1 · ENDPOINTS vs SCOPE</h2>
         <p class="q">What do representations converge to — and how many winners are there?</p>
       </div>
       <div class="legend" id="legend1"></div>
@@ -157,7 +150,7 @@ footer .ax-key span{display:inline-block;margin-right:1.25rem}
   <section class="map-card" id="map2">
     <div class="map-head">
       <div>
-        <h2>MAP 2 · CLAIM STRENGTH × GRANULARITY</h2>
+        <h2>MAP 2 · GRANULARITY vs STRENGTH</h2>
         <p class="q">Is it observed, exploited, or proven — and at what level of description?</p>
       </div>
       <div class="legend" id="legend2"></div>
@@ -175,18 +168,18 @@ footer .ax-key span{display:inline-block;margin-right:1.25rem}
     </div>
     <div class="guide-grid">
       <div class="guide-col">
-        <h3>Map 1 · Scope × Endpoints</h3>
+        <h3>Map 1 · Endpoints vs Scope</h3>
         <dl>
-          <div><dt>X — Scope of claim</dt><dd>Who the hypothesis is about. Left: inside one network (Manifold, Superposition, LRH). Middle: across trained models (Convergent, Anna Karenina, Perfect PRH). Right: all representation-learners including brains (PRH, Universality, URH).</dd></div>
           <div><dt>Y — Number of endpoints</dt><dd>How many final representation spaces the hypothesis allows. Bottom: one global attractor (PRH, Strong PRH). Top: durable plurality (URH's ecological clusters, Superposition's per-model interference; CKA sits high because as a metric it registers dissimilarity as real structure).</dd></div>
+          <div><dt>X — Scope of claim</dt><dd>Who the hypothesis is about. Left: inside one network (Manifold, Superposition, LRH). Middle: across trained models (Convergent, Anna Karenina, Perfect PRH). Right: all representation-learners including brains (PRH, Universality, URH).</dd></div>
           <div><dt>The corners</dt><dd>PRH bottom-right: everything converges to one. URH top-right: everything is constrained but splits into clusters.</dd></div>
         </dl>
       </div>
       <div class="guide-col">
         <h3>Map 2 · Claim strength × Granularity</h3>
         <dl>
-          <div><dt>X — Strength of claim</dt><dd>Epistemic status. Left: empirical observation (Convergent 2015, CKA). Middle: constructive demonstration (vec2vec built a translator) or falsifiable test (Universality's fMRI predictions). Right: mathematical proof (Perfect PRH) or calibrated formal claim (Aristotelian).</dd></div>
           <div><dt>Y — Granularity</dt><dd>Level of description. Bottom: global geometry — distances, subspaces, linear maps (PRH, Manifold). Top: identifiable mechanisms — curve detectors, induction heads (Circuits; Superposition and Linear bridge partway up).</dd></div>
+          <div><dt>X — Strength of claim</dt><dd>Epistemic status. Left: empirical observation (Convergent 2015, CKA). Middle: constructive demonstration (vec2vec built a translator) or falsifiable test (Universality's fMRI predictions). Right: mathematical proof (Perfect PRH) or calibrated formal claim (Aristotelian).</dd></div>
           <div><dt>The tension</dt><dd>The strongest claims (right edge) are all geometric. The 2026 critiques sit between the rows, arguing geometry-level agreement may only be the linear part.</dd></div>
         </dl>
       </div>
@@ -231,7 +224,7 @@ const NODES = [
     why:'First direct test of whether training converges. Answer: partially.',
     src:'Li, Yosinski, Clune, Lipson & Hopcroft — ICLR 2016',
     links:[['arXiv:1511.07543','https://arxiv.org/abs/1511.07543']] },
-  { id:'cka',       short:'CKA',           name:'CKA — the instrument', year:2019, fam:'metric', tool:true,
+  { id:'cka',       short:'CKA',           name:'Centered Kernel AlignmentA — the instrument', year:2019, fam:'metric', tool:true,
     x1:.30, y1:.94, x2:.22, y2:.12,
     claim:'Representations are compared by correlating pairwise stimulus-similarity matrices.',
     why:'Not a hypothesis — the default measuring device. The 2026 critiques are about what this device actually registers.',
@@ -465,14 +458,13 @@ renderMap('svg2','legend2','detail2','x2','y2',EDGES2,{
 (function () {
   if (window === window.top) return;
 
-  const allowedParentOrigins = ["https://www.perplexity.ai","https://perplexity.ai","https://testing.perplexity.ai","https://staging.perplexity.ai","https://*.preview.i.perplexity.ai","http://perplexity.localhost","http://localhost:1420","http://127.0.0.1:1420","http://localhost:3000","http://127.0.0.1:3000","http://localhost:5173","http://127.0.0.1:5173"];
+  const allowedParentOrigins = [];
   const MAX_FONT_BYTES = 500 * 1024;
   const MAX_TOTAL_FONT_BYTES = 2 * 1024 * 1024;
   let scrollForwarding = false;
   let scrollRaf = 0;
   let trustedTopOrigin = null;
 
-  // Allow entries like "https://*.preview.i.perplexity.ai" — the wildcard
   // matches a single DNS label (no dots), so "https://*.foo" cannot stretch
   // across multiple labels.
   function matchesAllowedOrigin(origin) {
@@ -492,13 +484,6 @@ renderMap('svg2','legend2','detail2','x2','y2',EDGES2,{
     return false;
   }
 
-  // Trust decision: when the sender is same-origin-visible (event.origin is a
-  // real origin like https://www.perplexity.ai) we trust event.origin directly.
-  // When event.origin is "null" (opaque broker srcdoc), we fall back to the
-  // broker's stamped `parentOrigin` to identify the top window. The fallback
-  // is claim-only — we rely on the browser's native `targetOrigin` enforcement
-  // on the response path (see postToTrustedTop) to ensure replies can't be
-  // delivered to anyone but the actual top window of that claimed origin.
   function getTrustedParentOrigin(event) {
     const forwardedParentOrigin =
       typeof event.data.parentOrigin === "string" ? event.data.parentOrigin : null;
