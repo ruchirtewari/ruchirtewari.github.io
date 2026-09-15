@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dynamical Systems — Visual Programs</title>
+  <style>
+    :root {
+      --bg: #1a1a2e; --surface: #16213e; --card: #0f3460;
+      --accent: #e94560; --blue: #53d8fb; --gold: #f5a623;
+      --muted: #8892a4; --text: #e0e0e0; --border: #2a3a5c;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Georgia', serif; background: var(--bg); color: var(--text); }
+
+    /* ── Top bar ── */
+    #topbar {
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      padding: 12px 24px; display: flex; align-items: center; gap: 16px;
+      position: sticky; top: 0; z-index: 100;
+    }
+    #topbar h1 { font-size: 0.95em; color: var(--blue); font-family: monospace; flex: 1; }
+    #back-link { color: var(--muted); text-decoration: none; font-size: 0.82em; font-family: monospace; }
+    #back-link:hover { color: var(--blue); }
+
+    /* ── Chapter nav ── */
+    #chapter-nav {
+      display: flex; gap: 6px; padding: 10px 24px; flex-wrap: wrap;
+      background: var(--surface); border-bottom: 1px solid var(--border);
+    }
+    .ch-pill {
+      padding: 3px 12px; border-radius: 20px; font-family: monospace; font-size: 0.78em;
+      border: 1px solid var(--border); color: var(--muted); cursor: pointer; background: transparent;
+    }
+    .ch-pill.active { background: var(--card); color: var(--blue); border-color: var(--blue); }
+    .ch-pill:hover { color: var(--text); }
+
+    /* ── Grid ── */
+    #grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(580px, 1fr));
+      gap: 20px; padding: 24px;
+    }
+
+    /* ── Program card ── */
+    .prog-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+      overflow: hidden;
+    }
+    .prog-card-header {
+      padding: 10px 14px; background: var(--card);
+      display: flex; justify-content: space-between; align-items: flex-start;
+    }
+    .prog-title { font-size: 0.9em; color: var(--blue); font-weight: bold; }
+    .prog-meta { font-size: 0.72em; font-family: monospace; color: var(--muted); margin-top: 2px; }
+    .prog-chapter-tag {
+      font-size: 0.7em; font-family: monospace; background: var(--bg);
+      padding: 2px 8px; border-radius: 3px; color: var(--gold); white-space: nowrap;
+    }
+    .prog-body { padding: 12px; }
+    .prog-error {
+      padding: 16px; color: var(--accent); font-family: monospace; font-size: 0.8em;
+      background: rgba(233,69,96,0.07); border-radius: 4px; display: none;
+    }
+
+    /* ── Concept tag ── */
+    .concept-tag {
+      display: inline-block; font-size: 0.72em; font-family: monospace;
+      background: rgba(83,216,251,0.1); color: var(--blue);
+      border: 1px solid rgba(83,216,251,0.3); border-radius: 3px;
+      padding: 1px 7px; margin: 4px 0;
+    }
+  </style>
+</head>
+<body>
+
+<div id="topbar">
+  <a href="../dynamical_systems.html" id="back-link">← Book Reader</a>
+  <h1>Brin & Stuck — Visual Programs · Introduction to Dynamical Systems</h1>
+</div>
+
+<div id="chapter-nav">
+  <button class="ch-pill active" data-ch="all">All (20)</button>
+  <button class="ch-pill" data-ch="1">Ch.1 Examples</button>
+  <button class="ch-pill" data-ch="2">Ch.2 Topological</button>
+  <button class="ch-pill" data-ch="3">Ch.3 Symbolic</button>
+  <button class="ch-pill" data-ch="4">Ch.4 Ergodic</button>
+  <button class="ch-pill" data-ch="5">Ch.5 Hyperbolic</button>
+  <button class="ch-pill" data-ch="6">Ch.6 Anosov</button>
+  <button class="ch-pill" data-ch="7">Ch.7 Low-Dim</button>
+  <button class="ch-pill" data-ch="8">Ch.8 Complex</button>
+  <button class="ch-pill" data-ch="9">Ch.9 Entropy</button>
+</div>
+
+<div id="grid"></div>
+
+<!-- ── Load utilities and all program modules ── -->
+<script src="src/ds_utils.js"></script>
+
+<script>
+// ── Program registry ─────────────────────────────────────────────────────────
+// Each entry: { file, chapter, moduleVar }
+// moduleVar is the global name the module exports (e.g., 'CobwebDiagram')
+const PROGRAMS = [
+  { file: 'src/01_05_01_cobweb_diagram.js',                   chapter: 1, moduleVar: 'CobwebDiagram' },
+  { file: 'src/01_12_02_strange_attractors.js',               chapter: 1, moduleVar: 'StrangeAttractors' },
+  { file: 'src/01_07_03_arnold_s_cat_map.js',                 chapter: 1, moduleVar: 'ArnoldCatMap' },
+  { file: 'src/02_01_01_omega_limit_sets.js',                 chapter: 2, moduleVar: 'OmegaLimitSets' },
+  { file: 'src/02_05_02_topological_entropy.js',              chapter: 2, moduleVar: 'TopologicalEntropy' },
+  { file: 'src/03_02_01_subshift_of_finite_type.js',          chapter: 3, moduleVar: 'SubshiftFiniteType' },
+  { file: 'src/03_06_02_substitution_systems.js',             chapter: 3, moduleVar: 'SubstitutionSystems' },
+  { file: 'src/04_02_03_poincare_recurrence.js',              chapter: 4, moduleVar: 'PoincareRecurrence' },
+  { file: 'src/04_03_01_birkhoff_ergodic_theorem.js',         chapter: 4, moduleVar: 'BirkhoffErgodic' },
+  { file: 'src/04_12_02_pagerank.js',                         chapter: 4, moduleVar: 'PageRank' },
+  { file: 'src/05_06_01_stable_unstable_manifolds.js',        chapter: 5, moduleVar: 'StableUnstableManifolds' },
+  { file: 'src/05_03_02_shadowing_lemma.js',                  chapter: 5, moduleVar: 'ShadowingLemma' },
+  { file: 'src/06_03_01_ergodicity_cat_map.js',               chapter: 6, moduleVar: 'ErgodicityCatMap' },
+  { file: 'src/07_01_02_rotation_number.js',                  chapter: 7, moduleVar: 'RotationNumber' },
+  { file: 'src/07_03_03_sharkovsky.js',                       chapter: 7, moduleVar: 'Sharkovsky' },
+  { file: 'src/07_06_01_bifurcation_diagram.js',              chapter: 7, moduleVar: 'BifurcationDiagram' },
+  { file: 'src/08_05_01_julia_mandelbrot.js',                 chapter: 8, moduleVar: 'JuliaMandelbrot' },
+  { file: 'src/08_04_02_newton_basins.js',                    chapter: 8, moduleVar: 'NewtonBasins' },
+  { file: 'src/09_01_01_measure_theoretic_entropy.js',        chapter: 9, moduleVar: 'MeasureEntropy' },
+  { file: 'src/09_05_02_variational_principle.js',            chapter: 9, moduleVar: 'VariationalPrinciple' },
+];
+
+// ── Chapter filter ────────────────────────────────────────────────────────────
+document.querySelectorAll('.ch-pill').forEach(pill => {
+  pill.addEventListener('click', () => {
+    document.querySelectorAll('.ch-pill').forEach(p => p.classList.remove('active'));
+    pill.classList.add('active');
+    const ch = pill.dataset.ch;
+    document.querySelectorAll('.prog-card').forEach(card => {
+      card.style.display = (ch === 'all' || card.dataset.ch === ch) ? '' : 'none';
+    });
+  });
+});
+
+// ── Build card skeleton, load script, init module ─────────────────────────────
+const grid = document.getElementById('grid');
+
+function loadProgram(prog) {
+  // Create card
+  const card = document.createElement('div');
+  card.className = 'prog-card';
+  card.dataset.ch = prog.chapter;
+
+  const header = document.createElement('div');
+  header.className = 'prog-card-header';
+  header.innerHTML = `
+    <div>
+      <div class="prog-title" id="title-${prog.moduleVar}">⏳ Loading ${prog.file.split('/').pop()}…</div>
+      <div class="prog-meta" id="meta-${prog.moduleVar}">—</div>
+    </div>
+    <span class="prog-chapter-tag">Ch.${prog.chapter}</span>
+  `;
+
+  const body = document.createElement('div');
+  body.className = 'prog-body';
+  body.id = `body-${prog.moduleVar}`;
+
+  const errDiv = document.createElement('div');
+  errDiv.className = 'prog-error';
+  errDiv.id = `err-${prog.moduleVar}`;
+
+  card.append(header, body, errDiv);
+  grid.appendChild(card);
+
+  // Load the script dynamically
+  const script = document.createElement('script');
+  script.src = prog.file;
+  script.onload = () => {
+    const mod = window[prog.moduleVar];
+    if (!mod) {
+      showError(prog.moduleVar, `Module '${prog.moduleVar}' not found on window after loading.`);
+      return;
+    }
+    // Update header with module meta
+    if (mod.meta) {
+      document.getElementById(`title-${prog.moduleVar}`).innerHTML =
+        `${mod.meta.title} <span class="concept-tag">${mod.meta.concept}</span>`;
+      document.getElementById(`meta-${prog.moduleVar}`).textContent =
+        `§${(mod.meta.sections || []).join(', §')} — ${mod.meta.chapter || ''}`;
+    } else {
+      document.getElementById(`title-${prog.moduleVar}`).textContent = prog.moduleVar;
+    }
+    // Init visualization
+    try {
+      mod.init(document.getElementById(`body-${prog.moduleVar}`));
+    } catch (e) {
+      showError(prog.moduleVar, `Init error: ${e.message}\n${e.stack}`);
+    }
+  };
+  script.onerror = () => {
+    showError(prog.moduleVar, `Failed to load ${prog.file}. File may not exist yet.`);
+    document.getElementById(`title-${prog.moduleVar}`).textContent =
+      `⚠ ${prog.file.split('/').pop()} — not yet generated`;
+    document.getElementById(`title-${prog.moduleVar}`).style.color = 'var(--muted)';
+  };
+  document.head.appendChild(script);
+}
+
+function showError(moduleVar, msg) {
+  const errDiv = document.getElementById(`err-${moduleVar}`);
+  if (errDiv) { errDiv.textContent = msg; errDiv.style.display = 'block'; }
+}
+
+// Load all programs
+PROGRAMS.forEach(loadProgram);
+</script>
+</body>
+</html>

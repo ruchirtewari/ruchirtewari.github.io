@@ -1,0 +1,1104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dynamical Systems — Chapter Summaries &amp; Program Specs</title>
+<style>
+  :root {
+    --bg: #191927;
+    --surface: #1f2033;
+    --card: #262842;
+    --accent: #e94560;
+    --blue: #6fd9f7;
+    --gold: #f0b03f;
+    --green: #7ed491;
+    --muted: #9aa3b5;
+    --text: #e6e7ec;
+    --border: #343a5a;
+    --sidebar-w: 250px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: Georgia, 'Times New Roman', serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 17px;
+    line-height: 1.7;
+  }
+
+  /* ── Layout ── */
+  #wrap { display: flex; min-height: 100vh; }
+
+  /* ── Sidebar TOC ── */
+  nav {
+    width: var(--sidebar-w);
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    padding: 28px 0 40px;
+    position: sticky; top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    flex-shrink: 0;
+    font-family: 'SF Mono', Menlo, monospace;
+    font-size: 12px;
+  }
+  nav .nav-title {
+    padding: 0 18px 14px;
+    color: var(--gold);
+    font-size: 12px;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 10px;
+  }
+  nav a {
+    display: block;
+    padding: 6px 18px;
+    color: var(--muted);
+    text-decoration: none;
+    border-left: 3px solid transparent;
+    line-height: 1.45;
+  }
+  nav a:hover { color: var(--text); background: rgba(111,217,247,.05); }
+  nav a.ch { color: var(--text); margin-top: 8px; }
+  nav a.ch b { color: var(--gold); font-weight: normal; }
+  nav a.prog { padding-left: 34px; font-size: 11px; }
+  nav .nav-links {
+    margin-top: 22px; padding: 14px 18px 0;
+    border-top: 1px solid var(--border);
+  }
+  nav .nav-links a { padding: 4px 0; color: var(--blue); }
+
+  /* ── Main column ── */
+  main { flex: 1; min-width: 0; }
+  .page {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 48px 40px 120px;
+  }
+
+  /* ── Masthead ── */
+  header.masthead { margin-bottom: 56px; }
+  header.masthead .kicker {
+    font-family: 'SF Mono', Menlo, monospace;
+    font-size: 12px; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--accent); margin-bottom: 10px;
+  }
+  header.masthead h1 {
+    font-size: 2.1em; font-weight: normal; line-height: 1.25;
+    color: var(--text); margin-bottom: 14px;
+  }
+  header.masthead p.sub {
+    color: var(--muted); font-size: 1.02em; max-width: 42em;
+  }
+  header.masthead .actions { margin-top: 18px; display: flex; gap: 10px; flex-wrap: wrap; }
+  .btn {
+    font-family: 'SF Mono', Menlo, monospace; font-size: 12px;
+    color: var(--blue); text-decoration: none;
+    border: 1px solid var(--border); border-radius: 5px;
+    padding: 7px 14px; background: var(--surface);
+  }
+  .btn:hover { border-color: var(--blue); }
+
+  /* ── Chapter sections ── */
+  section.chapter {
+    margin-bottom: 84px;
+    scroll-margin-top: 24px;
+  }
+  .ch-head { display: flex; align-items: baseline; gap: 16px; margin-bottom: 6px; }
+  .ch-num {
+    font-family: 'SF Mono', Menlo, monospace;
+    font-size: 2.6em; color: var(--gold); opacity: .9; line-height: 1;
+  }
+  .ch-head h2 {
+    font-size: 1.55em; font-weight: normal; color: var(--text); line-height: 1.3;
+  }
+  .ch-gist {
+    font-style: italic; color: var(--blue); margin-bottom: 22px;
+    font-size: 1.0em;
+  }
+  section.chapter > p {
+    margin-bottom: 1em;
+    max-width: 46em;
+  }
+  section.chapter > p strong { color: var(--blue); font-weight: 600; }
+  em { color: #f2d9a0; font-style: italic; }
+
+  /* ── Definition cards ── */
+  h3.block-title {
+    font-family: 'SF Mono', Menlo, monospace;
+    font-size: 12px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--muted); margin: 34px 0 16px;
+    padding-bottom: 8px; border-bottom: 1px solid var(--border);
+  }
+  .defs { display: grid; gap: 12px; }
+  .def {
+    background: var(--surface);
+    border-left: 3px solid var(--gold);
+    border-radius: 0 6px 6px 0;
+    padding: 14px 18px;
+  }
+  .def dt {
+    font-weight: bold; color: var(--gold); margin-bottom: 4px;
+    font-size: 1.0em;
+  }
+  .def dd { color: var(--text); font-size: .95em; }
+  .def dd .why {
+    display: block; margin-top: 7px; color: var(--muted); font-size: .93em;
+  }
+  .def dd .why::before { content: 'Why it matters — '; color: var(--green); font-style: normal; }
+  .m {
+    font-family: 'SF Mono', Menlo, monospace;
+    font-size: .88em; color: var(--blue);
+    background: rgba(111,217,247,.07);
+    padding: 0 4px; border-radius: 3px;
+    white-space: nowrap;
+  }
+  .def .m, p .m { white-space: normal; }
+
+  /* ── Program cards ── */
+  .programs { display: grid; gap: 16px; }
+  .prog {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 18px 20px;
+  }
+  .prog .prog-top { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .prog h4 { font-size: 1.08em; font-weight: 600; color: var(--text); }
+  .prog .secs {
+    font-family: 'SF Mono', Menlo, monospace; font-size: 11px;
+    color: var(--muted); white-space: nowrap;
+  }
+  .prog .concept {
+    display: inline-block;
+    font-family: 'SF Mono', Menlo, monospace; font-size: 11px;
+    color: var(--blue); border: 1px solid rgba(111,217,247,.3);
+    border-radius: 3px; padding: 1px 8px; margin: 8px 0 10px;
+    background: rgba(111,217,247,.06);
+  }
+  .prog p { font-size: .93em; margin-bottom: 8px; }
+  .prog .how {
+    font-size: .88em; color: var(--muted);
+    border-top: 1px dashed var(--border); padding-top: 8px; margin-top: 4px;
+  }
+  .prog .how b { color: var(--text); font-weight: 600; }
+  .prog .links { margin-top: 10px; display: flex; gap: 8px; }
+  .prog .links a {
+    font-family: 'SF Mono', Menlo, monospace; font-size: 11px;
+    color: var(--green); text-decoration: none;
+    border: 1px solid rgba(126,212,145,.35); border-radius: 4px;
+    padding: 3px 10px;
+  }
+  .prog .links a:hover { background: rgba(126,212,145,.1); }
+
+  /* ── Footer ── */
+  footer {
+    border-top: 1px solid var(--border);
+    padding-top: 24px; color: var(--muted);
+    font-size: .85em; font-family: 'SF Mono', Menlo, monospace;
+  }
+
+  @media (max-width: 900px) {
+    nav { display: none; }
+    .page { padding: 32px 20px 80px; }
+  }
+  @media print {
+    body { background: #fff; color: #111; }
+    nav { display: none; }
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+
+<nav>
+  <div class="nav-title">Summaries &amp; Specs</div>
+  <a class="ch" href="#ch1"><b>1</b> Examples &amp; Basic Concepts</a>
+  <a class="ch" href="#ch2"><b>2</b> Topological Dynamics</a>
+  <a class="ch" href="#ch3"><b>3</b> Symbolic Dynamics</a>
+  <a class="ch" href="#ch4"><b>4</b> Ergodic Theory</a>
+  <a class="ch" href="#ch5"><b>5</b> Hyperbolic Dynamics</a>
+  <a class="ch" href="#ch6"><b>6</b> Ergodicity of Anosov Diffeos</a>
+  <a class="ch" href="#ch7"><b>7</b> Low-Dimensional Dynamics</a>
+  <a class="ch" href="#ch8"><b>8</b> Complex Dynamics</a>
+  <a class="ch" href="#ch9"><b>9</b> Measure-Theoretic Entropy</a>
+  <div class="nav-links">
+    <a href="dynamical_systems.html">← Book reader</a>
+    <a href="programs/index.html">Program gallery</a>
+    <a href="programs/tour.html">Guided tour</a>
+  </div>
+</nav>
+
+<main><div class="page">
+
+<header class="masthead">
+  <div class="kicker">Brin &amp; Stuck · Introduction to Dynamical Systems</div>
+  <h1>Chapter Summaries &amp; Visual Program Specifications</h1>
+  <p class="sub">
+    A self-contained study companion: each chapter of the book condensed into its
+    core ideas, with precise definitions of the central concepts, an explanation of
+    why each concept matters to the subject, and the specification of the interactive
+    programs that visualize it. Every program listed here is implemented in
+    JavaScript and runnable in the <a class="m" href="programs/tour.html" style="text-decoration:none">guided tour</a>.
+  </p>
+  <div class="actions">
+    <a class="btn" href="dynamical_systems.html">📖 Full book reader</a>
+    <a class="btn" href="programs/tour.html">▶ Guided visual tour</a>
+    <a class="btn" href="programs/index.html">⊞ Program gallery</a>
+  </div>
+</header>
+
+<!-- ══════════════════════════ CHAPTER 1 ══════════════════════════ -->
+<section class="chapter" id="ch1">
+  <div class="ch-head"><span class="ch-num">1</span><h2>Examples and Basic Concepts</h2></div>
+  <p class="ch-gist">Thirteen canonical examples that the rest of the book returns to again and again.</p>
+
+  <p>A <strong>dynamical system</strong> is simply a space <span class="m">X</span> together with a
+  self-map <span class="m">f : X → X</span> (discrete time) or a flow <span class="m">φₜ</span>
+  (continuous time). The subject asks one question in many guises: <em>what happens to points
+  under repeated application of the map?</em> The orbit of a point,
+  <span class="m">O(x) = {x, f(x), f²(x), …}</span>, is the fundamental object, and everything
+  else — recurrence, entropy, ergodicity, chaos — is a way of describing how orbits behave
+  collectively.</p>
+
+  <p>Rather than beginning with abstract theory, the book introduces a zoo of concrete examples
+  that among them exhibit essentially every phenomenon studied later: <strong>circle
+  rotations</strong> <span class="m">R_α(x) = x + α mod 1</span> (the simplest systems with
+  nontrivial recurrence), <strong>expanding endomorphisms</strong>
+  <span class="m">E_m(x) = mx mod 1</span> (the simplest chaotic systems), the <strong>full
+  shift and subshifts</strong> (dynamics on sequence spaces), the <strong>quadratic
+  family</strong> <span class="m">q_c(x) = x² + c</span> (one-parameter route to chaos),
+  the <strong>Gauss map</strong> <span class="m">G(x) = {1/x}</span> (continued fractions as
+  dynamics), <strong>hyperbolic toral automorphisms</strong> such as Arnold's cat map,
+  Smale's <strong>horseshoe</strong>, the <strong>solenoid</strong>, and the strange attractors
+  of <strong>Lorenz and Hénon</strong>. These examples are not decoration: nearly every theorem
+  in the book is best understood as a statement about one of them.</p>
+
+  <h3 class="block-title">Key concepts</h3>
+  <dl class="defs">
+    <div class="def"><dt>Orbit, fixed point, periodic point</dt>
+      <dd>The orbit of <span class="m">x</span> is <span class="m">O(x) = {fⁿ(x) : n ≥ 0}</span>.
+      A fixed point satisfies <span class="m">f(p) = p</span>; a periodic point of period
+      <span class="m">n</span> satisfies <span class="m">fⁿ(p) = p</span> with <span class="m">n</span> minimal.
+      A fixed point is attracting if <span class="m">|f′(p)| &lt; 1</span>, repelling if
+      <span class="m">|f′(p)| &gt; 1</span>.
+      <span class="why">Orbits are the atoms of the theory. Classifying which orbit types a system
+      supports — and how they gain and lose stability — is the whole game of low-dimensional dynamics.</span></dd></div>
+
+    <div class="def"><dt>Topological conjugacy</dt>
+      <dd>Systems <span class="m">f : X → X</span> and <span class="m">g : Y → Y</span> are conjugate
+      if there is a homeomorphism <span class="m">h : X → Y</span> with
+      <span class="m">h ∘ f = g ∘ h</span>. Conjugate systems have identical dynamics up to a
+      continuous change of coordinates.
+      <span class="why">Conjugacy is the notion of "sameness" for dynamical systems. Invariants that
+      survive conjugacy — number of periodic orbits, transitivity, entropy — are the properties
+      that genuinely belong to the dynamics rather than to a coordinate choice.</span></dd></div>
+
+    <div class="def"><dt>Hyperbolic toral automorphism</dt>
+      <dd>An integer matrix <span class="m">A</span> with <span class="m">det A = ±1</span> and no
+      eigenvalues on the unit circle induces a map of the torus
+      <span class="m">Tⁿ = ℝⁿ/ℤⁿ</span>. The cat map <span class="m">A = [[2,1],[1,1]]</span> has
+      eigenvalues <span class="m">φ² ≈ 2.618</span> and <span class="m">φ⁻² ≈ 0.382</span>
+      (<span class="m">φ</span> the golden ratio): one direction stretches, the other contracts.
+      <span class="why">The cleanest example of uniform hyperbolicity — every deep theorem of
+      Chapters 5, 6 and 9 (shadowing, ergodicity, entropy formulas) can be seen concretely here first.</span></dd></div>
+
+    <div class="def"><dt>Lyapunov exponent</dt>
+      <dd>The exponential rate at which nearby orbits separate:
+      <span class="m">λ(x) = lim (1/n) log |(fⁿ)′(x)|</span>. Positive λ means
+      errors of size <span class="m">ε</span> grow like <span class="m">ε·e^{λn}</span>.
+      <span class="why">This is the quantitative meaning of "sensitive dependence on initial
+      conditions." A positive Lyapunov exponent is the practical fingerprint of chaos, and it
+      reappears in Chapter 9 tied to entropy via the Pesin-type identity.</span></dd></div>
+  </dl>
+
+  <h3 class="block-title">Programs</h3>
+  <div class="programs">
+    <div class="prog">
+      <div class="prog-top"><h4>Cobweb Diagram — Quadratic Family &amp; Gauss Map</h4><span class="secs">§1.5, §1.6</span></div>
+      <span class="concept">orbits · fixed points · periodic orbits · iteration</span>
+      <p>Turns iteration into geometry: from <span class="m">x₀</span> draw vertically to the graph of
+      <span class="m">f</span>, horizontally to the diagonal <span class="m">y = x</span>, and repeat.
+      Convergence to fixed points, capture by periodic cycles, and the onset of chaos in the
+      logistic family all become visually obvious. Includes the Gauss map as a preset.</p>
+      <p class="how"><b>How:</b> plot <span class="m">y = f(x)</span> and <span class="m">y = x</span>;
+      alternate vertical and horizontal segments from <span class="m">(x₀, 0)</span>, coloring
+      segments by iteration index.</p>
+      <div class="links"><a href="programs/tour.html#0">▶ run in tour</a><a href="programs/01_05_01_cobweb_diagram.md">spec.md</a></div>
+    </div>
+    <div class="prog">
+      <div class="prog-top"><h4>Arnold's Cat Map — Hyperbolic Toral Automorphism</h4><span class="secs">§1.7, §1.8</span></div>
+      <span class="concept">hyperbolicity · mixing · Poincaré recurrence</span>
+      <p>A cat face on a 64×64 pixel grid is scrambled by <span class="m">A = [[2,1],[1,1]] mod 1</span>:
+      recognizable for 2–3 steps, then apparently random — yet it returns <em>exactly</em> at step 48,
+      because on a rational grid the map is a permutation of finitely many pixels. Stable and unstable
+      eigendirections are overlaid.</p>
+      <p class="how"><b>How:</b> all 48 frames are precomputed by applying <span class="m">A</span>
+      once per step as a pixel permutation; animation steps through them at 500 ms per frame.</p>
+      <div class="links"><a href="programs/tour.html#1">▶ run in tour</a><a href="programs/01_07_03_arnold_s_cat_map.md">spec.md</a></div>
+    </div>
+    <div class="prog">
+      <div class="prog-top"><h4>Strange Attractors — Hénon &amp; Lorenz</h4><span class="secs">§1.12, §1.13</span></div>
+      <span class="concept">attractors · sensitive dependence · Lyapunov exponents</span>
+      <p>The Lorenz butterfly and the Hénon attractor side by side, with two nearby initial
+      conditions overlaid so their exponential divergence — and hence the impossibility of
+      long-term prediction — is directly visible, together with a numerical estimate of the
+      leading Lyapunov exponent.</p>
+      <p class="how"><b>How:</b> Hénon by direct iteration of
+      <span class="m">(x,y) ↦ (a − x² + by, x)</span>; Lorenz by RK4 integration; Lyapunov
+      exponent by renormalized two-orbit divergence.</p>
+      <div class="links"><a href="programs/tour.html#2">▶ run in tour</a><a href="programs/01_12_02_strange_attractors.md">spec.md</a></div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════ CHAPTER 2 ══════════════════════════ -->
+<section class="chapter" id="ch2">
+  <div class="ch-head"><span class="ch-num">2</span><h2>Topological Dynamics</h2></div>
+  <p class="ch-gist">What can be said about long-run behavior using continuity alone — no measure, no smoothness.</p>
+
+  <p>Topological dynamics studies a continuous map on a compact metric space and asks which
+  properties of orbits are visible to topology alone. The central discovery is that a
+  surprisingly rich classification is possible: one can say precisely where orbits accumulate
+  (<strong>ω-limit sets</strong>), which points participate in recurrent behavior
+  (<strong>nonwandering set</strong>), whether some orbit visits everywhere
+  (<strong>transitivity</strong>), whether all regions eventually communicate
+  (<strong>mixing</strong>), and — most importantly — <em>how many distinguishable orbits</em>
+  the system has (<strong>topological entropy</strong>).</p>
+
+  <p>Entropy is the star of the chapter. It assigns to each system a single number
+  <span class="m">h(f) ≥ 0</span> measuring the exponential growth rate of the number of orbit
+  segments that can be told apart at finite resolution. It is invariant under topological
+  conjugacy, which makes it the most useful single invariant in dynamics: if two systems have
+  different entropies, no continuous change of coordinates can ever identify them.</p>
+
+  <h3 class="block-title">Key concepts</h3>
+  <dl class="defs">
+    <div class="def"><dt>ω-limit set</dt>
+      <dd><span class="m">ω(x)</span> is the set of accumulation points of the forward orbit:
+      <span class="m">ω(x) = ⋂_{n≥0} closure{f^k(x) : k ≥ n}</span>. It is closed, invariant, and
+      non-empty when the space is compact.
+      <span class="why">It separates transient behavior from permanent behavior. The attractor you
+      "see" when you plot a long orbit is exactly its ω-limit set.</span></dd></div>
+
+    <div class="def"><dt>Nonwandering set Ω(f)</dt>
+      <dd>A point <span class="m">p</span> is nonwandering if every neighborhood
+      <span class="m">U ∋ p</span> satisfies <span class="m">fⁿ(U) ∩ U ≠ ∅</span> for some
+      <span class="m">n &gt; 0</span>. Ω(f) is closed, invariant, and contains all periodic points
+      and all ω-limit sets.
+      <span class="why">Ω(f) is where all the interesting dynamics lives; everything outside it is
+      passed through once and never again. Smale's program for classifying dynamical systems is
+      organized entirely around the structure of Ω.</span></dd></div>
+
+    <div class="def"><dt>Topological transitivity &amp; minimality</dt>
+      <dd>Transitive: some orbit is dense (equivalently, any two open sets are connected by the
+      dynamics: <span class="m">fⁿ(U) ∩ V ≠ ∅</span>). Minimal: <em>every</em> orbit is dense.
+      Irrational rotations are minimal; the cat map is transitive but not minimal (it has periodic points).
+      <span class="why">Transitivity says the system cannot be decomposed into independent
+      subsystems — it is one indivisible dynamical unit. It is one of the three ingredients of
+      Devaney's definition of chaos.</span></dd></div>
+
+    <div class="def"><dt>Topological mixing</dt>
+      <dd>For all open <span class="m">U, V</span> there is <span class="m">N</span> with
+      <span class="m">fⁿ(U) ∩ V ≠ ∅</span> for <em>all</em> <span class="m">n ≥ N</span>.
+      Strictly stronger than transitivity.
+      <span class="why">Mixing is the topological shadow of stochastic behavior: any initial blob,
+      no matter how small, eventually overlaps every region simultaneously and forever. The cat
+      map's scrambling of the cat face is mixing made visible.</span></dd></div>
+
+    <div class="def"><dt>Topological entropy h(f)</dt>
+      <dd>Call points <span class="m">x, y</span> <span class="m">(n,ε)</span>-separated if their
+      orbits differ by ≥ ε within the first <span class="m">n</span> steps. With
+      <span class="m">s(n,ε)</span> the maximal cardinality of a separated set,
+      <span class="m">h(f) = lim_{ε→0} limsup (1/n) log s(n,ε)</span>. Equivalently defined by
+      minimal spanning sets. For <span class="m">E_m</span>, <span class="m">h = log m</span>;
+      for the cat map, <span class="m">h = log φ² ≈ 0.962</span>.
+      <span class="why">Entropy counts distinguishable futures. h &gt; 0 is the sharpest available
+      dividing line between order and chaos, and its conjugacy-invariance makes it the primary tool
+      for proving two systems are genuinely different.</span></dd></div>
+
+    <div class="def"><dt>Expansiveness</dt>
+      <dd>There is δ &gt; 0 such that any two distinct orbits eventually separate by at least δ:
+      if <span class="m">d(fⁿx, fⁿy) ≤ δ</span> for all n, then <span class="m">x = y</span>.
+      <span class="why">Expansiveness means finite-resolution observations eventually determine the
+      point exactly — the property that makes symbolic coding (Chapter 3) faithful.</span></dd></div>
+  </dl>
+
+  <h3 class="block-title">Programs</h3>
+  <div class="programs">
+    <div class="prog">
+      <div class="prog-top"><h4>Omega-Limit Sets &amp; Non-Wandering Set</h4><span class="secs">§2.1</span></div>
+      <span class="concept">ω-limit sets · recurrence · nonwandering set</span>
+      <p>For 2-D flows (Van der Pol, Duffing) many initial conditions are integrated and their
+      ω-limit sets plotted in color: transient spirals fall away and the limit cycles and
+      equilibria — the nonwandering skeleton of the flow — stand out.</p>
+      <p class="how"><b>How:</b> RK4 integration; the first half of each trajectory is discarded
+      as transient, the remainder scatter-plotted per basin.</p>
+      <div class="links"><a href="programs/tour.html#3">▶ run in tour</a><a href="programs/02_01_01_omega_limit_sets_non_wandering.md">spec.md</a></div>
+    </div>
+    <div class="prog">
+      <div class="prog-top"><h4>Topological Entropy via Spanning/Separating Sets</h4><span class="secs">§2.5, §2.6</span></div>
+      <span class="concept">entropy · exponential orbit complexity</span>
+      <p>Computes <span class="m">h(f_r)</span> for the logistic family numerically by counting
+      spanning sets, and plots the entropy curve directly beneath the bifurcation diagram — so
+      one sees entropy switch on exactly where the diagram turns chaotic, reaching
+      <span class="m">log 2</span> at <span class="m">r = 4</span>.</p>
+      <p class="how"><b>How:</b> for each r and orbit length n, a greedy set cover estimates the
+      minimal <span class="m">(n,ε)</span>-spanning cardinality; the slope of
+      <span class="m">log S(n,ε)</span> against n estimates h.</p>
+      <div class="links"><a href="programs/tour.html#4">▶ run in tour</a><a href="programs/02_05_02_topological_entropy_via_spanning_separating.md">spec.md</a></div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════ CHAPTER 3 ══════════════════════════ -->
+<section class="chapter" id="ch3">
+  <div class="ch-head"><span class="ch-num">3</span><h2>Symbolic Dynamics</h2></div>
+  <p class="ch-gist">Replace a chaotic map by a shift on sequences — and compute everything by linear algebra.</p>
+
+  <p>Symbolic dynamics is the strategy of trading geometry for combinatorics. Partition the phase
+  space into finitely many pieces labeled <span class="m">0, …, m−1</span> and record, for each
+  point, the sequence of labels its orbit visits: its <strong>itinerary</strong>. The map
+  <span class="m">f</span> then acts on itineraries by simply shifting the sequence one place —
+  and for hyperbolic systems this coding loses essentially nothing. Hard analytic questions
+  (how many periodic orbits? what is the entropy?) become counting problems about sequences.</p>
+
+  <p>The central objects are <strong>subshifts of finite type</strong>, where admissible sequences
+  are those whose consecutive symbols are allowed by a 0-1 <strong>transition matrix</strong>
+  <span class="m">A</span>. Their theory is completely governed by the
+  <strong>Perron-Frobenius theorem</strong>: the largest eigenvalue of A determines the entropy,
+  its eigenvector determines the natural invariant measure, and traces of powers of A count
+  periodic orbits exactly.</p>
+
+  <h3 class="block-title">Key concepts</h3>
+  <dl class="defs">
+    <div class="def"><dt>Full shift Σ_m</dt>
+      <dd>The space of all (one- or two-sided) sequences over an alphabet of m symbols, with the
+      shift map <span class="m">σ(x)ᵢ = xᵢ₊₁</span>. Compact, and <span class="m">h(σ) = log m</span>.
+      <span class="why">The universal chaotic system: it contains periodic orbits of every period,
+      dense orbits, and maximal entropy. Every expansive system embeds in some full shift.</span></dd></div>
+
+    <div class="def"><dt>Subshift of finite type (SFT)</dt>
+      <dd>Given a 0-1 matrix <span class="m">A</span>, keep only sequences with
+      <span class="m">A[xᵢ, xᵢ₊₁] = 1</span> for all i — i.e. bi-infinite walks in a directed graph.
+      <span class="why">SFTs are the discrete models of hyperbolic dynamics: Markov partitions
+      (Chapter 5) conjugate Anosov systems to SFTs, transporting every question about smooth chaos
+      into finite linear algebra.</span></dd></div>
+
+    <div class="def"><dt>Perron-Frobenius theorem</dt>
+      <dd>An irreducible non-negative matrix A has a simple positive eigenvalue
+      <span class="m">λ_max = ρ(A)</span> strictly dominating all others in modulus, with strictly
+      positive eigenvector. For an SFT, <span class="m">h(σ_A) = log ρ(A)</span> and the number of
+      period-n points is <span class="m">Tr(Aⁿ) ≈ ρ(A)ⁿ</span>.
+      <span class="why">One theorem, three payoffs: entropy, orbit counts, and the stationary
+      measure all read off from a single eigenvalue problem. It also underlies Google's PageRank
+      (Chapter 4).</span></dd></div>
+
+    <div class="def"><dt>Zeta function</dt>
+      <dd><span class="m">ζ_A(z) = exp(Σ Tr(Aⁿ) zⁿ/n) = 1/det(I − zA)</span> packages all periodic
+      orbit counts into one rational function.
+      <span class="why">A dynamical analogue of the Riemann zeta function: its poles encode
+      the growth of periodic orbits, connecting dynamics to number theory and spectral theory.</span></dd></div>
+
+    <div class="def"><dt>Substitution systems</dt>
+      <dd>A rule replacing each letter by a word — Fibonacci: <span class="m">a → ab, b → a</span>;
+      Thue-Morse: <span class="m">a → ab, b → ba</span> — iterated to an infinite self-similar
+      sequence, whose orbit closure under the shift is a minimal, zero-entropy system.
+      <span class="why">These systems are ordered but never periodic — the mathematics of
+      quasicrystals. They show that zero entropy does not mean simple: Thue-Morse has purely
+      singular continuous spectrum, a genuinely exotic middle ground between periodic and chaotic.</span></dd></div>
+  </dl>
+
+  <h3 class="block-title">Programs</h3>
+  <div class="programs">
+    <div class="prog">
+      <div class="prog-top"><h4>Subshift of Finite Type — Transition Graph &amp; Perron-Frobenius</h4><span class="secs">§3.2–§3.4</span></div>
+      <span class="concept">SFT · transition matrix · orbit counting</span>
+      <p>Edit a transition matrix and watch everything update live: the directed graph, the
+      spectral radius (hence entropy <span class="m">h = log ρ(A)</span>), the Perron eigenvector
+      as stationary probabilities, and the count of periodic orbits growing as
+      <span class="m">ρ(A)ⁿ</span> on a log-scale plot.</p>
+      <p class="how"><b>How:</b> power iteration for the leading eigenpair;
+      <span class="m">Tr(Aⁿ)</span> by repeated matrix multiplication.</p>
+      <div class="links"><a href="programs/tour.html#5">▶ run in tour</a><a href="programs/03_02_01_subshift_of_finite_type.md">spec.md</a></div>
+    </div>
+    <div class="prog">
+      <div class="prog-top"><h4>Substitution Systems — Fibonacci &amp; Thue-Morse</h4><span class="secs">§3.6</span></div>
+      <span class="concept">self-similarity · quasiperiodicity · power spectrum</span>
+      <p>Iterates substitution rules to thousands of letters, displays the sequence as a color
+      strip, and computes its Fourier power spectrum: sharp golden-ratio-spaced peaks for
+      Fibonacci (quasicrystal order), a fractal singular-continuous spectrum for Thue-Morse.</p>
+      <p class="how"><b>How:</b> hand-written iterative FFT on the ±1 sequence;
+      letter frequencies checked against the Perron eigenvector of the substitution matrix.</p>
+      <div class="links"><a href="programs/tour.html#6">▶ run in tour</a><a href="programs/03_06_02_substitution_systems.md">spec.md</a></div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════ CHAPTER 4 ══════════════════════════ -->
+<section class="chapter" id="ch4">
+  <div class="ch-head"><span class="ch-num">4</span><h2>Ergodic Theory</h2></div>
+  <p class="ch-gist">The statistical viewpoint: what a typical orbit does, on average, forever.</p>
+
+  <p>Ergodic theory adds a <strong>measure</strong> to the picture and asks statistical questions.
+  If a transformation preserves a probability measure — the map neither creates nor destroys
+  "volume" — then astonishingly strong conclusions follow about the long-run behavior of almost
+  every orbit. The two pillars are <strong>Poincaré recurrence</strong> (orbits return, always)
+  and the <strong>Birkhoff ergodic theorem</strong> (time averages exist and, for ergodic systems,
+  equal space averages). This is the rigorous foundation beneath statistical mechanics: it is the
+  precise sense in which a single trajectory of a gas explores its entire energy surface.</p>
+
+  <p>The chapter builds the full vocabulary — invariant measures, ergodicity, unique ergodicity,
+  weak and strong mixing, discrete spectrum — and closes with two spectacular applications:
+  <strong>Furstenberg's ergodic-theoretic proof of Szemerédi's theorem</strong> on arithmetic
+  progressions, and <strong>Google's PageRank</strong>, which is nothing other than the invariant
+  measure of a random walk on the web graph.</p>
+
+  <h3 class="block-title">Key concepts</h3>
+  <dl class="defs">
+    <div class="def"><dt>Invariant measure</dt>
+      <dd>μ is T-invariant if <span class="m">μ(T⁻¹A) = μ(A)</span> for all measurable A.
+      Krylov-Bogolyubov: every continuous map of a compact metric space has at least one.
+      <span class="why">An invariant measure is a self-consistent notion of "how often the orbit
+      visits each region." It is the object that turns a deterministic map into a stationary
+      stochastic process.</span></dd></div>
+
+    <div class="def"><dt>Poincaré recurrence &amp; Kac's lemma</dt>
+      <dd>If μ(A) &gt; 0, then μ-almost every point of A returns to A infinitely often.
+      Kac: for ergodic systems the mean return time is exactly <span class="m">1/μ(A)</span>.
+      <span class="why">Recurrence from nothing but measure preservation — no dynamics assumptions
+      at all. It resolves (and sharpens) Zermelo's objection to Boltzmann: recurrence is certain,
+      but Kac shows the waiting time for a rare configuration is astronomically long.</span></dd></div>
+
+    <div class="def"><dt>Ergodicity</dt>
+      <dd>Every invariant set has measure 0 or 1 — the system cannot be split into two nontrivial
+      independent parts.
+      <span class="why">Ergodicity is exactly the condition under which statistics of one typical
+      orbit reveal the whole system: time average = space average. It converts "simulate one long
+      trajectory" into a legitimate method for computing equilibrium quantities.</span></dd></div>
+
+    <div class="def"><dt>Birkhoff ergodic theorem</dt>
+      <dd>For T measure-preserving and <span class="m">φ ∈ L¹</span>, the time averages
+      <span class="m">(1/N) Σ φ(Tᵏx)</span> converge for a.e. x; if T is ergodic the limit is
+      <span class="m">∫φ dμ</span>, independent of the starting point.
+      <span class="why">The law of large numbers for deterministic systems, and arguably the most
+      important single theorem in the book — Chapters 6 and 9 are both built on top of it.</span></dd></div>
+
+    <div class="def"><dt>Unique ergodicity &amp; Weyl equidistribution</dt>
+      <dd>A system with exactly one invariant measure. Then Birkhoff averages converge for
+      <em>every</em> point (not just a.e.). Weyl: for irrational α the sequence
+      <span class="m">{nα mod 1}</span> equidistributes in [0,1].
+      <span class="why">The strongest possible statistical regularity — and the dynamical engine
+      behind classical number-theoretic facts, such as the distribution of leading digits of 2ⁿ
+      (Benford's law).</span></dd></div>
+
+    <div class="def"><dt>Mixing</dt>
+      <dd><span class="m">μ(T⁻ⁿA ∩ B) → μ(A)μ(B)</span>: any two events become asymptotically
+      independent. Mixing ⟹ ergodic, but not conversely (rotations are ergodic, never mixing).
+      <span class="why">Mixing is genuine randomness emerging from determinism — correlations
+      with the initial condition decay to zero. It is why chaotic systems are statistically
+      indistinguishable from noise.</span></dd></div>
+
+    <div class="def"><dt>Gauss measure</dt>
+      <dd>The measure <span class="m">dμ = dx / ((1+x) log 2)</span> is invariant for the Gauss map
+      <span class="m">G(x) = {1/x}</span>, whose iteration generates continued-fraction digits.
+      <span class="why">Ergodic theory applied to number theory: Birkhoff's theorem then yields the
+      Gauss-Kuzmin statistics — e.g. the digit 1 appears in a typical continued fraction about
+      41.5% of the time — facts with no known non-dynamical proof of comparable simplicity.</span></dd></div>
+  </dl>
+
+  <h3 class="block-title">Programs</h3>
+  <div class="programs">
+    <div class="prog">
+      <div class="prog-top"><h4>Poincaré Recurrence — Return-Time Distributions</h4><span class="secs">§4.2</span></div>
+      <span class="concept">recurrence · Kac's lemma · return times</span>
+      <p>Picks a small interval A of measure ε and histograms first-return times for the irrational
+      rotation and for the doubling map. Both obey Kac's mean <span class="m">1/ε</span>, but with
+      opposite shapes: geometric spread for the mixing doubling map, tight concentration for the
+      rigid rotation.</p>
+      <p class="how"><b>How:</b> iterate thousands of starting points in A until first return;
+      histogram against the Kac prediction line.</p>
+      <div class="links"><a href="programs/tour.html#7">▶ run in tour</a><a href="programs/04_02_03_poincar_recurrence.md">spec.md</a></div>
+    </div>
+    <div class="prog">
+      <div class="prog-top"><h4>Birkhoff Ergodic Theorem — Time vs Space Averages</h4><span class="secs">§4.3, §4.5, §4.7</span></div>
+      <span class="concept">ergodicity · time averages · equidistribution</span>
+      <p>Running averages <span class="m">(1/N) Σ φ(Rⁿ_α x)</span> for irrational (ergodic) versus
+      rational (non-ergodic) rotations: the ergodic curves collapse onto the space average
+      <span class="m">∫φ</span> from every start, the rational ones converge to start-dependent
+      limits. Side panel shows Weyl equidistribution building up point by point.</p>
+      <p class="how"><b>How:</b> direct orbit computation with a live running-average plot for
+      several observables and starting points.</p>
+      <div class="links"><a href="programs/tour.html#8">▶ run in tour</a><a href="programs/04_03_01_birkhoff_ergodic_theorem.md">spec.md</a></div>
+    </div>
+    <div class="prog">
+      <div class="prog-top"><h4>PageRank as Ergodic Theory</h4><span class="secs">§4.12, §4.6</span></div>
+      <span class="concept">invariant measure · stationary distribution · Perron-Frobenius</span>
+      <p>Builds a random web graph, forms the Google matrix
+      <span class="m">G = d·A + (1−d)/n · 𝟙</span>, and power-iterates to the stationary
+      distribution — the PageRank. Node sizes grow to their final ranks as the iteration
+      converges geometrically at rate d.</p>
+      <p class="how"><b>How:</b> column-stochastic matrix from a random digraph; power iteration
+      with residual plot; spring-layout graph drawing.</p>
+      <div class="links"><a href="programs/tour.html#9">▶ run in tour</a><a href="programs/04_12_02_pagerank_as_ergodic_theory.md">spec.md</a></div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════ CHAPTER 5 ══════════════════════════ -->
+<section class="chapter" id="ch5">
+  <div class="ch-head"><span class="ch-num">5</span><h2>Hyperbolic Dynamics</h2></div>
+  <p class="ch-gist">Stretching in some directions, contracting in others — the geometric mechanism of chaos.</p>
+
+  <p>Hyperbolicity is the property that makes chaos <em>tractable</em>. A set is hyperbolic when
+  the tangent space along every orbit splits into two invariant families of directions,
+  <span class="m">TM = Eˢ ⊕ Eᵘ</span>, with vectors in <span class="m">Eˢ</span> contracted and
+  vectors in <span class="m">Eᵘ</span> expanded at uniform exponential rates. This single
+  geometric hypothesis yields, one after another, the deepest theorems in the book: pseudo-orbits
+  are shadowed by true orbits, stable and unstable manifolds exist and are smooth, periodic
+  orbits are dense, the dynamics is conjugate to a subshift of finite type via Markov partitions,
+  and the whole picture is <strong>structurally stable</strong> — unchanged, up to conjugacy,
+  by small perturbations.</p>
+
+  <p>The philosophical payoff is large: hyperbolic chaos is <em>individually unpredictable but
+  collectively rigid</em>. You cannot forecast one orbit, yet the system as a whole is so robust
+  that even its perturbations are copies of itself.</p>
+
+  <h3 class="block-title">Key concepts</h3>
+  <dl class="defs">
+    <div class="def"><dt>Hyperbolic set</dt>
+      <dd>A compact invariant set Λ with a continuous invariant splitting
+      <span class="m">T_xM = Eˢ(x) ⊕ Eᵘ(x)</span> and constants <span class="m">C, λ &lt; 1</span>
+      such that <span class="m">‖Dfⁿv‖ ≤ Cλⁿ‖v‖</span> on Eˢ and symmetrically backward on Eᵘ.
+      <span class="why">The uniform rates are what turn qualitative chaos into quantitative
+      theorems — every result in this chapter fails without them.</span></dd></div>
+
+    <div class="def"><dt>Shadowing lemma</dt>
+      <dd>Near a hyperbolic set, for every ε there is δ such that every δ-pseudo-orbit (a sequence
+      with <span class="m">d(f(xₙ), xₙ₊₁) ≤ δ</span>) lies within ε of a genuine orbit.
+      For the cat map the shadowing constant is <span class="m">C = 1/(λ⁺−1) + 1/(1−λ⁻) = √5</span>.
+      <span class="why">This is why numerical simulation of chaos is trustworthy at all: your
+      computed orbit, corrupted by round-off at every step, is provably close to some true orbit
+      of the system. Errors do not compound — the expanding and contracting directions each absorb
+      their share.</span></dd></div>
+
+    <div class="def"><dt>Stable and unstable manifolds (Hadamard-Perron)</dt>
+      <dd><span class="m">Wˢ(p) = {x : d(fⁿx, fⁿp) → 0}</span> and
+      <span class="m">Wᵘ(p) = {x : d(f⁻ⁿx, f⁻ⁿp) → 0}</span> are injectively immersed smooth
+      submanifolds tangent to Eˢ, Eᵘ.
+      <span class="why">These are the geometric skeleton of chaos. For the Hénon map, the strange
+      attractor <em>is</em> the closure of an unstable manifold; and a transverse intersection of
+      Wˢ with Wᵘ (a homoclinic point) forces a horseshoe — Poincaré's original glimpse of chaos.</span></dd></div>
+
+    <div class="def"><dt>Smale horseshoe</dt>
+      <dd>A map that stretches a square, folds it, and lays it back across itself. The invariant set
+      is a Cantor set on which the dynamics is conjugate to the full 2-shift.
+      <span class="why">The horseshoe is chaos in its purest, fully-solved form — and it is
+      universal: every transverse homoclinic point contains one. Chaos is not exotic; it is
+      generic near homoclinic behavior.</span></dd></div>
+
+    <div class="def"><dt>Anosov diffeomorphism &amp; structural stability</dt>
+      <dd>A diffeomorphism hyperbolic on its entire manifold (the cat map is the standard example).
+      Anosov systems are structurally stable: any C¹-small perturbation is topologically conjugate
+      to the original.
+      <span class="why">Structural stability is the strongest possible robustness — the qualitative
+      dynamics survives any small modeling error. This is the mathematical justification for
+      trusting idealized models of chaotic phenomena.</span></dd></div>
+
+    <div class="def"><dt>Markov partitions</dt>
+      <dd>A partition of a hyperbolic set into "rectangles" aligned with the stable/unstable
+      directions, whose itinerary coding conjugates the map to a subshift of finite type.
+      <span class="why">The bridge between Chapters 3 and 5: smooth hyperbolic chaos is
+      combinatorics in disguise. All the counting machinery of symbolic dynamics — entropy,
+      zeta functions, orbit counts — transfers to smooth systems through this construction.</span></dd></div>
+  </dl>
+
+  <h3 class="block-title">Programs</h3>
+  <div class="programs">
+    <div class="prog">
+      <div class="prog-top"><h4>Shadowing Lemma — Pseudo-orbit vs True Orbit</h4><span class="secs">§5.3</span></div>
+      <span class="concept">δ-pseudo-orbits · ε-shadowing · numerical reliability</span>
+      <p>Three columns at δ = 0.001, 0.01, 0.1: a noisy pseudo-orbit of the cat map (dashed) with
+      the true orbit shadowing it (solid), plus error plots against the theoretical bound
+      <span class="m">C·δ with C = √5</span>. Small noise is invisibly absorbed; large noise
+      visibly escapes the tube.</p>
+      <p class="how"><b>How:</b> exact iteration plus per-step uniform noise; toroidal distance
+      tracks the shadowing error per step.</p>
+      <div class="links"><a href="programs/tour.html#10">▶ run in tour</a><a href="programs/05_03_02_shadowing_lemma.md">spec.md</a></div>
+    </div>
+    <div class="prog">
+      <div class="prog-top"><h4>Stable &amp; Unstable Manifolds — Hénon Fixed Point</h4><span class="secs">§5.6, §5.8</span></div>
+      <span class="concept">hyperbolic fixed point · Wˢ, Wᵘ · homoclinic tangle</span>
+      <p>Computes both manifolds of the Hénon saddle point: Wᵘ (red) by forward-iterating a tiny
+      segment along the unstable eigendirection — folding into the familiar strange attractor —
+      and Wˢ (cyan) via the exact inverse map. Their crossings are homoclinic points, each one
+      concealing a horseshoe.</p>
+      <p class="how"><b>How:</b> closed-form fixed point and eigenvectors; forward iteration for Wᵘ,
+      iteration of <span class="m">f⁻¹(X,Y) = (Y, (X − a + Y²)/b)</span> for Wˢ.</p>
+      <div class="links"><a href="programs/tour.html#11">▶ run in tour</a><a href="programs/05_06_01_stable_unstable_manifolds.md">spec.md</a></div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════ CHAPTER 6 ══════════════════════════ -->
+<section class="chapter" id="ch6">
+  <div class="ch-head"><span class="ch-num">6</span><h2>Ergodicity of Anosov Diffeomorphisms</h2></div>
+  <p class="ch-gist">One landmark theorem, proved in full: volume-preserving Anosov systems are ergodic.</p>
+
+  <p>This chapter is a case study in how geometry and measure theory combine. The theorem —
+  every C² volume-preserving Anosov diffeomorphism is ergodic — is proved by <strong>Hopf's
+  argument</strong>, one of the most beautiful proof strategies in dynamics. By Birkhoff's theorem,
+  a forward time average is constant along stable manifolds (points on the same stable leaf have
+  asymptotic futures); a backward time average is constant along unstable manifolds. Since
+  forward and backward averages agree almost everywhere, an invariant function must be constant
+  along <em>both</em> foliations — and since Eˢ and Eᵘ together span every tangent space, it must
+  be constant almost everywhere. Hence ergodicity.</p>
+
+  <p>The subtlety — and the chapter's real technical content — is that the stable and unstable
+  foliations are generally only Hölder continuous, not smooth, so the final "Fubini" step requires
+  proving the foliations are <strong>absolutely continuous</strong>: they do not concentrate sets
+  of positive volume onto sets of zero volume. This is the key lemma, and its failure in
+  non-uniformly hyperbolic settings ("Fubini's nightmare") is a celebrated pathology of modern
+  dynamics.</p>
+
+  <h3 class="block-title">Key concepts</h3>
+  <dl class="defs">
+    <div class="def"><dt>Hopf argument</dt>
+      <dd>Invariant L² functions are a.e. constant along stable leaves (forward averages) and
+      along unstable leaves (backward averages); absolute continuity plus a Fubini-type argument
+      forces such functions to be a.e. constant, which is precisely ergodicity.
+      <span class="why">A purely geometric mechanism for a measure-theoretic conclusion — the
+      template extended by Anosov, Sinai and, decades later, by the Pugh-Shub program on partial
+      hyperbolicity ("ergodicity is stable").</span></dd></div>
+
+    <div class="def"><dt>Stable/unstable foliations</dt>
+      <dd>The families <span class="m">{Wˢ(x)}</span> and <span class="m">{Wᵘ(x)}</span> partition
+      the manifold into smooth leaves that fit together only Hölder-continuously.
+      <span class="why">Individually perfect, collectively rough: this tension is where the real
+      difficulty of smooth ergodic theory lives.</span></dd></div>
+
+    <div class="def"><dt>Absolute continuity of foliations</dt>
+      <dd>Holonomy maps (sliding along leaves between transversals) send zero-volume sets to
+      zero-volume sets, with Jacobians controlled by the dynamics.
+      <span class="why">The precise hypothesis that legitimizes integrating "leaf by leaf." It is
+      the technical heart of the ergodicity proof, and the property whose failure produces
+      measure-theoretic pathologies in weaker settings.</span></dd></div>
+  </dl>
+
+  <h3 class="block-title">Programs</h3>
+  <div class="programs">
+    <div class="prog">
+      <div class="prog-top"><h4>Ergodicity of the Cat Map — Averages Along Foliations</h4><span class="secs">§6.3</span></div>
+      <span class="concept">Hopf argument · time averages · foliations</span>
+      <p>Hopf's argument made visible: heatmaps of the Birkhoff averages
+      <span class="m">A_N⁺φ</span> on a 64×64 grid for N = 1, 10, 50, and beyond. The initial
+      pattern of φ progressively flattens to the uniform gray of <span class="m">∫φ dμ</span> —
+      ergodicity happening on screen — alongside a plot of the variance along stable leaves
+      decaying to zero.</p>
+      <p class="how"><b>How:</b> per-cell orbit averaging over the grid; diverging colormap with
+      scale fixed at N = 1 so the flattening is honest.</p>
+      <div class="links"><a href="programs/tour.html#12">▶ run in tour</a><a href="programs/06_03_01_ergodicity_of_cat_map.md">spec.md</a></div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════ CHAPTER 7 ══════════════════════════ -->
+<section class="chapter" id="ch7">
+  <div class="ch-head"><span class="ch-num">7</span><h2>Low-Dimensional Dynamics</h2></div>
+  <p class="ch-gist">In one dimension, chaos can be completely classified — and it is universal.</p>
+
+  <p>Dimension one is special: orbits cannot cross each other, and this single topological
+  constraint produces a complete and stunningly detailed theory. For <strong>circle
+  homeomorphisms</strong>, a single number — the <strong>rotation number</strong>
+  <span class="m">ρ(f)</span> — governs everything: rational ρ means periodic orbits, irrational ρ
+  means the map is (semi-)conjugate to the rigid rotation <span class="m">R_ρ</span>
+  (Poincaré's classification, sharpened by Denjoy's theorem for C² maps).</p>
+
+  <p>For <strong>interval maps</strong>, the surprises are Sharkovsky's theorem — the existence
+  of a single period-3 orbit forces periodic orbits of <em>every</em> period, via a strange total
+  ordering of the natural numbers — and Feigenbaum's discovery that the period-doubling route to
+  chaos is <strong>quantitatively universal</strong>: the constant δ ≈ 4.669 governs the
+  bifurcation cascade of every unimodal map, from the logistic equation to dripping faucets and
+  Rayleigh-Bénard convection experiments. Universality means the fine structure of the transition
+  to chaos does not depend on the equations — a renormalization phenomenon directly analogous to
+  critical exponents in statistical physics.</p>
+
+  <h3 class="block-title">Key concepts</h3>
+  <dl class="defs">
+    <div class="def"><dt>Rotation number</dt>
+      <dd>For a lift F of an orientation-preserving circle homeomorphism,
+      <span class="m">ρ(f) = lim Fⁿ(x)/n mod 1</span> — the limit exists and is independent of x.
+      Rational ρ = p/q ⟺ f has a period-q orbit.
+      <span class="why">A complete invariant computed from any single orbit: one number decides the
+      entire qualitative behavior. The prototype of what a classification theorem should look like.</span></dd></div>
+
+    <div class="def"><dt>Poincaré classification &amp; Denjoy's theorem</dt>
+      <dd>Irrational ρ: f is semi-conjugate to R_ρ; if f is C² (Denjoy), fully conjugate. Denjoy
+      also built C¹ counterexamples with wandering intervals.
+      <span class="why">A sharp smoothness threshold: at C² the dynamics is rigid, at C¹
+      pathologies appear. One of the first results showing that regularity hypotheses in dynamics
+      are not technicalities but genuine dividing lines.</span></dd></div>
+
+    <div class="def"><dt>Arnold tongues &amp; the devil's staircase</dt>
+      <dd>In the standard family <span class="m">f(θ) = θ + Ω − (K/2π) sin 2πθ</span>, the
+      parameter regions where ρ locks to each rational p/q form wedges ("tongues") of width
+      ~<span class="m">K^q</span>; at K = 1 the graph of ρ(Ω) is a continuous function that is
+      constant on a full-measure union of intervals.
+      <span class="why">Mode-locking is ubiquitous in nature — coupled oscillators, heartbeats,
+      the 3:2 resonance of Mercury. The tongues explain why coupled systems prefer rational
+      frequency ratios.</span></dd></div>
+
+    <div class="def"><dt>Sharkovsky's theorem</dt>
+      <dd>Order the naturals: <span class="m">3 ≻ 5 ≻ 7 ≻ … ≻ 2·3 ≻ 2·5 ≻ … ≻ 2² ≻ 2 ≻ 1</span>.
+      If a continuous interval map has a periodic point of period n, it has one of every period m
+      with <span class="m">n ≻ m</span>. In particular, period 3 forces all periods.
+      <span class="why">A complete combinatorial law of period coexistence from continuity alone —
+      no smoothness, no hyperbolicity. "Period three implies chaos" (Li-Yorke) is its most
+      famous corollary.</span></dd></div>
+
+    <div class="def"><dt>Feigenbaum universality</dt>
+      <dd>Period-doubling bifurcation parameters of any unimodal family accumulate geometrically:
+      <span class="m">(rₙ − rₙ₋₁)/(rₙ₊₁ − rₙ) → δ = 4.6692…</span>, with a companion spatial
+      scaling α ≈ 2.5029. Explained by a fixed point of the renormalization (doubling) operator
+      with a single unstable eigenvalue δ.
+      <span class="why">The measured route to chaos is the same in equations and in experiments
+      because it is a property of renormalization, not of any particular system — dynamics'
+      analogue of universality classes in phase transitions.</span></dd></div>
+
+    <div class="def"><dt>Schwarzian derivative</dt>
+      <dd><span class="m">Sf = f‴/f′ − (3/2)(f″/f′)²</span>. Negative Schwarzian is preserved under
+      composition and limits each attracting cycle to attract a critical point.
+      <span class="why">The technical device that makes the unimodal theory clean: a map with one
+      critical point and Sf &lt; 0 has at most one attracting periodic orbit — so the bifurcation
+      diagram shows <em>the</em> attractor, not one of many.</span></dd></div>
+  </dl>
+
+  <h3 class="block-title">Programs</h3>
+  <div class="programs">
+    <div class="prog">
+      <div class="prog-top"><h4>Rotation Number — Arnold Tongues</h4><span class="secs">§7.1, §7.2</span></div>
+      <span class="concept">rotation number · mode locking · devil's staircase</span>
+      <p>A 200×200 heatmap of ρ(K, Ω) over the parameter square: rational tongues in fixed colors
+      fan out from the Ω-axis and widen with K. A side strip shows the devil's-staircase graph of
+      ρ(Ω) at the currently selected K.</p>
+      <p class="how"><b>How:</b> the lift is iterated ~1000 steps per pixel (chunked rendering);
+      ρ is classified against Farey fractions with q ≤ 8.</p>
+      <div class="links"><a href="programs/tour.html#13">▶ run in tour</a><a href="programs/07_01_02_rotation_number_of_a_circle.md">spec.md</a></div>
+    </div>
+    <div class="prog">
+      <div class="prog-top"><h4>Sharkovsky's Theorem — Period Existence Cascade</h4><span class="secs">§7.3</span></div>
+      <span class="concept">period forcing · Sharkovsky order · period 3</span>
+      <p>A heat-strip over the tent-map family showing exactly which periods exist at each
+      parameter: periods switch on in reverse Sharkovsky order as the parameter grows, and the
+      moment period 3 appears, every row below it is already lit. A live cobweb shows the actual
+      orbits.</p>
+      <p class="how"><b>How:</b> period-n point counts via sign changes of
+      <span class="m">fⁿ(x) − x</span>, Möbius-corrected to count genuine least periods.</p>
+      <div class="links"><a href="programs/tour.html#14">▶ run in tour</a><a href="programs/07_03_03_sharkovsky_s_theorem.md">spec.md</a></div>
+    </div>
+    <div class="prog">
+      <div class="prog-top"><h4>Bifurcation Diagram &amp; Feigenbaum Universality</h4><span class="secs">§7.6–§7.8</span></div>
+      <span class="concept">period doubling · δ ≈ 4.669 · self-similarity</span>
+      <p>A high-resolution, zoomable bifurcation diagram of the logistic family with the
+      period-doubling parameters marked and a live table of ratios
+      <span class="m">δₙ</span> converging to 4.6692. Drag-zoom into the period-3 window at
+      r ≈ 3.83 to find the whole cascade repeated in miniature.</p>
+      <p class="how"><b>How:</b> density-accumulated ImageData rendering; per-column transient
+      discard; animated r-sweep with a synchronized orbit strip.</p>
+      <div class="links"><a href="programs/tour.html#15">▶ run in tour</a><a href="programs/07_06_01_bifurcation_diagram_feigenbaum_universality.md">spec.md</a></div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════ CHAPTER 8 ══════════════════════════ -->
+<section class="chapter" id="ch8">
+  <div class="ch-head"><span class="ch-num">8</span><h2>Complex Dynamics</h2></div>
+  <p class="ch-gist">Iterating rational maps on the Riemann sphere — where chaos meets complex analysis and becomes fractal geometry.</p>
+
+  <p>Iterating a rational map <span class="m">R : ℂ̄ → ℂ̄</span> splits the sphere into two
+  invariant sets with opposite characters: the <strong>Fatou set</strong>, where nearby initial
+  conditions stay together (stable, predictable dynamics), and its complement the
+  <strong>Julia set</strong> <span class="m">J(R)</span>, where the dynamics is chaotic —
+  sensitive, transitive, with repelling periodic points dense. The rigidity of complex analysis
+  (one derivative controls everything; <strong>Montel's theorem</strong> on normal families is
+  the workhorse) makes this theory both more complete and more visually spectacular than its
+  real counterpart: Julia sets are the canonical mathematical fractals.</p>
+
+  <p>For the quadratic family <span class="m">f_c(z) = z² + c</span>, all questions funnel through
+  the orbit of the single critical point 0, and the <strong>Mandelbrot set</strong>
+  <span class="m">M = {c : the orbit of 0 stays bounded}</span> becomes the master map of
+  parameter space: <span class="m">c ∈ M</span> exactly when <span class="m">J(f_c)</span> is
+  connected, and <span class="m">c ∉ M</span> exactly when it is a Cantor dust. One picture in
+  parameter space indexes the topology of infinitely many pictures in dynamical space.</p>
+
+  <h3 class="block-title">Key concepts</h3>
+  <dl class="defs">
+    <div class="def"><dt>Fatou set / Julia set</dt>
+      <dd>F(R): the largest open set on which the iterates <span class="m">{Rⁿ}</span> form a
+      normal (equicontinuous) family; <span class="m">J(R)</span> its complement. J is closed,
+      perfect, fully invariant, and is the closure of the repelling periodic points.
+      <span class="why">A complete, canonical decomposition into "order" and "chaos" — sharper
+      than anything available for real systems. All the fractal intricacy of complex dynamics
+      lives exactly on J.</span></dd></div>
+
+    <div class="def"><dt>Montel's theorem</dt>
+      <dd>A family of holomorphic functions omitting three points of the sphere is normal.
+      <span class="why">The engine of every proof in the chapter: wherever orbits avoid three
+      values, dynamics is tame — so chaos is cornered onto the Julia set. A textbook example of
+      one powerful analytic theorem organizing an entire dynamical theory.</span></dd></div>
+
+    <div class="def"><dt>Mandelbrot set &amp; the dichotomy</dt>
+      <dd><span class="m">M = {c ∈ ℂ : sup_n |f_cⁿ(0)| &lt; ∞}</span>. Fundamental dichotomy:
+      J(f_c) is connected if c ∈ M, and totally disconnected (Cantor) if c ∉ M — because
+      everything hinges on whether the critical orbit escapes.
+      <span class="why">M is the parameter-space atlas of an entire family: its cardioid, bulbs
+      and filaments encode which attracting cycles exist for which c. Douady-Hubbard proved M is
+      connected; whether it is locally connected (MLC) remains the central open problem of the
+      field.</span></dd></div>
+
+    <div class="def"><dt>Critical orbits</dt>
+      <dd>Every attracting cycle of a rational map attracts at least one critical point; a degree-d
+      map has 2d − 2 of them, so finitely many critical orbits govern all stable behavior.
+      <span class="why">This finiteness is why one-parameter pictures like M are possible at all:
+      the quadratic family has a single critical point, so a single orbit decides the fate of the
+      whole map.</span></dd></div>
+  </dl>
+
+  <h3 class="block-title">Programs</h3>
+  <div class="programs">
+    <div class="prog">
+      <div class="prog-top"><h4>Newton's Method Basins — Rational Map on ℂ̄</h4><span class="secs">§8.4, §8.5</span></div>
+      <span class="concept">Fatou basins · Julia boundary · Newton fractals</span>
+      <p>Colors each starting point of the plane by which root of <span class="m">p(z)</span>
+      Newton's method finds, with brightness by convergence speed. The basin boundaries — the
+      Julia set of the Newton map — are fractal: near them, arbitrarily small changes in the
+      starting guess change which root you reach. The cubic <span class="m">z³ − 2z + 2</span>
+      preset exhibits black regions attracted to a 2-cycle: Newton's method failing on an open
+      set of starting points.</p>
+      <p class="how"><b>How:</b> per-pixel Newton iteration with root classification, chunked
+      strip rendering, zoom and pan.</p>
+      <div class="links"><a href="programs/tour.html#16">▶ run in tour</a><a href="programs/08_04_02_newton_s_method_basins.md">spec.md</a></div>
+    </div>
+    <div class="prog">
+      <div class="prog-top"><h4>Julia Set &amp; Mandelbrot Set — z² + c</h4><span class="secs">§8.5, §8.6</span></div>
+      <span class="concept">Mandelbrot set · Julia sets · connectedness dichotomy</span>
+      <p>Dual panels: click any parameter c in the Mandelbrot set on the left, and the
+      corresponding Julia set renders on the right — connected Jordan-curve-like sets inside the
+      cardioid, "rabbits" in the bulbs, Cantor dust outside M. Deep zoom reveals miniature copies
+      of M along the boundary.</p>
+      <p class="how"><b>How:</b> escape-time iteration with smooth
+      (<span class="m">n − log log|z| / log 2</span>) coloring; chunked rendering with progress
+      bars; scroll-zoom and drag-pan on both panels.</p>
+      <div class="links"><a href="programs/tour.html#17">▶ run in tour</a><a href="programs/08_05_01_julia_set_mandelbrot_set.md">spec.md</a></div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════ CHAPTER 9 ══════════════════════════ -->
+<section class="chapter" id="ch9">
+  <div class="ch-head"><span class="ch-num">9</span><h2>Measure-Theoretic Entropy</h2></div>
+  <p class="ch-gist">Entropy as information: how many bits per step a system generates — and the principle unifying both entropies.</p>
+
+  <p>The <strong>Kolmogorov-Sinai entropy</strong> <span class="m">h_μ(T)</span> measures the
+  average information produced per iteration: observe the system through a finite partition ξ
+  (a coarse-grained measurement), and ask how much new information each successive observation
+  delivers. For an isometry like a rotation, the answer is zero — the future is determined, no
+  information is ever generated. For the doubling map, each step reveals exactly one new binary
+  digit: one bit per iteration, <span class="m">h = log 2</span>.</p>
+
+  <p>Three theorems structure the chapter. The <strong>Kolmogorov-Sinai theorem</strong> says a
+  single generating partition suffices to compute the entropy (no supremum needed). The
+  <strong>Shannon-McMillan-Breiman theorem</strong> localizes entropy at almost every point:
+  the measure of the n-step cell containing x decays like <span class="m">e^{−n h_μ}</span> —
+  entropy is the exponential rate at which observations pin down the initial condition. And the
+  <strong>variational principle</strong> closes the book's grand arc:
+  <span class="m">h_top(f) = sup_μ h_μ(f)</span> — topological entropy, defined with no measure
+  at all in Chapter 2, is exactly the maximum information rate over every stationary way of
+  observing the system. Topological and measurable dynamics are two views of one subject.</p>
+
+  <h3 class="block-title">Key concepts</h3>
+  <dl class="defs">
+    <div class="def"><dt>Entropy of a partition</dt>
+      <dd><span class="m">H(ξ) = −Σ μ(C) log μ(C)</span> — the Shannon information of the
+      measurement "which cell of ξ does x lie in?" The refinement
+      <span class="m">ξⁿ = ξ ∨ T⁻¹ξ ∨ … ∨ T^{−(n−1)}ξ</span> records n consecutive observations.
+      <span class="why">Imports Shannon's information theory into dynamics wholesale: a
+      deterministic map plus a partition is a stationary information source, and dynamics can ask
+      how many bits it emits.</span></dd></div>
+
+    <div class="def"><dt>Kolmogorov-Sinai entropy</dt>
+      <dd><span class="m">h_μ(T, ξ) = lim H(ξⁿ)/n</span> (the limit exists by subadditivity), and
+      <span class="m">h_μ(T) = sup_ξ h_μ(T, ξ)</span>. KS theorem: if ξ is a generator (its
+      refinements separate points), the supremum is already attained at ξ.
+      <span class="why">Invented to answer a concrete question — are the 2-shift and 3-shift
+      isomorphic? Entropy says no (log 2 ≠ log 3), the first invariant ever able to distinguish
+      them, and the founding success of the isomorphism theory of measurable dynamics.</span></dd></div>
+
+    <div class="def"><dt>Shannon-McMillan-Breiman theorem</dt>
+      <dd>For ergodic T and a generating partition,
+      <span class="m">−(1/n) log μ(ξⁿ(x)) → h_μ(T)</span> for a.e. x, where ξⁿ(x) is the n-step
+      cell containing x.
+      <span class="why">Entropy made pointwise: typical orbit segments of length n all have
+      probability ≈ e^{−nh}, so there are effectively e^{nh} of them. This "asymptotic
+      equipartition" is simultaneously the foundation of data compression and the reason entropy
+      is computable from one long simulated orbit.</span></dd></div>
+
+    <div class="def"><dt>Variational principle</dt>
+      <dd><span class="m">h_top(f) = sup { h_μ(f) : μ an f-invariant probability measure }</span>.
+      A measure attaining the supremum is a measure of maximal entropy — e.g. for the full tent
+      map / logistic at r = 4 it is the arcsine distribution
+      <span class="m">dx / (π√(x(1−x)))</span>.
+      <span class="why">The unification of the book's two halves: the purely topological orbit
+      count of Chapter 2 equals the best possible information rate over all statistics. It is
+      also the gateway to the thermodynamic formalism — pressure, equilibrium states, SRB
+      measures — that powers modern smooth ergodic theory.</span></dd></div>
+
+    <div class="def"><dt>Ornstein's theorem (stated)</dt>
+      <dd>Two Bernoulli shifts are measure-isomorphic if and only if they have equal entropy.
+      <span class="why">For the most random systems, one number is a <em>complete</em> invariant —
+      the endpoint of the classification program that entropy began.</span></dd></div>
+  </dl>
+
+  <h3 class="block-title">Programs</h3>
+  <div class="programs">
+    <div class="prog">
+      <div class="prog-top"><h4>Measure-Theoretic Entropy — Partition Refinement</h4><span class="secs">§9.1, §9.3, §9.4</span></div>
+      <span class="concept">partition entropy · information growth · h = log 2 vs h = 0</span>
+      <p>Plots <span class="m">H(ξⁿ)</span> against n for the doubling map (exactly linear, slope
+      log 2 — one bit per step) and the irrational rotation (sublinear, slope → 0 — zero entropy),
+      alongside a drawing of the actual partition atoms refining as n grows: exponentially many
+      for doubling, only ~2n arcs for the rotation (three-distance theorem).</p>
+      <p class="how"><b>How:</b> exact atom computation for both maps; Shannon entropy of the atom
+      measures; adjustable rotation angle α.</p>
+      <div class="links"><a href="programs/tour.html#18">▶ run in tour</a><a href="programs/09_01_01_measure_theoretic_entropy.md">spec.md</a></div>
+    </div>
+    <div class="prog">
+      <div class="prog-top"><h4>Variational Principle — h_top vs h_μ</h4><span class="secs">§9.5</span></div>
+      <span class="concept">variational principle · maximal entropy · SMB estimation</span>
+      <p>For the logistic family, computes topological entropy (by lap counting of fⁿ) and the
+      metric entropy of the natural SRB measure (via Shannon-McMillan-Breiman word frequencies)
+      and plots both against r. At r = 4 they meet at log 2 — where the SRB measure happens to be
+      the measure of maximal entropy; for r &lt; 4, <span class="m">h_μ &lt; h_top</span>, exactly
+      as the variational principle requires.</p>
+      <p class="how"><b>How:</b> lap counting for h_top; long-orbit itinerary word frequencies
+      for the SMB estimate; incremental computation with a progress bar.</p>
+      <div class="links"><a href="programs/tour.html#19">▶ run in tour</a><a href="programs/09_05_02_variational_principle.md">spec.md</a></div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  Companion to Brin &amp; Stuck, <i>Introduction to Dynamical Systems</i> (Cambridge, 2002).
+  &nbsp;·&nbsp; <a href="dynamical_systems.html" style="color:var(--blue)">book reader</a>
+  &nbsp;·&nbsp; <a href="programs/tour.html" style="color:var(--blue)">guided tour</a>
+  &nbsp;·&nbsp; <a href="programs/index.html" style="color:var(--blue)">program gallery</a>
+</footer>
+
+</div></main>
+</div>
+</body>
+</html>

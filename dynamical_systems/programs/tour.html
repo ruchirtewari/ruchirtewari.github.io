@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dynamical Systems — Visual Tour</title>
+  <style>
+    :root {
+      --bg: #1a1a2e; --surface: #16213e; --card: #0f3460;
+      --accent: #e94560; --blue: #53d8fb; --gold: #f5a623;
+      --muted: #8892a4; --text: #e0e0e0; --border: #2a3a5c;
+      --sidebar-w: 230px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Georgia', serif; background: var(--bg); color: var(--text);
+           height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+    /* ── Top bar ── */
+    #topbar {
+      background: var(--surface); border-bottom: 2px solid var(--border);
+      padding: 0 16px; height: 48px; display: flex; align-items: center; gap: 12px;
+      flex-shrink: 0; z-index: 100;
+    }
+    #topbar a { color: var(--muted); text-decoration: none; font-size: 0.78em;
+                font-family: monospace; white-space: nowrap; }
+    #topbar a:hover { color: var(--blue); }
+    #topbar h1 { font-size: 0.82em; color: var(--text); font-family: monospace;
+                 flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .nav-row { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+    #step-counter { font-size: 0.78em; font-family: monospace; color: var(--muted);
+                    min-width: 44px; text-align: right; }
+    .nav-btn {
+      background: var(--card); border: 1px solid var(--border); color: var(--blue);
+      padding: 4px 14px; border-radius: 4px; cursor: pointer; font-size: 0.9em;
+      font-family: monospace; transition: background .15s;
+    }
+    .nav-btn:hover { background: #1a3a6e; }
+    .nav-btn:disabled { color: var(--border); cursor: default; background: transparent; }
+
+    /* ── Progress bar ── */
+    #progress-bar { height: 3px; background: var(--card); flex-shrink: 0; }
+    #progress-fill { height: 100%; background: var(--blue); width: 5%;
+                     transition: width .3s ease; }
+
+    /* ── Body layout ── */
+    #layout { display: flex; flex: 1; overflow: hidden; }
+
+    /* ── Sidebar ── */
+    #sidebar {
+      width: var(--sidebar-w); background: var(--surface); border-right: 1px solid var(--border);
+      overflow-y: auto; flex-shrink: 0; font-family: monospace; font-size: 0.75em;
+    }
+    .ch-group { border-bottom: 1px solid var(--border); }
+    .ch-label {
+      padding: 7px 12px; color: var(--gold); font-size: 0.85em; letter-spacing: .02em;
+      font-weight: bold; background: rgba(245,166,35,.06);
+    }
+    .prog-link {
+      display: block; padding: 5px 12px 5px 20px; color: var(--muted); cursor: pointer;
+      border-left: 2px solid transparent; transition: all .12s; line-height: 1.3;
+    }
+    .prog-link:hover { color: var(--text); background: rgba(83,216,251,.05); }
+    .prog-link.active { color: var(--blue); border-left-color: var(--blue);
+                        background: rgba(83,216,251,.08); }
+
+    /* ── Main area ── */
+    #main { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
+
+    /* ── Program header ── */
+    #prog-header {
+      padding: 14px 24px 10px; background: var(--surface);
+      border-bottom: 1px solid var(--border); flex-shrink: 0;
+    }
+    #prog-title { font-size: 1.15em; color: var(--blue); margin-bottom: 4px; }
+    .badges { display: flex; gap: 6px; flex-wrap: wrap; }
+    .badge {
+      font-family: monospace; font-size: 0.72em; padding: 2px 8px; border-radius: 3px;
+      border: 1px solid; white-space: nowrap;
+    }
+    .badge-ch  { color: var(--gold);  border-color: rgba(245,166,35,.4);  background: rgba(245,166,35,.08); }
+    .badge-sec { color: var(--muted); border-color: var(--border);        background: transparent; }
+    .badge-concept { color: var(--blue); border-color: rgba(83,216,251,.3); background: rgba(83,216,251,.07); }
+
+    /* ── Content split ── */
+    #content-area {
+      display: flex; flex: 1; gap: 0; min-height: 0;
+    }
+
+    #viz-col {
+      flex-shrink: 0; padding: 16px 16px 16px 24px;
+      display: flex; flex-direction: column; align-items: flex-start;
+    }
+    #viz-container { /* sized by module */ }
+
+    #text-col {
+      flex: 1; padding: 20px 24px 20px 12px; overflow-y: auto;
+      border-left: 1px solid var(--border); min-width: 260px;
+    }
+
+    #concept-box {
+      font-family: monospace; font-size: 0.8em; color: var(--gold);
+      background: rgba(245,166,35,.07); border-left: 3px solid var(--gold);
+      padding: 8px 12px; margin-bottom: 14px; line-height: 1.5;
+    }
+
+    #narrative {
+      font-size: 0.88em; line-height: 1.75; color: var(--text); margin-bottom: 16px;
+    }
+    #narrative strong { color: var(--blue); }
+
+    #hints-title {
+      font-family: monospace; font-size: 0.75em; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .08em; margin-bottom: 6px;
+    }
+    #hints { list-style: none; padding: 0; }
+    #hints li {
+      font-size: 0.83em; font-family: monospace; color: var(--muted);
+      padding: 4px 0 4px 14px; border-left: 1px solid var(--border);
+      margin-bottom: 4px; line-height: 1.4;
+    }
+    #hints li::before { content: '▸ '; color: var(--blue); }
+
+    #math-note {
+      margin-top: 18px; font-size: 0.78em; font-family: monospace;
+      color: var(--muted); background: var(--card); border-radius: 4px;
+      padding: 10px 14px; line-height: 1.6;
+    }
+    #math-note strong { color: var(--text); }
+
+    /* ── Loading / error states ── */
+    #viz-status {
+      font-family: monospace; font-size: 0.8em; color: var(--muted);
+      padding: 24px; min-width: 200px;
+    }
+    #viz-status.error { color: var(--accent); }
+
+    /* ── Arnold spotlight ── */
+    .spotlight-tag {
+      display: inline-block; font-family: monospace; font-size: 0.7em;
+      background: rgba(233,69,96,.15); color: var(--accent);
+      border: 1px solid rgba(233,69,96,.4); border-radius: 3px;
+      padding: 1px 7px; margin-left: 8px; vertical-align: middle;
+    }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    @media (max-width: 900px) {
+      #sidebar { display: none; }
+      #content-area { flex-direction: column; }
+      #text-col { border-left: none; border-top: 1px solid var(--border); }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Top bar -->
+<div id="topbar">
+  <a href="../dynamical_systems.html">← Book</a>
+  <a href="index.html" style="margin-left:4px">· Gallery</a>
+  <h1>Brin &amp; Stuck — Introduction to Dynamical Systems · Visual Tour</h1>
+  <div class="nav-row">
+    <button class="nav-btn" id="btn-prev">← Prev</button>
+    <span id="step-counter">1 / 20</span>
+    <button class="nav-btn" id="btn-next">Next →</button>
+  </div>
+</div>
+<div id="progress-bar"><div id="progress-fill"></div></div>
+
+<!-- Layout -->
+<div id="layout">
+
+  <!-- Sidebar: chapter groups -->
+  <aside id="sidebar">
+    <div id="sidebar-inner"></div>
+  </aside>
+
+  <!-- Main -->
+  <main id="main">
+    <div id="prog-header">
+      <div id="prog-title">—</div>
+      <div class="badges" id="badges"></div>
+    </div>
+
+    <div id="content-area">
+      <div id="viz-col">
+        <div id="viz-status">Loading…</div>
+        <div id="viz-container"></div>
+      </div>
+      <div id="text-col">
+        <div id="concept-box"></div>
+        <p id="narrative"></p>
+        <div id="hints-title">What to try</div>
+        <ul id="hints"></ul>
+        <div id="math-note"></div>
+      </div>
+    </div>
+  </main>
+
+</div>
+
+<script src="src/ds_utils.js"></script>
+<script>
+// ─────────────────────────────────────────────────────────────────────────────
+// Tour entries: narrative, hints, and math note for each program
+// ─────────────────────────────────────────────────────────────────────────────
+const TOUR = [
+  {
+    id: 'CobwebDiagram',
+    file: 'src/01_05_01_cobweb_diagram.js',
+    chapter: 1, chapterTitle: 'Ch.1 — Examples',
+    sections: ['1.5', '1.6'],
+    concept: 'Orbits, fixed points, period-doubling route to chaos',
+    narrative: `The <strong>cobweb diagram</strong> turns iteration into geometry. Starting at x₀, draw a vertical line to y = f(x), then horizontal to y = x — that horizontal segment reads off x₁ = f(x₀). Repeat. Fixed points are where the curve meets the diagonal: the cobweb spirals <em>into</em> stable ones, <em>away</em> from unstable ones. The <strong>logistic map</strong> f(x) = rx(1−x) is the canonical 1D example: at low r it has a single stable fixed point; past r ≈ 3 it bifurcates to a period-2 cycle, then period-4, period-8, … until chaos at r ≈ 3.57. Switching to the Gauss map f(x) = {1/x} (the fractional part of 1/x) models continued-fraction expansions.`,
+    hints: [
+      'r = 2.5 → fixed point, cobweb spirals inward',
+      'r = 3.2 → period-2 cycle, cobweb makes a rectangle',
+      'r = 3.55 → period-8 (look carefully)',
+      'r = 3.99 → chaos — drag x₀ left/right to see sensitivity',
+    ],
+    math: `Fixed point: f(x*) = x*. Stable when |f′(x*)| < 1. Period-doubling bifurcations accumulate at rate <strong>δ = 4.6692…</strong> (Feigenbaum), universal across all unimodal maps.`,
+  },
+  {
+    id: 'ArnoldCatMap',
+    file: 'src/01_07_03_arnold_s_cat_map.js',
+    chapter: 1, chapterTitle: 'Ch.1 — Examples',
+    sections: ['1.7'],
+    concept: 'Hyperbolic toral automorphism — mixing and recurrence on T²',
+    spotlight: true,
+    narrative: `Arnold's cat map is the linear map <strong>f(x,y) = (2x+y, x+y) mod 1</strong> on the 2-torus T² = [0,1)². Its matrix A = [[2,1],[1,1]] has eigenvalues λ± = (3±√5)/2 ≈ 2.618 and 0.382 — one expanding, one contracting — making it a prototypical <strong>Anosov diffeomorphism</strong>. Arnold famously demonstrated the map by applying it to a picture of a cat: the image is stretched along the unstable direction (slope φ) and compressed along the stable direction (slope −1/φ), then wrapped by the mod. The cat's face scrambles beyond recognition within 5–10 steps, yet <em>exactly reconstitutes</em> after 300 steps on a finite grid — this periodicity is an artefact of the rational lattice, not of the continuous system. The continuous map is <strong>ergodic and mixing</strong>: every open set eventually covers every other open set.`,
+    hints: [
+      'Iterate forward: watch the cat shatter and spread across the torus',
+      'Run to about 5–15 iterations to see maximum mixing',
+      'Keep going to ~300 to watch it reassemble (finite grid only!)',
+      'Toggle the grid overlay to see how cells are permuted',
+    ],
+    math: `Eigenvalues λ± = (3±√5)/2 = φ² and φ⁻². The unstable eigenvector has slope φ = (1+√5)/2 (the golden ratio). Entropy: h(f) = log λ⁺ = log φ² ≈ 0.962 nats = log(φ²) bits per step.`,
+  },
+  {
+    id: 'StrangeAttractors',
+    file: 'src/01_12_02_strange_attractors.js',
+    chapter: 1, chapterTitle: 'Ch.1 — Examples',
+    sections: ['1.12', '1.13'],
+    concept: 'Lorenz, Hénon, Van der Pol — attractors and Lyapunov exponents',
+    narrative: `<strong>Strange attractors</strong> are the long-run sets that dissipative chaotic systems collapse onto. The <strong>Lorenz system</strong> (ẋ=σ(y−x), ẏ=x(ρ−z)−y, ż=xy−βz) models thermal convection; its iconic butterfly-shaped attractor has fractal cross-section and positive Lyapunov exponent. The <strong>Hénon map</strong> (x_{n+1} = 1−ax²_n+y_n, y_{n+1} = bx_n) is a 2D dissipative map whose attractor is a Cantor-set-like fractal curve — the image of the unstable manifold W^u. <strong>Van der Pol</strong> is a self-excited oscillator with a stable limit cycle. All three illustrate how dissipation (volume contraction) and sensitivity (positive Lyapunov exponent) can coexist, trapping orbits on a fractal set.`,
+    hints: [
+      'Lorenz: watch the switching between the two lobes — it is unpredictable',
+      'Hénon: zoom into any part of the attractor to see self-similarity',
+      'Change σ, ρ or β and watch the attractor change topology',
+      'Toggle the Lyapunov exponent display to see how sensitive each system is',
+    ],
+    math: `Lorenz strange attractor: Hausdorff dimension ≈ 2.062. Largest Lyapunov exponent ≈ 0.905 at σ=10, ρ=28, β=8/3. Volume in phase space contracts at rate −(σ+1+β) = −13.67 per unit time — yet the attractor has non-integer dimension.`,
+  },
+  {
+    id: 'OmegaLimitSets',
+    file: 'src/02_01_01_omega_limit_sets.js',
+    chapter: 2, chapterTitle: 'Ch.2 — Topological Dynamics',
+    sections: ['2.1'],
+    concept: 'ω-limit sets and the nonwandering set Ω(f)',
+    narrative: `The <strong>ω-limit set</strong> ω(x) is the set of all accumulation points of the forward orbit {f^n(x)} — everything the orbit ever gets arbitrarily close to infinitely often. For a fixed point, ω(x) = {p}. For a periodic orbit, ω(x) = the orbit itself. For an irrational rotation of the circle, ω(x) = the entire circle. A point p is <strong>nonwandering</strong> if every neighbourhood U of p has f^n(U) ∩ U ≠ ∅ for some n > 0 — orbits starting near p return near p. The nonwandering set Ω(f) contains all fixed points, periodic orbits, limit cycles, and the entire attractor of a chaotic system.`,
+    hints: [
+      'Try the circle map with rational rotation number — ω(x) is a finite set',
+      'Switch to irrational rotation — ω(x) = the whole circle (dense orbit)',
+      'Try the Hénon map — ω(x) is the strange attractor for most starting points',
+      'Watch the transient: the orbit visits many points not in ω(x) before settling',
+    ],
+    math: `ω(x) = ∩_{n≥0} closure{f^k(x) : k ≥ n}. The nonwandering set is closed and f-invariant. For expansive homeomorphisms, Ω = closure(Per(f)). In the logistic family, Ω jumps discontinuously at bifurcation values.`,
+  },
+  {
+    id: 'TopologicalEntropy',
+    file: 'src/02_05_02_topological_entropy.js',
+    chapter: 2, chapterTitle: 'Ch.2 — Topological Dynamics',
+    sections: ['2.5', '2.6'],
+    concept: 'Exponential growth rate of distinguishable orbit segments',
+    narrative: `<strong>Topological entropy</strong> h(f) measures how fast the number of "distinguishably different" orbits of length n grows. An <strong>ε-spanning set</strong> S covers all orbits: for every x there is y ∈ S with d(f^k(x), f^k(y)) < ε for k = 0,…,n−1. A minimal spanning set has ≈ e^{nh(f)} points. An <strong>ε-separated set</strong> S has all pairs (x,y) distinguishable in n steps: some k with d(f^k(x),f^k(y)) ≥ ε. Its maximal size also grows as e^{nh(f)}. Topological entropy is a topological conjugacy invariant — two conjugate systems have the same entropy. For the logistic map at r = 4, h = log 2 ≈ 0.693 nats.`,
+    hints: [
+      'Watch the spanning set count as n increases — the log-slope is h(f)',
+      'At r < 3.57 (before chaos) the count grows polynomially, not exponentially',
+      'At r = 4 the entropy is exactly log 2 — the map is conjugate to the tent map',
+      'The bifurcation diagram below shows where entropy first becomes positive',
+    ],
+    math: `h(f) = lim_{ε→0} lim sup_{n→∞} (1/n) log r(n,ε,f). For the full tent map T(x)=1−|2x−1|, h = log 2. For a hyperbolic toral automorphism A, h = log(spectral radius of A restricted to expanding subspace).`,
+  },
+  {
+    id: 'SubshiftFiniteType',
+    file: 'src/03_02_01_subshift_of_finite_type.js',
+    chapter: 3, chapterTitle: 'Ch.3 — Symbolic Dynamics',
+    sections: ['3.2', '3.3', '3.4'],
+    concept: 'Transition graphs, Perron-Frobenius, periodic orbit counting',
+    narrative: `<strong>Symbolic dynamics</strong> encodes trajectories as sequences over a finite alphabet. Given a partition of phase space, each orbit gets an itinerary — a sequence recording which partition element it visits. A <strong>subshift of finite type</strong> (SFT) is the set of all bi-infinite sequences that avoid a finite list of forbidden words. Equivalently: keep only those sequences whose consecutive pairs are allowed by a <strong>transition matrix</strong> A. The Perron-Frobenius theorem guarantees A has a unique largest positive eigenvalue λ (the <em>spectral radius</em>), and the entropy of the SFT is exactly <strong>h = log λ</strong>. The number of periodic orbits of period n is Tr(A^n), growing like λ^n.`,
+    hints: [
+      'Edit the transition matrix: each entry A_{ij}=1 means symbol i can follow symbol j',
+      'Remove an entry to forbid that transition and watch the entropy drop',
+      'The eigenvalue display updates live — entropy = log(leading eigenvalue)',
+      'The periodic orbit count plot should be linear on a log scale with slope h',
+    ],
+    math: `Per_n(σ_A) = Tr(Aⁿ). Entropy h(σ_A) = log ρ(A) where ρ = spectral radius. The Perron eigenvector gives the natural measure (proportion of time in each symbol). Zeta function: ζ_A(z) = 1/det(I−zA).`,
+  },
+  {
+    id: 'SubstitutionSystems',
+    file: 'src/03_06_02_substitution_systems.js',
+    chapter: 3, chapterTitle: 'Ch.3 — Symbolic Dynamics',
+    sections: ['3.6'],
+    concept: 'Self-similar sequences, quasiperiodicity, power spectrum',
+    narrative: `A <strong>substitution system</strong> replaces each letter by a fixed word: e.g. Fibonacci: 0→01, 1→0. Iterating from "0" produces 0, 01, 010, 01001, 01001010, … converging to an infinite fixed-point sequence. The <strong>Fibonacci word</strong> is quasiperiodic — like a quasicrystal. Its letter frequencies converge to 1/φ and 1/φ² (the golden ratio). The <strong>Thue-Morse</strong> substitution (0→01, 1→10) produces a sequence with no 3-term arithmetic progressions and a purely singular continuous spectrum (the power spectrum has no atoms and no absolutely continuous part — just a fractal Cantor-like measure).`,
+    hints: [
+      'Fibonacci: watch the letter-frequency converge to 1/φ ≈ 0.618',
+      'Switch to Thue-Morse: the sequence has no three consecutive equal letters',
+      'The power spectrum shows sharp peaks for Fibonacci (quasiperiodic) vs fractal for Thue-Morse',
+      'Increase the generation depth to see finer spectral structure',
+    ],
+    math: `Fibonacci entropy: h = 0 (the substitution matrix [[1,1],[1,0]] has spectral radius φ, but the sequence is minimal and uniquely ergodic with h = 0). Thue-Morse: also h = 0. For a substitution with matrix M, the frequencies satisfy the Perron eigenvector of M.`,
+  },
+  {
+    id: 'PoincareRecurrence',
+    file: 'src/04_02_03_poincare_recurrence.js',
+    chapter: 4, chapterTitle: 'Ch.4 — Ergodic Theory',
+    sections: ['4.2', '4.3'],
+    concept: 'Every measurable set is revisited — return time distribution',
+    narrative: `<strong>Poincaré's recurrence theorem</strong>: if T is measure-preserving and A has positive measure, then μ-almost every point of A returns to A infinitely often. No orbit "escapes to infinity" — the system is as if trapped in a finite room. The theorem seems paradoxical: the Boltzmann H-function should decrease forever, yet every gas configuration recurs. The resolution: Poincaré recurrence times are astronomically large (e^{10^{23}} steps for a mole of gas). The <strong>Kac lemma</strong> connects return times to measure: the mean return time to A equals 1/μ(A). Rare sets have long mean return times; frequent sets are revisited quickly.`,
+    hints: [
+      'Small set (rare): long mean return time, wide histogram',
+      'Large set (common): short mean return time, narrow histogram near n=1',
+      'The exponential tail of return times is a fingerprint of mixing systems',
+      'Check that the sample mean return time ≈ 1/μ(A)',
+    ],
+    math: `Kac's lemma: ∫_A τ_A dμ = 1 where τ_A(x) = min{n≥1: f^n(x)∈A}. Equivalently: E[τ_A | x∈A] = 1/μ(A). For ergodic systems, return times are exponentially distributed in the limit of small A.`,
+  },
+  {
+    id: 'BirkhoffErgodic',
+    file: 'src/04_03_01_birkhoff_ergodic_theorem.js',
+    chapter: 4, chapterTitle: 'Ch.4 — Ergodic Theory',
+    sections: ['4.3'],
+    concept: 'Time averages converge to space averages for ergodic systems',
+    narrative: `The <strong>Birkhoff ergodic theorem</strong> is the mathematical foundation of statistical mechanics. For a measure-preserving T and integrable φ, the time average A_N(x) = (1/N)Σ_{k=0}^{N-1} φ(T^k x) converges almost everywhere to a T-invariant function φ*(x). If T is <strong>ergodic</strong> (the only invariant sets have measure 0 or 1), then φ*(x) = ∫φ dμ — the time average equals the space average, independent of the starting point x (for a.e. x). This is the law of large numbers for dependent sequences, and it explains why thermodynamic quantities (time averages of molecular observables) can be computed as equilibrium statistics (space averages).`,
+    hints: [
+      'Ergodic case: watch the running average flatten to the same constant regardless of start',
+      'Non-ergodic case: different starting points converge to different limits',
+      'Slow convergence (long time): the system is nearly periodic, not truly mixing',
+      'The variance of A_N goes to zero — this is the signal that the theorem holds',
+    ],
+    math: `Birkhoff (1931): A_Nφ → φ* in L¹ and a.e. If ergodic: φ*(x) = ∫φ dμ. Rate: if φ∈L² and T is mixing, Var(A_Nφ) = O(1/N). Von Neumann's mean ergodic theorem gives L²-convergence first; Birkhoff's gives a.e. convergence.`,
+  },
+  {
+    id: 'PageRank',
+    file: 'src/04_12_02_pagerank.js',
+    chapter: 4, chapterTitle: 'Ch.4 — Ergodic Theory',
+    sections: ['4.12'],
+    concept: 'Stationary distribution of a Markov chain — ergodic theory applied',
+    narrative: `<strong>PageRank</strong> is the stationary distribution of a Markov chain on the web graph, and its correctness is a consequence of the Perron-Frobenius theorem. Model the web as a directed graph: a "random surfer" follows a random outgoing link with probability d (damping factor), and teleports to a random page with probability 1−d. The transition matrix P is row-stochastic; by Perron-Frobenius, it has a unique stationary distribution π with Pᵀπ = π. Power iteration (Aᵀπ → π) converges geometrically with rate d (the damping factor). This is exactly the Birkhoff theorem in action: the long-run fraction of time the surfer spends on page i equals π_i.`,
+    hints: [
+      'Add a high-in-degree node and watch its PageRank dominate',
+      'Remove all outgoing links from a node (dangling node) — see what happens',
+      'Change the damping factor d: smaller d → faster convergence, more uniform scores',
+      'Observe the power iteration convergence in the residual plot',
+    ],
+    math: `π = (1−d)/N · 1 + d · Aᵀπ where A is the column-stochastic link matrix. Convergence rate: geometric with ratio d. At d = 0.85 (Google's original value), spectral gap = 1 − 0.85 = 0.15.`,
+  },
+  {
+    id: 'ShadowingLemma',
+    file: 'src/05_03_02_shadowing_lemma.js',
+    chapter: 5, chapterTitle: 'Ch.5 — Hyperbolicity',
+    sections: ['5.3'],
+    concept: 'δ-pseudo-orbits are ε-shadowed by true orbits in hyperbolic systems',
+    narrative: `A <strong>δ-pseudo-orbit</strong> is a sequence where each step has error at most δ: ‖f(x_n) − x_{n+1}‖ ≤ δ. In a non-hyperbolic system, errors accumulate and the pseudo-orbit can diverge far from any true orbit. In a <strong>hyperbolic system</strong> (where the tangent bundle splits into contracting and expanding directions), the expanding direction's errors are summed backward in time (they decay geometrically), and contracting direction's errors sum forward — both geometric series converge, giving a true orbit that <strong>ε-shadows</strong> the pseudo-orbit globally. This explains why numerical simulations of chaotic systems, despite floating-point round-off, still faithfully represent true dynamics.`,
+    hints: [
+      'Small δ = 0.001: pseudo-orbit stays close to true orbit for all shown steps',
+      'Large δ = 0.1: pseudo-orbit diverges from true orbit but another true orbit shadows it',
+      'Click "New pseudo-orbit" to get a different noise realization',
+      'The dashed gold line is the theoretical bound C·δ with C = √5 ≈ 2.236',
+    ],
+    math: `Cat map: A = [[2,1],[1,1]], λ± = (3±√5)/2. Shadowing constant C = 1/(λ⁺−1) + 1/(1−λ⁻) = 2/(√5−1) + 2/(√5+1)·(√5+1)/(√5+1) = √5. Error bound: ‖xₙ^shadow − xₙ^pseudo‖ ≤ C·δ for all n.`,
+  },
+  {
+    id: 'StableUnstableManifolds',
+    file: 'src/05_06_01_stable_unstable_manifolds.js',
+    chapter: 5, chapterTitle: 'Ch.5 — Hyperbolicity',
+    sections: ['5.6'],
+    concept: 'W^s and W^u at a hyperbolic fixed point of the Hénon map',
+    narrative: `At a <strong>hyperbolic fixed point</strong> p, the stable manifold W^s(p) is the set of all points whose forward orbit converges to p; the unstable manifold W^u(p) is the set whose <em>backward</em> orbit converges to p. The stable manifold theorem guarantees these are smooth injectively immersed submanifolds, tangent at p to the stable/unstable eigenspaces E^s and E^u. For the <strong>Hénon map</strong>, the unstable manifold W^u is the <em>attractor</em> — the fractal object you see in the phase portrait. The stable and unstable manifolds can intersect transversally (homoclinic points), and near any homoclinic point there is a full Smale horseshoe — hence chaos.`,
+    hints: [
+      'Red curve = W^u (forward iterates of E^u seed): this IS the attractor',
+      'Cyan curve = W^s (backward iterates of E^s seed): it crosses W^u at homoclinic points',
+      'Change a (strength of nonlinearity) to see when the fixed point becomes a saddle',
+      'The displayed eigenvalues tell you the expansion/contraction rates',
+    ],
+    math: `Hénon: f(x,y)=(1−ax²+y, bx). Fixed point: p = (x*,x*b) where x*=(b−1+√((1−b)²+4a))/(2a). Unstable eigenvalue |λᵘ| > 1, stable |λˢ| < 1. W^u computed by forward-iterating a small segment along E^u; W^s by backward-iterating along E^s via f⁻¹(x,y)=(y/b, x−1+a(y/b)²).`,
+  },
+  {
+    id: 'ErgodicityCatMap',
+    file: 'src/06_03_01_ergodicity_cat_map.js',
+    chapter: 6, chapterTitle: 'Ch.6 — Anosov Diffeomorphisms',
+    sections: ['6.3'],
+    concept: 'Time averages flatten to space averages — Birkhoff theorem visible',
+    narrative: `The cat map f: T² → T² is <strong>ergodic with respect to Lebesgue measure</strong>: the Birkhoff time averages A_N^+ φ(x) = (1/N)Σ_{k=0}^{N-1} φ(f^k x) converge to ∫φ dμ for every square-integrable φ. This visualization computes A_N^+ φ on a 64×64 grid and displays it as a heatmap for increasing N. At N=1 you see the initial function φ; at N=10 the pattern is partially smoothed; at N=50 and beyond the heatmap flattens to a nearly uniform color — confirming ergodicity. The rate of convergence is governed by the spectral gap of the Koopman operator, which is related to the eigenvalues of the cat map.`,
+    hints: [
+      'N = 1: raw function φ, clear structure',
+      'N = 10: partial averaging, some structure remains',
+      'N = 50+: nearly uniform — time average ≈ space average',
+      'Try different test functions φ — all should flatten, but at different rates',
+    ],
+    math: `Koopman operator: (Uφ)(x) = φ(f(x)). Ergodicity ⟺ 1 is a simple eigenvalue of U in L². Rate: ‖A_Nφ − ∫φ dμ‖² = O(1/N) for φ∈L². The cat map is actually <strong>mixing</strong> (stronger): correlations decay exponentially.`,
+  },
+  {
+    id: 'RotationNumber',
+    file: 'src/07_01_02_rotation_number.js',
+    chapter: 7, chapterTitle: 'Ch.7 — Low-Dimensional Dynamics',
+    sections: ['7.1', '7.2'],
+    concept: 'Arnold tongues and the devil\'s staircase of rotation numbers',
+    narrative: `The <strong>rotation number</strong> ρ(f) of a circle homeomorphism f is ρ = lim F^n(x)/n where F is a lift of f to ℝ. If ρ is irrational, f is topologically conjugate to a rigid rotation R_ρ (Denjoy's theorem, if f is C² with bounded variation of log f′). If ρ = p/q is rational, every orbit is periodic with period q. The <strong>Arnold circle map</strong> f_ω,K(θ) = θ + ω − (K/2π)sin(2πθ) is the model: K = 0 gives rigid rotation with ρ = ω; K > 0 introduces nonlinearity. The regions of (K, ω) parameter space where ρ is locked to a rational value are the <strong>Arnold tongues</strong> — they widen as K increases. At K = 1 the tongues fill the whole parameter space (devil's staircase).`,
+    hints: [
+      'Drag K to 0: rotation number = ω, no locking',
+      'Increase K: tongues open up, ρ jumps to rational values',
+      'At K = 1: the ρ(ω) curve is a devil\'s staircase — flat on each rational, continuous overall',
+      'The 1/2 tongue (period-2) is the widest, then 1/3, 2/3, 1/4, …',
+    ],
+    math: `Arnold tongue for p/q: the set of (K,ω) with ρ = p/q has width O(K^q) for small K. At K=1: the set of ω with irrational ρ has measure zero (devil's staircase). The total measure of mode-locked intervals = 1 at K=1, yet the staircase is continuous and surjective onto [0,1].`,
+  },
+  {
+    id: 'Sharkovsky',
+    file: 'src/07_03_03_sharkovsky.js',
+    chapter: 7, chapterTitle: 'Ch.7 — Low-Dimensional Dynamics',
+    sections: ['7.3'],
+    concept: 'Sharkovsky ordering: period-3 implies all periods',
+    narrative: `<strong>Sharkovsky's theorem</strong> (1964): define the total order on ℕ as 3 ≻ 5 ≻ 7 ≻ … ≻ 2·3 ≻ 2·5 ≻ … ≻ 4·3 ≻ 4·5 ≻ … ≻ 2³ ≻ 2² ≻ 2 ≻ 1. If a continuous f: [a,b] → [a,b] has a periodic point of period n, it has periodic points of all periods m with n ≻ m. Period 3 is largest in this order — if f has a period-3 point, it has periodic points of every period (the Li-Yorke theorem: period three implies chaos). The visualization shows the <strong>tent map</strong> family and its period-existence regions, confirmed by counting fixed points of f^n.`,
+    hints: [
+      'At r where period-3 first appears, all other periods appear simultaneously',
+      'The staircase of Sharkovsky: odd periods appear last as r increases',
+      'Live cobweb shows the orbit when you click a parameter value',
+      'Count the intersections of y=f^n(x) with y=x to confirm periodic point counts',
+    ],
+    math: `For the logistic map, period-3 windows appear in the chaos region r > 3.57. Sharkovsky's converse: for every n in the ordering there exists a map with period n but no period m if m ≻ n. The ordering cannot be reversed — period-3 is genuinely "hardest."`,
+  },
+  {
+    id: 'BifurcationDiagram',
+    file: 'src/07_06_01_bifurcation_diagram.js',
+    chapter: 7, chapterTitle: 'Ch.7 — Low-Dimensional Dynamics',
+    sections: ['7.6'],
+    concept: 'Feigenbaum universality — period-doubling cascade to chaos',
+    narrative: `The <strong>bifurcation diagram</strong> of the logistic map plots the attractor (long-run orbit) versus the parameter r. It is the visual atlas of all the dynamics: fixed points become period-2 orbits, which become period-4, … in an accelerating cascade. The ratio of successive bifurcation intervals converges to <strong>Feigenbaum's constant δ ≈ 4.6692…</strong>, universal across all unimodal maps. After the accumulation point r_∞ ≈ 3.5699, chaos dominates — but windows of order (e.g., period-3 at r ≈ 3.83) interrupt it. Inside each window, the whole period-doubling cascade repeats at smaller scale, showing self-similarity. This universality is explained by <strong>renormalization group theory</strong>: the fixed point of the doubling operator has a single unstable eigenvalue δ.`,
+    hints: [
+      'Scroll/drag to zoom into the period-doubling cascade',
+      'Find the period-3 window at r ≈ 3.83 — zoom in to see its own cascade',
+      'The Feigenbaum constant table shows δ_n converging to 4.6692…',
+      'Enable the animated r-sweep to see the orbit evolve continuously',
+    ],
+    math: `Bifurcation points: r₁=3, r₂≈3.449, r₃≈3.544, r₄≈3.5644, … r_∞≈3.5699. δ_n = (rₙ−r_{n-1})/(r_{n+1}−rₙ) → 4.6692016091… (Feigenbaum). The limit also applies to the spatial scaling constant α ≈ 2.5029: the attractor shrinks by α in the spatial direction at each bifurcation.`,
+  },
+  {
+    id: 'NewtonBasins',
+    file: 'src/08_04_02_newton_basins.js',
+    chapter: 8, chapterTitle: 'Ch.8 — Complex Dynamics',
+    sections: ['8.4', '8.5'],
+    concept: 'Newton\'s method as a rational map — Fatou basins and Julia set',
+    narrative: `Newton's method for a polynomial p(z) is the rational map <strong>N(z) = z − p(z)/p′(z)</strong>, whose attracting fixed points are the roots of p. Each root has a <strong>Fatou basin</strong> B_k = {z₀ : N^n(z₀) → root_k}. The common boundary of all basins is the <strong>Julia set J(N)</strong> — a fractal where arbitrarily close starting points fall into different basins. For p(z) = z^n − 1 (roots are the n-th roots of unity), the basins have exact n-fold rotational symmetry and the Julia set is a beautiful fractal. For p(z) = z³ − 2z + 2, there is an <em>attracting 2-cycle</em> (a Fatou component that is not a root basin), producing black "escaped" regions.`,
+    hints: [
+      'Scroll to zoom into the Julia set boundary — infinite fractal detail',
+      'Try z³−2z+2: watch black regions appear (attracted to the 2-cycle, not any root)',
+      'Root markers show where each colored basin converges',
+      'Increase degree n to see more basins appear',
+    ],
+    math: `For zⁿ−1: N(z) = ((n−1)zⁿ+1)/(n·zⁿ⁻¹). Critical points of N are at z=0 and at roots of p (but roots are fixed points, not critical). The Julia set J(N) is connected iff all critical points of N converge to fixed points; otherwise it may be a Cantor set.`,
+  },
+  {
+    id: 'JuliaMandelbrot',
+    file: 'src/08_05_01_julia_mandelbrot.js',
+    chapter: 8, chapterTitle: 'Ch.8 — Complex Dynamics',
+    sections: ['8.5'],
+    concept: 'Parameter space (Mandelbrot) vs dynamical plane (Julia sets)',
+    narrative: `For f_c(z) = z² + c, the <strong>Mandelbrot set</strong> M = {c : f_c^n(0) does not escape to ∞} is the parameter space portrait. Points inside M give f_c a <em>connected</em> Julia set J(f_c); points outside give a Cantor set Julia set. This is the dichotomy theorem of Douady-Hubbard. The boundary ∂M is itself the most complex object — it contains infinitely many "minibrots" at every scale, and its Hausdorff dimension is 2 (Shishikura). Clicking any point c in the Mandelbrot set displays the corresponding Julia set J(f_c) on the right — the left picture tells you the topology of the right picture.`,
+    hints: [
+      'Click inside M near the main cardioid: J(f_c) is a Jordan curve',
+      'Click in a period-2 bulb: J(f_c) has a "rabbit" shape',
+      'Click outside M: J(f_c) is a Cantor dust — no connected components',
+      'Scroll to zoom into the boundary — zoom to 10⁶× to see miniature Mandelbrot copies',
+    ],
+    math: `Escape criterion: |f_c^n(0)| > 2 ⟹ orbit escapes. Smooth coloring: n + 1 − log(log|z|)/log 2 gives a continuous iteration count. Douady-Hubbard: M is connected. Its boundary ∂M has Hausdorff dimension 2 (Shishikura 1998).`,
+  },
+  {
+    id: 'MeasureEntropy',
+    file: 'src/09_01_01_measure_theoretic_entropy.js',
+    chapter: 9, chapterTitle: 'Ch.9 — Entropy',
+    sections: ['9.1', '9.2'],
+    concept: 'Shannon entropy of iterated partitions — metric entropy h_μ(T)',
+    narrative: `The <strong>metric entropy</strong> h_μ(T) of a measure-preserving transformation T is defined via partitions: for a partition ξ, H(ξ^n) = H(ξ ∨ T⁻¹ξ ∨ … ∨ T^{n-1}ξ) is the Shannon entropy of the n-step refinement. The metric entropy h_μ(T, ξ) = lim H(ξ^n)/n is the per-step information growth rate, and h_μ(T) = sup_ξ h_μ(T, ξ). For the <strong>doubling map</strong> T(x) = 2x mod 1 with the natural partition {[0,½),[½,1)}, H(ξ^n) = n·log 2 so h_μ = log 2 nats. For an <strong>irrational rotation</strong> (an isometry), h_μ = 0 — no information is generated, the dynamics are completely predictable.`,
+    hints: [
+      'Doubling map: H(ξⁿ)/n is exactly log 2 for all n — linear growth',
+      'Irrational rotation: H(ξⁿ) grows sublinearly, slope → 0 (zero entropy)',
+      'The partition atom visualization shows how ξ^n refines as n increases',
+      'Toggle the rotation angle α to see how close-to-rational α affects the entropy rate',
+    ],
+    math: `h_μ(T) = lim_{n→∞} H(ξ^n)/n (limit exists by subadditivity of H). For the doubling map with Lebesgue measure: h_μ = log 2 = 0.693 nats = 1 bit. For any rotation: h_μ = 0. Isometric systems have zero entropy (Kolmogorov-Sinai).`,
+  },
+  {
+    id: 'VariationalPrinciple',
+    file: 'src/09_05_02_variational_principle.js',
+    chapter: 9, chapterTitle: 'Ch.9 — Entropy',
+    sections: ['9.5'],
+    concept: 'h_top = sup h_μ — topological entropy as a maximum over all invariant measures',
+    narrative: `The <strong>variational principle</strong> (Dinaburg-Goodman) is the bridge between topological and measure-theoretic entropy: <strong>h_top(T) = sup_{μ ∈ M(T)} h_μ(T)</strong>, where the supremum is over all T-invariant Borel probability measures. The supremum is achieved by the <strong>measure of maximal entropy</strong> (MME). For the logistic map at r = 4 (conjugate to the full tent map), h_top = log 2, and the MME is the <em>arcsine distribution</em> dμ = dx/(π√(x(1−x))) — a measure that puts more weight near 0 and 1. The visualization computes h_top via lap counting and h_μ via the Shannon-McMillan-Breiman word frequencies, and shows them converging to the same value at r = 4.`,
+    hints: [
+      'At r = 4: both h_top (red) and h_μ(SRB) (blue) converge to log 2 ≈ 0.693',
+      'At r < 4: h_μ(SRB) < h_top — the SRB measure is not the MME',
+      'The progress bar shows computation depth; increase for better convergence',
+      'The variational principle tells you MME exists even before you know what it is',
+    ],
+    math: `Variational principle: h_top(T) = sup_{μ∈M(T)} h_μ(T). For the logistic at r=4: h_top = log 2, MME = arcsine, and SRB measure = arcsine (special coincidence). At r<4: SRB measure is absolutely continuous but has h_μ < h_top.`,
+  },
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// State
+// ─────────────────────────────────────────────────────────────────────────────
+let currentStep = 0;
+let currentInstance = null;
+const loadedModules = {};   // moduleVar → promise
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Build sidebar
+// ─────────────────────────────────────────────────────────────────────────────
+(function buildSidebar() {
+  const inner = document.getElementById('sidebar-inner');
+  let lastCh = null;
+  TOUR.forEach((prog, i) => {
+    if (prog.chapterTitle !== lastCh) {
+      lastCh = prog.chapterTitle;
+      const lbl = document.createElement('div');
+      lbl.className = 'ch-label';
+      lbl.textContent = prog.chapterTitle;
+      inner.appendChild(lbl);
+      const grp = document.createElement('div');
+      grp.className = 'ch-group';
+      grp.id = `grp-${i}`;
+      inner.appendChild(grp);
+    }
+    const link = document.createElement('div');
+    link.className = 'prog-link';
+    link.id = `link-${i}`;
+    // Find section text from prog.sections
+    const secStr = prog.sections.map(s => '§' + s).join(', ');
+    link.innerHTML = `${secStr}<br><span style="color:var(--text);font-size:1.05em">${prog.id.replace(/([A-Z])/g, ' $1').trim()}</span>`;
+    if (prog.spotlight) link.innerHTML += ` <span style="color:var(--accent)">★</span>`;
+    link.addEventListener('click', () => navigate(i));
+    // Append to last group
+    const groups = inner.querySelectorAll('.ch-group');
+    groups[groups.length - 1].appendChild(link);
+  });
+})();
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Load a module lazily (returns promise of the module object)
+// ─────────────────────────────────────────────────────────────────────────────
+function loadModule(prog) {
+  if (loadedModules[prog.id]) return loadedModules[prog.id];
+  const p = new Promise((resolve, reject) => {
+    if (window[prog.id]) { resolve(window[prog.id]); return; }
+    const s = document.createElement('script');
+    s.src = prog.file;
+    s.onload  = () => window[prog.id] ? resolve(window[prog.id]) : reject(new Error('Module not exported: ' + prog.id));
+    s.onerror = () => reject(new Error('File not found: ' + prog.file));
+    document.head.appendChild(s);
+  });
+  loadedModules[prog.id] = p;
+  return p;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Navigate to step index
+// ─────────────────────────────────────────────────────────────────────────────
+function navigate(idx) {
+  if (idx < 0 || idx >= TOUR.length) return;
+
+  // Destroy current instance
+  if (currentInstance) { try { currentInstance.destroy(); } catch(e) {} currentInstance = null; }
+  document.getElementById('viz-container').innerHTML = '';
+
+  currentStep = idx;
+  const prog = TOUR[idx];
+
+  // Update sidebar
+  document.querySelectorAll('.prog-link').forEach((el, i) =>
+    el.classList.toggle('active', i === idx));
+  document.getElementById(`link-${idx}`)?.scrollIntoView({ block: 'nearest' });
+
+  // Update step counter + progress
+  document.getElementById('step-counter').textContent = `${idx + 1} / ${TOUR.length}`;
+  document.getElementById('progress-fill').style.width = `${((idx + 1) / TOUR.length) * 100}%`;
+
+  // Prev/next buttons
+  document.getElementById('btn-prev').disabled = idx === 0;
+  document.getElementById('btn-next').disabled = idx === TOUR.length - 1;
+
+  // Update header
+  const titleEl = document.getElementById('prog-title');
+  titleEl.innerHTML = prog.id.replace(/([A-Z])/g, ' $1').trim() +
+    (prog.spotlight ? ' <span class="spotlight-tag">★ featured</span>' : '');
+
+  const badgesEl = document.getElementById('badges');
+  badgesEl.innerHTML =
+    `<span class="badge badge-ch">${prog.chapterTitle}</span>` +
+    prog.sections.map(s => `<span class="badge badge-sec">§${s}</span>`).join('') +
+    `<span class="badge badge-concept">${prog.concept}</span>`;
+
+  // Update text panel
+  document.getElementById('concept-box').textContent = prog.concept;
+  document.getElementById('narrative').innerHTML = prog.narrative;
+  const hintsList = document.getElementById('hints');
+  hintsList.innerHTML = (prog.hints || []).map(h => `<li>${h}</li>`).join('');
+  const mathNote = document.getElementById('math-note');
+  if (prog.math) {
+    mathNote.style.display = '';
+    mathNote.innerHTML = prog.math;
+  } else {
+    mathNote.style.display = 'none';
+  }
+
+  // Load + init visualization
+  const status = document.getElementById('viz-status');
+  const container = document.getElementById('viz-container');
+  status.textContent = 'Loading…';
+  status.className = '';
+  status.style.display = '';
+
+  loadModule(prog).then(mod => {
+    status.style.display = 'none';
+    try {
+      currentInstance = mod.init(container);
+    } catch (e) {
+      status.textContent = 'Init error: ' + e.message;
+      status.className = 'error';
+      status.style.display = '';
+      console.error(e);
+    }
+  }).catch(err => {
+    status.textContent = err.message;
+    status.className = 'error';
+    status.style.display = '';
+  });
+
+  // Update URL hash for bookmarking
+  history.replaceState(null, '', '#' + idx);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Keyboard navigation
+// ─────────────────────────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+  if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')   { e.preventDefault(); navigate(currentStep - 1); }
+  if (e.key === 'ArrowRight' || e.key === 'ArrowDown')  { e.preventDefault(); navigate(currentStep + 1); }
+});
+
+document.getElementById('btn-prev').addEventListener('click', () => navigate(currentStep - 1));
+document.getElementById('btn-next').addEventListener('click', () => navigate(currentStep + 1));
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Initial load — respect URL hash
+// ─────────────────────────────────────────────────────────────────────────────
+const hashIdx = parseInt(location.hash.slice(1), 10);
+navigate(isNaN(hashIdx) ? 0 : Math.max(0, Math.min(hashIdx, TOUR.length - 1)));
+</script>
+</body>
+</html>
