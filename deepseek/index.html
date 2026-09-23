@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DeepSeek Notes</title>
+<meta name="description" content="Interactive references and an annotated tech report on the DeepSeek family of models, from DeepSeek LLM to V4.1-Flash.">
+<style>
+  :root { --navy: #0F1B2D; --accent: #2b4a7a; --rule: #d8dde5; --muted: #5a6575; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 0;
+    font-family: Georgia, "Times New Roman", serif;
+    color: #1c2430; background: #fafbfc; line-height: 1.55;
+  }
+  header {
+    background: var(--navy); color: #eef1f6;
+    padding: 3.2rem 1.5rem 2.6rem;
+    text-align: center;
+  }
+  header h1 { margin: 0 0 .4rem; font-size: 2rem; letter-spacing: .01em; }
+  header p.sub { margin: 0; color: #b9c4d6; font-size: 1.05rem; }
+  header p.author { margin: 1.1rem 0 0; font-size: .95rem; }
+  header a { color: #cfd9ea; }
+  main { max-width: 46rem; margin: 0 auto; padding: 2rem 1.5rem 3rem; }
+  p.lead { font-size: 1.06rem; }
+  h2.section { color: var(--navy); font-size: 1.05rem; text-transform: uppercase; letter-spacing: .08em; margin: 2.2rem 0 .8rem; }
+  .entry {
+    border: 1px solid var(--rule); border-left: 4px solid var(--navy);
+    background: #fff; padding: 1.1rem 1.3rem 1.2rem; border-radius: 4px;
+    margin: 0 0 1.1rem;
+  }
+  .entry h3 { margin: 0 0 .15rem; font-size: 1.15rem; }
+  .entry h3 a { color: var(--navy); text-decoration: none; }
+  .entry h3 a:hover { color: var(--accent); text-decoration: underline; }
+  .entry p.kind { margin: 0 0 .6rem; font-size: .85rem; color: var(--muted); }
+  .entry p { margin: 0 0 .5rem; font-size: .97rem; }
+  .entry p:last-child { margin-bottom: 0; }
+  .entry ul { margin: .3rem 0 .5rem 1.2rem; padding: 0; font-size: .93rem; }
+  .entry li { margin: .2rem 0; }
+  a.open {
+    display: inline-block; text-decoration: none; margin-top: .5rem;
+    background: var(--navy); color: #fff; padding: .42rem .9rem;
+    border-radius: 4px; font-size: .92rem;
+  }
+  a.open:hover { background: var(--accent); }
+  code { font-family: Menlo, Consolas, monospace; font-size: .9em; background: #eef1f5; padding: .08em .35em; border-radius: 3px; }
+  footer {
+    border-top: 1px solid var(--rule); margin-top: 2.5rem; padding-top: 1.2rem;
+    font-size: .85rem; color: var(--muted);
+  }
+  footer a { color: var(--accent); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>DeepSeek Notes</h1>
+  <p class="sub">Interactive references and an annotated tech report &mdash; from DeepSeek LLM to V4.1-Flash</p>
+  <p class="author">Ruchir Tewari &middot; <a href="mailto:ruchirtewari@gmail.com">ruchirtewari@gmail.com</a></p>
+</header>
+
+<main>
+
+<p class="lead">
+  A working set of notes on the DeepSeek model family. Start with the papers map for the
+  big picture, then use the three interactive pages to see how the V4.1-Flash architecture
+  actually moves tokens, keys, and weights around. The commented tech report is the primary
+  source behind all of it.
+</p>
+
+<h2 class="section">Primary source</h2>
+
+<div class="entry">
+  <h3><a href="DeepSeek_V41_Tech_Report_commented.pdf">DeepSeek-V4.1-Flash Tech Report, commented</a></h3>
+  <p class="kind">PDF &middot; 2.3 MB &middot; annotated copy</p>
+  <p>
+    The V4.1-Flash technical report, <em>Pushing the Limits of KV Cache Compression</em>,
+    with my margin notes and highlights. The comments call out what each design choice buys,
+    where the numbers come from, and which sections the interactive pages below are built
+    from (mainly &sect;2 Architecture and &sect;3 Infrastructures, Figures 3 to 5).
+  </p>
+  <a class="open" href="DeepSeek_V41_Tech_Report_commented.pdf">Open PDF</a>
+</div>
+
+<h2 class="section">Overview</h2>
+
+<div class="entry">
+  <h3><a href="deepseek_papers.html">DeepSeek Papers Map</a></h3>
+  <p class="kind">Interactive &middot; 2024 to 2026 &middot; 16 papers and releases</p>
+  <p>
+    A clickable timeline of the DeepSeek line of work, from the original DeepSeek LLM scaling
+    paper through DeepSeekMoE, V2, V3, R1, V3.2, mHC, Engram, V4 and V4.1-Flash, plus the
+    external YOCO paper that V4 builds on. Switch to the <em>Themes</em> view to see the same
+    papers arranged by the idea they advance: scaling and data, sparse MoE, attention and KV
+    cache, reasoning via RL, long context and memory, residual topology, and domains and
+    modality. Click any block for a short summary and a link to the paper.
+  </p>
+  <a class="open" href="deepseek_papers.html">Open map</a>
+</div>
+
+<h2 class="section">Interactive references on V4.1-Flash</h2>
+
+<div class="entry">
+  <h3><a href="sparse-attention-walkthrough.html">Sliding Window and Sparse Attention, from Longformer to CSA2</a></h3>
+  <p class="kind">Interactive reference &middot; SWA, NSA, DSA, CSA, CSA2, HCA</p>
+  <p>
+    Why attention is expensive, and every trick used to avoid paying the full quadratic price.
+    Starts with sliding window attention, lays out a taxonomy of sparse patterns (fixed,
+    dynamic, natively trained), then goes deep on Compressed Sparse Attention and its CSA2
+    successor as used in V4.1-Flash. Hover the attention-mask grids to see what a single query
+    reads. Ends with a GPU cost calculator that gives floating-point operations and bytes moved
+    per decode step for each scheme.
+  </p>
+  <a class="open" href="sparse-attention-walkthrough.html">Open walkthrough</a>
+</div>
+
+<div class="entry">
+  <h3><a href="layer-anatomy-animated.html">Layer Anatomy, animated</a></h3>
+  <p class="kind">Animated diagram &middot; all 40 layers unrolled</p>
+  <p>
+    The full V4.1-Flash stack drawn layer by layer: the 20-layer causal encoder, the 20-layer
+    decoder, which layers compute their own KV and which reuse another layer's, where the
+    Top-K indices come from, and where the two Engram layers sit. Five scrubbable animations
+    show the model in different regimes:
+  </p>
+  <ul>
+    <li>Structure: the static wiring of KV and index provenance.</li>
+    <li>Prefill, cold: a prompt streamed through the encoder with no cache.</li>
+    <li>Prefill, cache-hit: the same prompt when the prefix cache already holds it.</li>
+    <li>Decode: one token step, with the decoder reading projected global KV.</li>
+    <li>Engram prefetch and gate: how n-gram hashes fetch rows ahead of time.</li>
+  </ul>
+  <p>Click any layer for its own panel. The scrubber is authoritative, so you can drag to any frame.</p>
+  <a class="open" href="layer-anatomy-animated.html">Open anatomy</a>
+</div>
+
+<div class="entry">
+  <h3><a href="deepseek_v41_inference_explorer_memory_tiers.html">Inference Explorer with Memory-Tier Overlay</a></h3>
+  <p class="kind">Interactive schematic &middot; dataflow across the hardware hierarchy</p>
+  <p>
+    A deliberately small 5-plus-5 layer schematic of encoder and decoder, placed on top of the
+    memory hierarchy it runs on: GPU SRAM, HBM, host DRAM, and NVMe SSD, with width for
+    capacity and stripe for latency. The point is to separate things that are easy to conflate:
+    the compute path, the shared KV cache, the SWA local window, FP4 stored values, and Engram
+    tables, which are weights rather than activations. Animate prefill, next-token generation,
+    an SWA cache miss, or an Engram lookup, and toggle CSA2 layer policies (Full, Reindex,
+    Reuse) and FP4 global KV to see what moves and what it costs.
+  </p>
+  <a class="open" href="deepseek_v41_inference_explorer_memory_tiers.html">Open explorer</a>
+</div>
+
+<footer>
+  <p>
+    The <code>pdfs/</code> folder holds the source arXiv papers that the map links to.
+    Back to the <a href="../index.html">site home</a>.
+  </p>
+</footer>
+
+</main>
+</body>
+</html>

@@ -1,0 +1,1747 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DeepSeek-V4.1-Flash — Layer Anatomy (Animated)</title>
+<style>
+  :root {
+    --paper: #faf9f5; --ink: #1b1f28; --muted: #5a5f6a; --line: #d3cec1;
+    --full-f: #c9e7cb; --full-s: #1f6323;
+    --reindex-f: #bfe3f7; --reindex-s: #084f7a;
+    --reuse-f: #fdf3bf; --reuse-s: #6f4d00;
+    --swa-f: #fbdfcc; --swa-s: #8f380a;
+    --moe-f: #eeece4; --moe-s: #4c483f;
+    --engram: #5f1f9e; --kv-lane: #8f6800; --idx-lane: #a02020; --pool: #084f7a;
+    --mono: "SF Mono", ui-monospace, Menlo, monospace;
+    --iz: 1;   /* inspector text scale, driven by the panel zoom buttons */
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Segoe UI", sans-serif; background: #efede7; color: var(--ink);
+         display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+
+  /* ── Header ── */
+  #hdr { background: #1d2130; color: #eceff6; padding: 9px 16px 10px; display: flex; align-items: center;
+         gap: 12px; flex-wrap: wrap; flex-shrink: 0; }
+  #hdr h1 { font-size: 15px; font-weight: 700; }
+  #hdr .sub { font-size: 11.5px; color: #9aa3b5; }
+  .phase-btns { display: flex; gap: 6px; margin-left: auto; }
+  .pbtn { background: #2c3247; color: #cdd5e4; border: 1px solid #3d4459; border-radius: 7px;
+          padding: 6px 13px; font-size: 12.5px; cursor: pointer; }
+  .pbtn:hover { background: #394059; }
+  .pbtn.on { background: #4e9af1; border-color: #4e9af1; color: #fff; font-weight: 600; }
+
+  /* ── Transport ── */
+  #ctl { width: 100%; display: flex; align-items: center; gap: 10px; background: #262b3d;
+         border-radius: 7px; padding: 7px 11px; }
+  #play { background: #2e7d32; border: 1px solid #3f9a44; color: #fff; font-weight: 700; font-size: 13px;
+          border-radius: 7px; padding: 7px 16px; cursor: pointer; min-width: 116px; letter-spacing: .01em; }
+  #play:hover { background: #369038; }
+  #play.playing { background: #b0561a; border-color: #cf6a26; }
+  #play.playing:hover { background: #c4611e; }
+  #play:disabled { background: #3a4057; border-color: #454c66; color: #6f778e; cursor: default; }
+  .mbtn { background: #333a52; color: #cdd5e4; border: 1px solid #454c66; border-radius: 6px;
+          padding: 6px 10px; font-size: 13px; cursor: pointer; }
+  .mbtn:hover { background: #3e4661; }
+  .spd { display: flex; gap: 3px; }
+  .sbtn { background: #333a52; color: #aab3c8; border: 1px solid #454c66; border-radius: 5px;
+          padding: 5px 8px; font-size: 11px; cursor: pointer; font-family: var(--mono); }
+  .sbtn.on { background: #4e9af1; border-color: #4e9af1; color: #fff; font-weight: 700; }
+  .selwrap { display: flex; align-items: center; gap: 5px; }
+  .selwrap span { font-size: 11.5px; color: #9aa3b5; }
+  #speed { background: #333a52; color: #eceff6; border: 1px solid #454c66; border-radius: 6px;
+           padding: 5px 7px; font-size: 12px; font-family: var(--mono); cursor: pointer; }
+  #speed:focus { outline: 1px solid #4e9af1; }
+  #ctl label.lp { font-size: 11.5px; color: #9aa3b5; display: flex; align-items: center; gap: 4px; cursor: pointer; }
+  #scrub { flex: 1; min-width: 150px; accent-color: #4e9af1; cursor: pointer; height: 4px; }
+  #tread { font-family: var(--mono); font-size: 11px; color: #9aa3b5; min-width: 92px; text-align: right; }
+
+  /* ── Chapter chips ── */
+  #chaps { width: 100%; display: flex; gap: 4px; flex-wrap: wrap; }
+  .chap { background: #232839; color: #838ca3; border: 1px solid #333a52; border-radius: 999px;
+          padding: 3px 10px; font-size: 10.5px; cursor: pointer; white-space: nowrap; }
+  .chap:hover { background: #2e3550; color: #cdd5e4; }
+  .chap.on { background: #4e9af1; border-color: #4e9af1; color: #fff; font-weight: 700; }
+  .chap.done { color: #b9c2d4; border-color: #3d4459; }
+
+  #cap { width: 100%; font-size: 12.5px; color: #dbe1ee; background: #303755; border-radius: 6px;
+         padding: 6px 12px; line-height: 1.5; min-height: 29px; }
+  #cap b { color: #ffd479; }
+  #cap.idle { color: #8b93a9; background: #262b3d; }
+  #stats { width: 100%; font-size: 12px; color: #b9c2d4; background: #262b3d; border-radius: 6px;
+           padding: 6px 12px; line-height: 1.5; }
+  #stats b { color: #fff; }
+
+  /* ── Body split ── */
+  #split { flex: 1; display: flex; overflow: hidden; }
+  #mapwrap { flex: 1; overflow: auto; background: var(--paper); }
+  #map { width: fit-content; margin: 8px 0 8px 12px; }
+  /* drag handle between the diagram and the panel */
+  #gutter { flex: 0 0 8px; cursor: col-resize; background: #e7e3d9; border-left: 1px solid var(--line);
+            position: relative; transition: background .12s; }
+  #gutter:hover, #gutter.drag { background: #4e9af1; }
+  #gutter::after { content: ""; position: absolute; top: 50%; left: 2.5px; width: 3px; height: 40px;
+                   margin-top: -20px; border-radius: 2px; background: #b3aca0; }
+  #gutter:hover::after, #gutter.drag::after { background: #fff; }
+
+  #inspector { flex: 0 0 auto; width: 370px; min-width: 240px; background: #fff;
+               display: flex; flex-direction: column; overflow: hidden; }
+  #insp-bar { flex-shrink: 0; display: flex; align-items: center; gap: 5px; padding: 6px 10px;
+              border-bottom: 1px solid #ececec; background: #fafaf8; }
+  #insp-bar .ibl { font-size: 10.5px; color: var(--muted); letter-spacing: .02em;
+                   white-space: nowrap; overflow: hidden; }
+  #insp-bar .grow { margin-left: auto; }
+  .ibtn { background: #fff; color: #4a4f59; border: 1px solid #d8d3c6; border-radius: 5px;
+          padding: 3px 8px; font-size: 11px; font-weight: 600; cursor: pointer; font-family: var(--mono); }
+  .ibtn:hover { background: #eef4fc; border-color: #4e9af1; color: #2653d4; }
+  #iz-pct { min-width: 46px; }
+
+  #insp-body { flex: 1; overflow-y: auto; padding: 16px 20px 44px;
+               font-size: calc(13.5px * var(--iz)); line-height: 1.55; }
+  #inspector h2 { font-size: 1.11em; margin-bottom: 2px; }
+  #inspector .ref { color: #2653d4; font-family: var(--mono); font-size: .82em; }
+  #inspector h3 { font-size: .82em; text-transform: uppercase; letter-spacing: .07em; color: var(--muted);
+                  margin: 14px 0 4px; border-bottom: 1px solid #eee; padding-bottom: 2px; }
+  #inspector p { margin-bottom: 7px; }
+  #inspector .frm { font-family: var(--mono); font-size: .89em; background: #f2f4f8; border-radius: 5px;
+                    padding: 8px 10px; margin: 6px 0; overflow-x: auto; white-space: pre; line-height: 1.6; }
+  #inspector .tagrow { display: flex; flex-wrap: wrap; gap: 5px; margin: 8px 0; }
+  .tag { font-size: .82em; padding: .19em .67em; border-radius: 999px; border: 1px solid; font-weight: 600; }
+  dl.gloss dt { font-weight: 700; font-size: .93em; margin-top: 9px; }
+  dl.gloss dd { margin-left: 0; color: #444; font-size: .93em; }
+  dl.gloss .ref { margin-left: 4px; }
+  ol.steps { margin: 6px 0 6px 1.4em; font-size: .93em; }
+  ol.steps li { margin-bottom: 5px; }
+
+  /* ── SVG ── */
+  svg text { font-family: -apple-system, "Segoe UI", sans-serif; }
+  .rowg { cursor: pointer; }
+  .rowg rect.rowbg { fill: #ffffff; stroke: #c4bfb1; stroke-width: 1.1; rx: 7; }
+  .rowg:hover rect.rowbg { stroke: #888; stroke-width: 1.5; }
+  .rowg.sel rect.rowbg { stroke: #1d2130; stroke-width: 2.2; }
+  .rowg.hl-kv rect.rowbg { fill: #fdf7d8; }
+  .rowg.hl-idx rect.rowbg { fill: #fdeaea; }
+  .rowg.hl-src rect.rowbg { fill: #e2f2e3; stroke: var(--full-s); stroke-width: 2.2; }
+  .chip { rx: 5; stroke-width: 1.2; }
+  .chiptxt { font-size: 10.5px; font-weight: 700; }
+  .idxtxt { font-size: 10.5px; font-weight: 700; font-family: var(--mono); fill: #3f3b34; }
+  .lanelabel { font-size: 10.5px; font-weight: 700; }
+  .boxlabel { font-size: 12px; font-weight: 700; fill: #15181f; }
+  .boxlabelL { font-size: 13.5px; font-weight: 700; }
+  .gatelab { font-size: 8.5px; font-weight: 800; letter-spacing: .05em; }
+  .smalllabel { font-size: 10.5px; fill: #3f434c; }
+  .caption { font-size: 11px; fill: #55513f; font-style: italic; }
+  .edge { fill: none; stroke: #6f6a5e; stroke-width: 1.5; }
+  .flow { stroke-dasharray: 7 5; }
+  #anim, #anim *, #paths, #paths * { pointer-events: none; }
+  [data-box] { cursor: pointer; }
+  [data-box]:hover { opacity: .78; }
+  .note { font-size: 11px; font-weight: 700; }
+  .note2 { font-size: 10.5px; font-weight: 700; }
+  .band { opacity: 0; }
+  #legendbar { font-size: 11px; }
+  .toklab { font-size: 10px; font-weight: 700; }
+</style>
+</head>
+<body>
+
+<div id="hdr">
+  <div>
+    <h1>DeepSeek-V4.1-Flash — Layer Anatomy <span style="color:#4e9af1">· animated</span></h1>
+    <div class="sub">All 40 layers unrolled · KV provenance · Engram placement · storage tiers &nbsp;(Tech Report §2–§3, Fig. 3–5)</div>
+  </div>
+  <div class="phase-btns">
+    <button class="pbtn on" data-phase="none">Structure</button>
+    <button class="pbtn" data-phase="cold">Prefill · cold</button>
+    <button class="pbtn" data-phase="hit">Prefill · cache-hit</button>
+    <button class="pbtn" data-phase="decode">Decode</button>
+    <button class="pbtn" data-phase="engram">Engram prefetch &amp; gate</button>
+  </div>
+
+  <div id="ctl">
+    <button id="play">▶&nbsp; Animate</button>
+    <button id="restart" class="mbtn" title="Restart (R)">⟲</button>
+    <label class="selwrap" for="speed"><span>Speed</span>
+      <select id="speed">
+        <option value="0.25">0.25×</option>
+        <option value="0.5" selected>0.5×</option>
+        <option value="1">1×</option>
+        <option value="2">2×</option>
+        <option value="4">4×</option>
+      </select>
+    </label>
+    <label class="lp"><input type="checkbox" id="loop" checked> loop</label>
+    <input type="range" id="scrub" min="0" max="1000" step="10" value="0">
+    <span id="tread">0.0 / 0.0 s</span>
+  </div>
+  <div id="chaps"></div>
+  <div id="cap" class="idle"></div>
+  <div id="stats"></div>
+</div>
+
+<div id="split">
+  <div id="mapwrap"><div id="map"></div></div>
+  <div id="gutter" title="Drag to resize the panel · double-click to reset"></div>
+  <div id="inspector">
+    <div id="insp-bar">
+      <span class="ibl">Panel text</span>
+      <button class="ibtn" id="iz-out" tabindex="-1" title="Smaller text">A−</button>
+      <button class="ibtn" id="iz-pct" tabindex="-1" title="Reset to 100%">100%</button>
+      <button class="ibtn" id="iz-in" tabindex="-1" title="Larger text">A+</button>
+      <span class="ibl grow">⟷ drag the left edge to widen</span>
+    </div>
+    <div id="insp-body"></div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ════════════════════ DATA MODEL — single source of truth ════════════════════ */
+function modeOf(i) {
+  if (i <= 1) return null;                                   // SWA-only
+  if (i < 20) return { ratio: 2, mode: [2,8,14].includes(i) ? "Full" : "Reuse" };
+  if (i === 20) return { ratio: 1, mode: "Full" };
+  if ([24,28,32,36].includes(i)) return { ratio: 1, mode: "Reindex" };
+  return { ratio: 1, mode: "Reuse" };
+}
+function kvFrom(i) {          // which Full layer's main KV + indexer K this layer reads
+  if (i <= 1) return null;
+  if (i < 8)  return 2; if (i < 14) return 8; if (i < 20) return 14;
+  return 20;
+}
+function idxFrom(i) {         // which layer's Top-K indices this layer reads
+  const g = modeOf(i);
+  if (!g) return null;
+  if (g.mode !== "Reuse") return i;          // produces its own
+  if (i < 20) return kvFrom(i);
+  return [36,32,28,24,20].find(s => s <= i); // latest index producer at-or-below
+}
+const LAYERS = Array.from({ length: 40 }, (_, i) => ({
+  idx: i, half: i < 20 ? "encoder" : "decoder",
+  global: modeOf(i), kvFrom: kvFrom(i), idxFrom: idxFrom(i),
+  engram: i === 1 || i === 14,
+  kvSource: i === 20 ? "H20" : "self",
+}));
+const KV_GROUPS  = [[2,[3,7]], [8,[9,13]], [14,[15,19]], [20,[21,39]]];
+const IDX_GROUPS = [[2,[3,7]], [8,[9,13]], [14,[15,19]], [20,[21,23]], [24,[25,27]], [28,[29,31]], [32,[33,35]], [36,[37,39]]];
+const REINDEX = [24, 28, 32, 36];
+const consumersOfIdx = s => LAYERS.filter(o => o.idxFrom === s && o.idx !== s).map(o => o.idx);
+const consumersOfKv  = s => LAYERS.filter(o => o.kvFrom  === s && o.idx !== s).map(o => o.idx);
+
+/* Load-time verification — the diagram refuses to silently drift from the paper. */
+(function verify() {
+  const enc = LAYERS.filter(l => l.half === "encoder"), dec = LAYERS.filter(l => l.half === "decoder");
+  const cnt = (a, m) => a.filter(l => (l.global ? l.global.mode : "SWA") === m).length;
+  const ok = LAYERS.length === 40 &&
+    cnt(enc,"SWA") === 2 && cnt(enc,"Full") === 3 && cnt(enc,"Reuse") === 15 &&
+    cnt(dec,"Full") === 1 && cnt(dec,"Reindex") === 4 && cnt(dec,"Reuse") === 15 &&
+    LAYERS.filter(l => l.engram).map(l => l.idx).join() === "1,14";
+  if (!ok) console.error("Layer census drifted from Tech Report Fig. 3!");
+  else console.log("verified: 40 layers, census enc 2/3/15 · dec 1/4/15, Engram @1,14 ✓");
+})();
+
+/* ════════════════════ GEOMETRY ════════════════════ */
+const PITCH = 52, ROW_H = 42, TOP = 210, W = 1640, H = 1712;
+const ENC_X = 178, DEC_X = 800, ROW_W = 352;
+const yOf = i => TOP + (19 - (i % 20)) * PITCH;             // bottom-up within each tower
+const yC  = i => yOf(i) + ROW_H / 2;
+const colX = i => (i < 20 ? ENC_X : DEC_X);
+const KVLANE = i => colX(i) + ROW_W + 14, IDXLANE = i => colX(i) + ROW_W + 44;
+const CHIP_X = 102, CHIP_W = 178;                            // CSA2 chip within a row
+
+/* token ribbon */
+const RB = { x: 154, y: 38, h: 26, cw: 22, gap: 2, nPrompt: 52, nGen: 8 };
+RB.n = RB.nPrompt + RB.nGen;
+const tokX = i => RB.x + i * (RB.cw + RB.gap);
+const tokCx = i => tokX(i) + RB.cw / 2;
+const PREFIX_END = 34;                 // cache-hit: tokens 0..33 are the cached prefix
+const NWIN = 8;                        // schematic sliding-window size, in ribbon cells
+
+/* storage strip / inputs */
+const inY = TOP + 20 * PITCH + 52;     // 1302
+const stY = inY + 156;                 // room above the storage strip
+const lgY = stY + 130;                 // 1550
+const HBM_X = ENC_X - 24, DRAM_X = ENC_X + 366, SSD_X = ENC_X + 756;
+const chipCx = (tx, i) => tx + 14 + i * 158 + 74, chipCy = stY + 70;
+
+const COLORS = {
+  Full:    ["var(--full-f)",    "var(--full-s)"],
+  Reindex: ["var(--reindex-f)", "var(--reindex-s)"],
+  Reuse:   ["var(--reuse-f)",   "var(--reuse-s)"],
+};
+/* animation palette */
+const C = {
+  compute: "#cfe4f8", computeS: "#1d5a9c",
+  full:    "#c9e7cb", fullS:    "#1f6323",
+  kv:      "#fbefc4", kvS:      "#8f6800",
+  idx:     "#fbdcdc", idxS:     "#a02020",
+  replay:  "#fbdfcc", replayS:  "#8f380a",
+  engram:  "#e9d7fb", engramS:  "#5f1f9e",
+  pool:    "#d4e9f8", poolS:    "#084f7a",
+  reuse:   "#fdf3bf", reuseS:   "#6f4d00",
+  ced:     "#dcefdd", cedS:     "#1f6323",
+  ghost:   "#eeeae4", ghostS:   "#8a8478",
+};
+
+/* ════════════════════ STATIC SVG BUILD ════════════════════ */
+const S = [];
+S.push(`<svg id="svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">`);
+S.push(`<defs>
+  <marker id="arr" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><polygon points="0 0,9 3.5,0 7" fill="#6f6a5e"/></marker>
+  <marker id="arrG" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><polygon points="0 0,9 3.5,0 7" fill="#1f6323"/></marker>
+  <marker id="arrB" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><polygon points="0 0,9 3.5,0 7" fill="#084f7a"/></marker>
+  <marker id="arrP" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><polygon points="0 0,9 3.5,0 7" fill="#5f1f9e"/></marker>
+  <filter id="soft" x="-60%" y="-60%" width="220%" height="220%">
+    <feGaussianBlur stdDeviation="4.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
+</defs>`);
+
+/* ── token ribbon (the sequence axis the towers are missing) ── */
+S.push(`<g id="ribbon" data-box="ribbon">`);
+S.push(`<text x="${RB.x}" y="${RB.y - 8}" class="boxlabel">Token sequence</text>`);
+S.push(`<text x="${RB.x + 112}" y="${RB.y - 8}" class="smalllabel" id="rib-sub">each cell ≈ a chunk of the prompt; the last 8 are generated tokens</text>`);
+for (let i = 0; i < RB.n; i++) {
+  S.push(`<rect id="tok-${i}" class="tok" x="${tokX(i)}" y="${RB.y}" width="${RB.cw}" height="${RB.h}" rx="4" fill="#f1efe8" stroke="#cdc7b9" stroke-width="1"/>`);
+}
+S.push(`<line x1="${tokX(RB.nPrompt) - 3}" y1="${RB.y - 4}" x2="${tokX(RB.nPrompt) - 3}" y2="${RB.y + RB.h + 4}" stroke="#b9b3a4" stroke-width="1.2" stroke-dasharray="3 3"/>`);
+S.push(`<text x="${tokX(RB.nPrompt) + 2}" y="${RB.y - 8}" class="smalllabel">generated →</text>`);
+S.push(`</g>`);
+
+/* tower frames */
+S.push(`<g data-box="enc-tower"><rect x="${ENC_X-24}" y="${TOP-52}" width="${ROW_W+48}" height="${20*PITCH+66}" rx="14" fill="#f4f2ea" stroke="#cfc8b6"/>
+<text x="${ENC_X-6}" y="${TOP-30}" class="boxlabel">Causal Encoder — layers 0–19</text>
+<text x="${ENC_X-6}" y="${TOP-16}" class="smalllabel">prefill runs ONLY these 20 layers over the prompt (CED, §2.2)</text></g>`);
+S.push(`<g data-box="dec-tower"><rect x="${DEC_X-24}" y="${TOP-52}" width="${ROW_W+48}" height="${20*PITCH+66}" rx="14" fill="#f4f2ea" stroke="#cfc8b6"/>
+<text x="${DEC_X-6}" y="${TOP-30}" class="boxlabel">Decoder — layers 20–39</text>
+<text x="${DEC_X-6}" y="${TOP-16}" class="smalllabel">global KV projected from H₂₀ · Hierarchical Sparse Indexer (§2.3.2)</text></g>`);
+S.push(`<text x="${ENC_X+ROW_W/2}" y="${TOP+20*PITCH+34}" text-anchor="middle" class="caption">Single-Pass mHC residual streams thread every block (§2.4.1)</text>`);
+S.push(`<text x="${DEC_X+ROW_W/2}" y="${TOP+20*PITCH+34}" text-anchor="middle" class="caption">every layer also computes its own SWA KV (FP8) — Fig. 4</text>`);
+
+/* layer rows */
+function chip(x, y, w, label, fill, stroke, dashed) {
+  return `<rect class="chip" x="${x}" y="${y+8}" width="${w}" height="${ROW_H-16}" fill="${fill}" stroke="${stroke}"${dashed?' stroke-dasharray="4 3"':''}/>` +
+         `<text class="chiptxt" x="${x+w/2}" y="${y+ROW_H/2+3.5}" text-anchor="middle" fill="${stroke}">${label}</text>`;
+}
+for (const L of LAYERS) {
+  const x = colX(L.idx), y = yOf(L.idx);
+  let inner = `<rect class="rowbg" x="${x}" y="${y}" width="${ROW_W}" height="${ROW_H}" rx="7"/>`;
+  inner += `<text class="idxtxt" x="${x+8}" y="${y+ROW_H/2+3.5}">L${String(L.idx).padStart(2,"0")}</text>`;
+  inner += chip(x+42, y, 54, "SWA", "var(--swa-f)", "var(--swa-s)");
+  if (L.global) {
+    const [f, s] = COLORS[L.global.mode];
+    inner += chip(x+CHIP_X, y, CHIP_W, `CSA2 (r=${L.global.ratio}, ${L.global.mode})`, f, s);
+  } else {
+    inner += chip(x+CHIP_X, y, CHIP_W, "no global attn (SWA-only)", "#f7f6f1", "#6b665a", true);
+  }
+  inner += chip(x+286, y, 56, "MoE", "var(--moe-f)", "var(--moe-s)");
+  if (L.engram) inner += `<circle cx="${x+ROW_W-4}" cy="${y+8}" r="7" fill="var(--engram)"/><text x="${x+ROW_W-4}" y="${y+11.5}" text-anchor="middle" font-size="9" fill="#fff" font-weight="700">E</text>`;
+  S.push(`<g class="rowg ${L.half}-row" data-idx="${L.idx}">${inner}</g>`);
+}
+
+/* ── provenance lanes ── */
+function bracket(x, iTop, iBot, color) {
+  return `<path d="M ${x} ${yC(iTop)} h 9 V ${yC(iBot)} h -9" fill="none" stroke="${color}" stroke-width="2.2"/>`;
+}
+for (const [src, [a, b]] of KV_GROUPS) {
+  const x = KVLANE(src);
+  S.push(bracket(x, b, src, "var(--kv-lane)"));
+  S.push(`<circle cx="${x+3}" cy="${yC(src)}" r="4.5" fill="var(--kv-lane)"/>`);
+}
+S.push(`<g data-box="lane-kv"><text x="${ENC_X+ROW_W+30}" y="${yC(10)}" class="lanelabel" fill="var(--kv-lane)" transform="rotate(90 ${ENC_X+ROW_W+30} ${yC(10)})" text-anchor="middle">main KV + indexer K shared (FP4)</text></g>`);
+S.push(`<g data-box="lane-kv"><text x="${DEC_X+ROW_W+30}" y="${yC(30)}" class="lanelabel" fill="var(--kv-lane)" transform="rotate(90 ${DEC_X+ROW_W+30} ${yC(30)})" text-anchor="middle">one main KV for all 20 layers — from L20</text></g>`);
+for (const [src, [a, b]] of IDX_GROUPS) {
+  const x = IDXLANE(src);
+  S.push(bracket(x, b, src, "var(--idx-lane)"));
+  S.push(`<circle cx="${x+3}" cy="${yC(src)}" r="4.5" fill="var(--idx-lane)"/>`);
+}
+S.push(`<g data-box="lane-idx"><text x="${ENC_X+ROW_W+62}" y="${yC(10)}" class="lanelabel" fill="var(--idx-lane)" transform="rotate(90 ${ENC_X+ROW_W+62} ${yC(10)})" text-anchor="middle">Top-K indices reused</text></g>`);
+S.push(`<g data-box="lane-idx"><text x="${DEC_X+ROW_W+62}" y="${yC(30)}" class="lanelabel" fill="var(--idx-lane)" transform="rotate(90 ${DEC_X+ROW_W+62} ${yC(30)})" text-anchor="middle">Top-K reused per group</text></g>`);
+
+/* ── Enc hidden states, CED, DSpark ── */
+S.push(`<g data-box="h20"><rect id="box-h20" x="${ENC_X+70}" y="96" width="212" height="40" rx="9" fill="#fff" stroke="#5f5b50" stroke-width="1.6"/>
+<text x="${ENC_X+176}" y="113" text-anchor="middle" class="boxlabel">Enc. Hidden States H₂₀</text>
+<text x="${ENC_X+176}" y="128" text-anchor="middle" class="smalllabel">last encoder layer output</text></g>
+<path class="edge" d="M ${ENC_X+176} ${TOP-52} V 141" marker-end="url(#arr)"/>`);
+const cedY = yC(20);
+S.push(`<path class="edge flow" d="M ${ENC_X+282} 116 H 700 V ${cedY} H ${DEC_X-24}" marker-end="url(#arrG)" opacity=".5"/>`);
+S.push(`<g data-box="ced"><text x="608" y="${cedY-32}" class="lanelabel" fill="#1f6323">CED (§2.2, Eq. 1)</text>
+<text x="608" y="${cedY-17}" class="smalllabel">C_l = H₂₀ · W_l^KV, l &gt; 20</text></g>`);
+S.push(`<g data-box="dspark"><rect id="box-dspark" x="${DEC_X+100}" y="96" width="160" height="40" rx="9" fill="#fff" stroke="#5f5b50" stroke-width="1.6"/>
+<text x="${DEC_X+180}" y="113" text-anchor="middle" class="boxlabel">DSpark</text>
+<text x="${DEC_X+180}" y="128" text-anchor="middle" class="smalllabel">speculative drafting (§2.4.3)</text></g>
+<path class="edge flow" d="M ${DEC_X+180} ${TOP-52} V 141" marker-end="url(#arr)" opacity=".5"/>`);
+
+/* ── Candidate pool ── */
+const poolY = yC(28) - 38;
+S.push(`<g data-box="pool"><rect id="box-pool" x="1300" y="${poolY}" width="320" height="200" rx="12" fill="#eaf4fb" stroke="var(--pool)" stroke-width="1.8"/>
+<text x="1460" y="${poolY+26}" text-anchor="middle" class="boxlabelL" fill="var(--pool)">Candidate Pool</text>
+<text x="1314" y="${poolY+46}" class="smalllabel">L20 block-max-scores the whole context once and</text>
+<text x="1314" y="${poolY+60}" class="smalllabel">keeps the best 2,048 blocks × 8 pos. = 16,384 entries.</text>
+<rect x="1314" y="${poolY+70}" width="292" height="9" rx="4.5" fill="#cfe0ed"/>
+<rect id="pool-bar" x="1314" y="${poolY+70}" width="0" height="9" rx="4.5" fill="var(--pool)"/>
+<text id="pool-ct" x="1460" y="${poolY+96}" text-anchor="middle" class="smalllabel">built once per query by L20 (§2.3.2)</text>
+<line x1="1314" y1="${poolY+110}" x2="1606" y2="${poolY+110}" stroke="#a9c8de" stroke-width="1"/>
+<text x="1314" y="${poolY+128}" class="note2" fill="var(--pool)">Candidates of WHAT?</text>
+<text x="1314" y="${poolY+143}" class="smalllabel">main-KV positions a deeper layer's indexer is allowed</text>
+<text x="1314" y="${poolY+157}" class="smalllabel">to score — the shortlist its Top-512 is drawn from.</text>
+<text x="1314" y="${poolY+177}" class="smalllabel">Reindex layers (L24/28/32/36) search ONLY this pool,</text>
+<text x="1314" y="${poolY+191}" class="smalllabel">so their cost is constant in context length.</text></g>`);
+S.push(`<path class="edge flow" d="M ${DEC_X+ROW_W+72} ${yC(20)} H 1278 V ${poolY+160} H 1300" marker-end="url(#arrB)" opacity=".45"/>`);
+for (const r of REINDEX)
+  S.push(`<path class="edge flow" d="M 1300 ${poolY+20} H 1286 V ${yC(r)} H ${DEC_X+ROW_W+72}" marker-end="url(#arrB)" opacity=".35"/>`);
+
+/* ── Engram attach boxes + gate glyphs ── */
+function engramBox(id, y, name) {
+  return `<g id="${id}" data-box="${id}"><rect x="4" y="${y}" width="140" height="80" rx="11" fill="#f3ebfc" stroke="var(--engram)" stroke-width="1.8"/>
+  <text x="74" y="${y+23}" text-anchor="middle" class="boxlabelL" fill="var(--engram)">${name}</text>
+  <text x="74" y="${y+40}" text-anchor="middle" class="smalllabel">98B · n-grams {2,3,4}</text>
+  <text x="74" y="${y+54}" text-anchor="middle" class="smalllabel">8 heads · ~16M rows</text>
+  <text x="74" y="${y+68}" text-anchor="middle" class="smalllabel">FP8 · host DRAM · RDMA</text>
+  <path class="edge" d="M 144 ${y+40} H 149"/></g>`;
+}
+S.push(engramBox("eng-box-a", yC(1)-40, "Engram A → L1"));
+S.push(engramBox("eng-box-b", yC(14)-40, "Engram B → L14"));
+for (const i of [1, 14]) {
+  S.push(`<g id="gate-${i}" data-box="gate"><text x="160" y="${yC(i)-16}" text-anchor="middle" class="gatelab" fill="var(--engram)">GATE</text>
+  <circle cx="160" cy="${yC(i)}" r="10.5" fill="#fff" stroke="var(--engram)" stroke-width="1.8"/>
+  <path d="M 153.5 ${yC(i)} H 166.5 M 160 ${yC(i)-6.5} V ${yC(i)+6.5}" stroke="var(--engram)" stroke-width="1.5"/>
+  <path class="edge" d="M 170.5 ${yC(i)} H ${ENC_X}" marker-end="url(#arrP)"/></g>`);
+}
+S.push(`<text x="4" y="${yC(14)+58}" class="smalllabel">placement balances pipeline-stage</text>`);
+S.push(`<text x="4" y="${yC(14)+72}" class="smalllabel">memory during training (§2.4.2)</text>`);
+
+/* ── Inputs ── */
+S.push(`<g data-box="txt"><rect id="box-txt" x="${ENC_X+8}" y="${inY}" width="150" height="38" rx="8" fill="#fff" stroke="#5f5b50"/>
+<text x="${ENC_X+83}" y="${inY+23}" text-anchor="middle" class="chiptxt" fill="#15181f">Text Embedding</text></g>
+<g data-box="vis"><rect id="box-vis" x="${ENC_X+190}" y="${inY}" width="150" height="38" rx="8" fill="#fff" stroke="#5f5b50"/>
+<text x="${ENC_X+265}" y="${inY+23}" text-anchor="middle" class="chiptxt" fill="#15181f">Vision Embedding</text></g>
+<g data-box="vit"><rect id="box-vit" x="${ENC_X+170}" y="${inY+58}" width="190" height="36" rx="8" fill="#fff" stroke="#5f5b50"/>
+<text x="${ENC_X+265}" y="${inY+73}" text-anchor="middle" class="chiptxt" fill="#15181f">DeepSeek-ViT → 3×3 unshuffle</text>
+<text x="${ENC_X+265}" y="${inY+87}" text-anchor="middle" class="smalllabel">9× fewer visual tokens (§2.1.1)</text></g>
+<path class="edge" d="M ${ENC_X+265} ${inY+58} V ${inY+38}" marker-end="url(#arr)"/>
+<path class="edge" d="M ${ENC_X+83} ${inY} V ${TOP+20*PITCH+14}" marker-end="url(#arr)"/>
+<path class="edge" d="M ${ENC_X+265} ${inY} V ${TOP+20*PITCH+14}" marker-end="url(#arr)"/>`);
+
+/* ── Phase bands (faded in by the timeline) ── */
+S.push(`<g class="band" id="band-cold">
+  <rect x="${DEC_X-24}" y="${yOf(20)-6}" width="${ROW_W+48}" height="${ROW_H+12}" rx="9" fill="none" stroke="#c05621" stroke-width="2" stroke-dasharray="6 4"/>
+  <text x="${DEC_X}" y="${yOf(20)+ROW_H+26}" class="lanelabel" fill="#c05621">Decoder SWA Bounded Replay: only last n_win prompt tokens pass through L20–39, solely to build decoder SWA KV (§3.2.2)</text>
+</g>`);
+S.push(`<g class="band" id="band-hit">
+  <rect x="${ENC_X-24}" y="${TOP-6}" width="${ROW_W+48}" height="${20*PITCH+6}" rx="9" fill="none" stroke="#c05621" stroke-width="2" stroke-dasharray="6 4"/>
+  <text x="${ENC_X-24}" y="${TOP-62}" class="lanelabel" fill="#c05621">Encoder SWA Bounded Replay: cached prefix skipped; last n_win prefix tokens replayed to rebuild SWA KV; global KV reused untouched (§3.2.2)</text>
+</g>`);
+S.push(`<g class="band" id="band-decode">
+  <text x="${ENC_X-24}" y="${TOP-62}" class="lanelabel" fill="var(--pool)">Decode: one token → all 40 layers. L20 scans full context → pool; Reindex layers scan pool only; Reuse layers read inherited Top-K directly. 11 fused kernels per Reuse layer (§3.2).</text>
+</g>`);
+
+/* ── Storage strip ── */
+function tier(id, x, w, name, retention, chips, ref) {
+  let s = `<g id="${id}" data-box="${id}"><rect x="${x}" y="${stY}" width="${w}" height="104" rx="12" fill="#fff" stroke="#a9a293" stroke-width="1.5"/>
+  <text x="${x+14}" y="${stY+22}" class="boxlabel">${name}</text>
+  <text x="${x+14}" y="${stY+38}" class="smalllabel">${retention} <tspan fill="#2653d4" font-family="var(--mono)" font-size="10">${ref}</tspan></text>`;
+  chips.forEach((c, i) => {
+    s += `<rect id="${id}-c${i}" x="${x+14+i*158}" y="${stY+50}" width="148" height="40" rx="7" fill="${c[2]}" stroke="${c[3]}"/>
+    <text x="${x+88+i*158}" y="${stY+66}" text-anchor="middle" class="chiptxt" fill="${c[3]}">${c[0]}</text>
+    <text x="${x+88+i*158}" y="${stY+82}" text-anchor="middle" font-size="10" font-weight="600" fill="${c[3]}">${c[1]}</text>`;
+  });
+  return s + `</g>`;
+}
+S.push(`<line x1="${ENC_X-24}" y1="${stY-48}" x2="1596" y2="${stY-48}" stroke="#cfc9ba" stroke-width="1.2"/>`);
+S.push(`<text x="${ENC_X-24}" y="${stY-20}" class="boxlabelL">Where each cache lives at serving time</text>`);
+S.push(`<text x="${ENC_X+236}" y="${stY-20}" class="smalllabel">§3.2.1 — total persistent footprint: 1/8 of V4</text>`);
+S.push(tier("t-hbm", HBM_X, 360, "GPU HBM", "hot working set", [
+  ["main KV (FP4)", "active requests", "#fdf7d8", "#6f4d00"],
+  ["SWA KV (FP8)", "active window", "#fbe9dd", "#8f380a"]], "§2.4.4"));
+S.push(tier("t-dram", DRAM_X, 360, "Host DRAM", "10% pool · minute-scale TTL", [
+  ["SWA KV (FP8)", "recycled instantly", "#fbe9dd", "#8f380a"],
+  ["Engram tables (FP8)", "RDMA prefetch", "#f3ebfc", "#5f1f9e"]], "§3.2.1"));
+S.push(tier("t-ssd", SSD_X, 380, "SSD — persistent KV cache", "global KV only · ≥ 72 h retention", [
+  ["main KV (FP4)", "long-tail reuse", "#fdf7d8", "#6f4d00"],
+  ["SWA KV", "EVICTED — replay instead", "#f2f1ec", "#5c5850"]], "§3.2.1"));
+
+/* legend */
+S.push(`<g id="legendbar" font-size="11">
+<text x="${ENC_X-24}" y="${lgY}" class="boxlabel">Legend (palette follows Fig. 4)</text>
+<rect x="${ENC_X-24}" y="${lgY+10}" width="104" height="20" rx="5" fill="var(--full-f)" stroke="var(--full-s)"/><text x="${ENC_X+28}" y="${lgY+24}" text-anchor="middle" fill="var(--full-s)" font-weight="600">Full — computes</text>
+<rect x="${ENC_X+92}" y="${lgY+10}" width="118" height="20" rx="5" fill="var(--reindex-f)" stroke="var(--reindex-s)"/><text x="${ENC_X+151}" y="${lgY+24}" text-anchor="middle" fill="var(--reindex-s)" font-weight="600">Reindex — rescores</text>
+<rect x="${ENC_X+222}" y="${lgY+10}" width="112" height="20" rx="5" fill="var(--reuse-f)" stroke="var(--reuse-s)"/><text x="${ENC_X+278}" y="${lgY+24}" text-anchor="middle" fill="var(--reuse-s)" font-weight="600">Reuse — consumes</text>
+<rect x="${ENC_X+346}" y="${lgY+10}" width="80" height="20" rx="5" fill="var(--swa-f)" stroke="var(--swa-s)"/><text x="${ENC_X+386}" y="${lgY+24}" text-anchor="middle" fill="var(--swa-s)" font-weight="600">SWA local</text>
+<path d="M ${ENC_X+444} ${lgY+20} h 30" stroke="var(--kv-lane)" stroke-width="2.5"/><text x="${ENC_X+482}" y="${lgY+24}" fill="var(--kv-lane)" font-weight="600">shared main KV span</text>
+<path d="M ${ENC_X+624} ${lgY+20} h 30" stroke="var(--idx-lane)" stroke-width="2.5"/><text x="${ENC_X+662}" y="${lgY+24}" fill="var(--idx-lane)" font-weight="600">reused Top-K span</text>
+<circle cx="${ENC_X+800}" cy="${lgY+20}" r="7" fill="var(--engram)"/><text x="${ENC_X+812}" y="${lgY+24}" fill="var(--engram)" font-weight="600">Engram attach point</text>
+<circle cx="${ENC_X+966}" cy="${lgY+20}" r="9" fill="#fff" stroke="var(--engram)" stroke-width="1.8"/><path d="M ${ENC_X+960.5} ${lgY+20} H ${ENC_X+971.5} M ${ENC_X+966} ${lgY+14.5} V ${lgY+25.5}" stroke="var(--engram)" stroke-width="1.4"/><text x="${ENC_X+980}" y="${lgY+24}" fill="var(--engram)" font-weight="600">Engram output gate — σ-gated add into the residual stream</text>
+<text x="${ENC_X-24}" y="${lgY+48}" class="smalllabel">click any layer OR any labelled box → its description in the panel · pick a phase, then press Animate</text>
+</g>`);
+
+/* ── Engram inset (only shown in the Engram scenario) ── */
+const IX = 1240, IY = 170;
+(function engramInset() {
+  const g = [];
+  g.push(`<g id="eng-inset" data-box="inset" opacity="0">`);
+  g.push(`<rect x="${IX}" y="${IY}" width="386" height="580" rx="14" fill="#fcfaff" stroke="var(--engram)" stroke-width="1.6"/>`);
+  g.push(`<text x="${IX+16}" y="${IY+26}" class="boxlabel" fill="var(--engram)">Engram — hashed n-gram memory</text>`);
+  g.push(`<text x="${IX+16}" y="${IY+41}" class="smalllabel">§2.4.2 · 196B params · 8 heads · ~16M rows/table · FP8 · host DRAM</text>`);
+
+  /* token window */
+  g.push(`<g id="eng-toks" opacity="0">`);
+  const tl = ["t₋₃","t₋₂","t₋₁","t"];
+  for (let i = 0; i < 4; i++) {
+    g.push(`<rect id="engtok-${i}" x="${IX+16+i*64}" y="${IY+58}" width="56" height="28" rx="5" fill="#eef3fb" stroke="#7d93b5" stroke-width="1.2"/>
+    <text x="${IX+44+i*64}" y="${IY+77}" text-anchor="middle" class="chiptxt" fill="#3c5170">${tl[i]}</text>`);
+  }
+  g.push(`<text x="${IX+272}" y="${IY+77}" class="smalllabel">token window</text></g>`);
+
+  /* n-gram brackets */
+  const NG = [[4, 0, IY+96], [3, 1, IY+110], [2, 2, IY+124]];
+  g.push(`<g id="eng-ngrams" opacity="0">`);
+  NG.forEach(([n, c0, y]) => {
+    const x0 = IX + 16 + c0 * 64, x1 = IX + 16 + 3 * 64 + 56;
+    g.push(`<path id="engng-${n}" d="M ${x0} ${y-6} V ${y} H ${x1} V ${y-6}" fill="none" stroke="var(--engram)" stroke-width="1.8"/>
+    <text x="${x1+8}" y="${y+4}" class="note2" fill="var(--engram)">${n}-gram</text>`);
+  });
+  g.push(`</g>`);
+
+  /* hash → address */
+  g.push(`<g id="eng-hash" opacity="0">
+    <rect x="${IX+16}" y="${IY+138}" width="290" height="26" rx="6" fill="#f3ebfc" stroke="var(--engram)" stroke-width="1.2"/>
+    <text x="${IX+161}" y="${IY+155}" text-anchor="middle" class="chiptxt" fill="var(--engram)">hash(n-gram) → row id &nbsp;·&nbsp; deterministic, no lookup table</text>
+    <path class="edge" d="M ${IX+161} ${IY+164} V ${IY+178}" marker-end="url(#arrP)"/>
+  </g>`);
+  g.push(`<g id="eng-addr" opacity="0">`);
+  ["addr₂","addr₃","addr₄"].forEach((a, i) => {
+    g.push(`<rect id="engaddr-${i}" x="${IX+16+i*100}" y="${IY+182}" width="90" height="24" rx="5" fill="#fff" stroke="var(--engram)" stroke-width="1.2"/>
+    <text x="${IX+61+i*100}" y="${IY+198}" text-anchor="middle" class="chiptxt" fill="var(--engram)" font-family="var(--mono)">${a}</text>`);
+  });
+  g.push(`<text x="${IX+320}" y="${IY+198}" class="note2" fill="var(--engram)">known<tspan x="${IX+320}" dy="11">early</tspan></text></g>`);
+
+  /* table */
+  g.push(`<g id="eng-table" opacity="0">
+    <rect x="${IX+16}" y="${IY+216}" width="354" height="92" rx="8" fill="#fff" stroke="#b79ad8" stroke-width="1.3"/>
+    <text x="${IX+26}" y="${IY+233}" class="note2" fill="var(--engram)">Engram table — 8 heads × ~16M rows (FP8), resident in host DRAM</text>`);
+  for (let r = 0; r < 3; r++) for (let c = 0; c < 27; c++)
+    g.push(`<rect id="engcell-${r}-${c}" x="${IX+26+c*12.7}" y="${IY+242+r*20}" width="10.4" height="15" rx="2" fill="#f1eaf8" stroke="#ddd0ee" stroke-width=".7"/>`);
+  g.push(`</g>`);
+
+  /* RDMA */
+  g.push(`<g id="eng-rdma" opacity="0">
+    <path id="eng-rdma-path" d="M ${IX+16} ${IY+322} H ${IX+370}" fill="none" stroke="var(--engram)" stroke-width="1.4" stroke-dasharray="5 4"/>
+    <text x="${IX+16}" y="${IY+340}" class="note2" fill="var(--engram)">RDMA fetch from host DRAM — issued before the layer's</text>
+    <text x="${IX+16}" y="${IY+354}" class="note2" fill="var(--engram)">compute begins, so the latency hides under layer 0</text>
+  </g>`);
+
+  /* gate */
+  const gy = IY + 472;
+  g.push(`<g id="eng-gate" opacity="0">
+    <text x="${IX+16}" y="${gy-94}" class="note2" fill="var(--engram)">Engram output gate → residual stream &nbsp;(schematic)</text>
+    <path class="edge" d="M ${IX+10} ${gy} H ${IX+204}" marker-end="url(#arrP)"/>
+    <text x="${IX+18}" y="${gy-8}" class="note2" fill="#3e4249">h (residual)</text>
+    <rect id="eng-sig" x="${IX+24}" y="${gy-80}" width="86" height="28" rx="6" fill="#fff" stroke="var(--engram)" stroke-width="1.3"/>
+    <text x="${IX+67}" y="${gy-61}" text-anchor="middle" class="chiptxt" fill="var(--engram)">g = σ(W_g·h)</text>
+    <path class="edge" d="M ${IX+67} ${gy-12} V ${gy-52}" marker-end="url(#arrP)"/>
+    <path class="edge" d="M ${IX+110} ${gy-66} H ${IX+131}" marker-end="url(#arrP)"/>
+    <circle id="eng-mul" cx="${IX+144}" cy="${gy-66}" r="13" fill="#fff" stroke="var(--engram)" stroke-width="1.6"/>
+    <text x="${IX+144}" y="${gy-61}" text-anchor="middle" font-size="14" fill="var(--engram)">⊙</text>
+    <text x="${IX+110}" y="${gy-40}" text-anchor="end" class="note2" fill="#3e4249">apply gate</text>
+    <path class="edge" d="M ${IX+300} ${IY+312} V ${gy-66} H ${IX+158}" marker-end="url(#arrP)"/>
+    <text x="${IX+196}" y="${gy-74}" class="note2" fill="var(--engram)">e = Σ eₙ (fetched rows)</text>
+    <path class="edge" d="M ${IX+144} ${gy-53} V ${gy-14}" marker-end="url(#arrP)"/>
+    <circle id="eng-add" cx="${IX+217}" cy="${gy}" r="13" fill="#fff" stroke="var(--engram)" stroke-width="1.6"/>
+    <text x="${IX+217}" y="${gy+5}" text-anchor="middle" font-size="14" fill="var(--engram)">⊕</text>
+    <text x="${IX+217}" y="${gy+24}" text-anchor="middle" class="note2" fill="#3e4249">residual add</text>
+    <path class="edge" d="M ${IX+230} ${gy} H ${IX+300}" marker-end="url(#arrP)"/>
+    <text x="${IX+306}" y="${gy+4}" class="note2" fill="var(--engram)">h′ → attn</text>
+    <text x="${IX+16}" y="${gy+46}" class="chiptxt" fill="#444" font-family="var(--mono)">h′ = h + W_o ( g ⊙ Σ_n e_n )</text>
+    <text x="${IX+16}" y="${gy+68}" class="smalllabel">attached at layers 1 and 14 — placement balances</text>
+    <text x="${IX+16}" y="${gy+82}" class="smalllabel">pipeline-stage memory during training (§2.4.2)</text>
+  </g>`);
+  g.push(`</g>`);
+  S.push(g.join("\n"));
+})();
+
+/* ── motion paths (invisible geometry the particles ride) ── */
+const PATHD = {
+  inText:  `M ${ENC_X+83} ${inY} V ${TOP+20*PITCH+12}`,
+  inVis:   `M ${ENC_X+265} ${inY} V ${TOP+20*PITCH+12}`,
+  inVit:   `M ${ENC_X+265} ${inY+58} V ${inY+40}`,
+  rdmaA:   `M ${chipCx(DRAM_X,1)-4} ${chipCy} V 1668 H 77 V ${yC(1)+40}`,
+  rdmaB:   `M ${chipCx(DRAM_X,1)+4} ${chipCy} V 1656 H 91 V ${yC(14)+40}`,
+  gateA:   `M 140 ${yC(1)} H 178`,
+  gateB:   `M 140 ${yC(14)} H 178`,
+  toH20:   `M ${ENC_X+176} ${TOP-54} V 139`,
+  ced:     `M ${ENC_X+282} 116 H 700 V ${cedY} H ${DEC_X-26}`,
+  toDspark:`M ${DEC_X+180} ${TOP-54} V 139`,
+  dsOut:   `M ${DEC_X+260} 116 H 1140 V 90 H ${tokCx(RB.nPrompt)} V ${RB.y+RB.h+4}`,
+  poolBuild:`M ${DEC_X+ROW_W+72} ${yC(20)} H 1278 V ${poolY+160} H 1298`,
+  kvHbm:   `M ${KVLANE(2)} ${yC(2)} V 1290 H 1548 V ${stY-16} H ${chipCx(HBM_X,0)} V ${stY+48}`,
+  kvSsd:   `M ${KVLANE(2)} ${yC(2)} V 1290 H 1540 V ${stY-10} H ${chipCx(SSD_X,0)} V ${stY+48}`,
+  swaHbm:  `M ${ENC_X+ROW_W} ${yC(0)} V 1296 H 1556 V ${stY-22} H ${chipCx(HBM_X,1)} V ${stY+48}`,
+  swaDram: `M ${ENC_X+ROW_W} ${yC(0)} V 1296 H 1564 V ${stY-28} H ${chipCx(DRAM_X,0)} V ${stY+48}`,
+};
+for (const r of REINDEX) PATHD["poolQ" + r] = `M ${DEC_X+ROW_W+72} ${yC(r)} H 1286 V ${poolY+20} H 1298`;
+for (const [src, [a, b]] of KV_GROUPS)  PATHD["kvlane" + src]  = `M ${KVLANE(src)} ${yC(src)} h 9 V ${yC(b)} h -9`;
+for (const [src, [a, b]] of IDX_GROUPS) PATHD["idxlane" + src] = `M ${IDXLANE(src)} ${yC(src)} h 9 V ${yC(b)} h -9`;
+
+S.push(`<g id="paths" fill="none" stroke="none"></g>`);
+S.push(`<g id="anim"></g>`);
+S.push(`<rect id="boxsel" x="0" y="0" width="0" height="0" rx="12" fill="none" stroke="#15181f" stroke-width="2.6" stroke-dasharray="7 4" opacity="0" pointer-events="none"/>`);
+S.push(`</svg>`);
+document.getElementById("map").innerHTML = S.join("\n");
+
+const SVG = document.getElementById("svg"), ANIM = document.getElementById("anim"), PATHS = document.getElementById("paths");
+
+/* ════════════════════ ANIMATION ENGINE ════════════════════
+   Every scenario is a pure function of time: render(t) rebuilds the whole overlay
+   state from the timeline, so scrubbing backwards is exactly as correct as playing
+   forwards. Cues never mutate; they only report "what I look like at time t".        */
+const NS = "http://www.w3.org/2000/svg";
+function mk(tag, attrs, parent) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  (parent || ANIM).appendChild(e);
+  return e;
+}
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const easeOut = p => 1 - Math.pow(1 - p, 3);
+const easeIO  = p => p < .5 ? 4*p*p*p : 1 - Math.pow(-2*p + 2, 3)/2;
+const prog = (t, t0, t1) => t1 <= t0 ? 1 : clamp((t - t0)/(t1 - t0), 0, 1);
+function env(t, t0, t1, fi, fo) {          // trapezoid envelope
+  if (t <= t0 || t >= t1) return 0;
+  return Math.min(clamp((t - t0)/(fi || 120), 0, 1), clamp((t1 - t)/(fo || 240), 0, 1));
+}
+
+/* per-row overlays: a multiply wash, a CSA2-chip wash, and a crisp ring */
+const ROWG = [], RFX = [], CFX = [], RRING = [];
+for (const L of LAYERS) {
+  const x = colX(L.idx), y = yOf(L.idx);
+  ROWG.push(document.querySelector(`.rowg[data-idx="${L.idx}"]`));
+  RFX.push(mk("rect", { x, y, width: ROW_W, height: ROW_H, rx: 7, fill: "none", opacity: 0, style: "mix-blend-mode:multiply" }));
+  CFX.push(mk("rect", { x: x + CHIP_X, y: y + 8, width: CHIP_W, height: ROW_H - 16, rx: 5, fill: "none", opacity: 0, style: "mix-blend-mode:multiply" }));
+  RRING.push(mk("rect", { x: x - 3, y: y - 3, width: ROW_W + 6, height: ROW_H + 6, rx: 9, fill: "none", stroke: "none", "stroke-width": 2.4, opacity: 0 }));
+}
+const TOKEL = [];
+for (let i = 0; i < RB.n; i++) TOKEL.push(document.getElementById("tok-" + i));
+const POOLBAR = document.getElementById("pool-bar"), POOLCT = document.getElementById("pool-ct");
+const TOKST = {
+  empty:  ["#f1efe8", "#cdc7b9", 1],
+  fresh:  ["#dbeafb", "#6fa3d8", 1],
+  hot:    ["#4e9af1", "#1f5e9e", 1.6],
+  cached: ["#dcead9", "#5f9161", 1.2],
+  skip:   ["#f0efec", "#ddd8cd", 1],
+  replay: ["#fbdfcc", "#c05621", 1.6],
+  query:  ["#efdcfb", "#7b3fbf", 1.6],
+  draft:  ["#f6eeff", "#9a6fd0", 1.4, "3 2"],
+  accept: ["#c9e7cb", "#2e7d32", 1.4],
+  reject: ["#efece7", "#b5aea3", 1.2, "3 2"],
+};
+const FX = { row: [], chip: [], ring: [], dim: [], tok: [] };
+for (let i = 0; i < 40; i++) { FX.row[i] = { a: 0, c: null }; FX.chip[i] = { a: 0, c: null }; FX.ring[i] = { a: 0, c: null }; FX.dim[i] = 1; }
+
+/* ── Scene: a list of time-indexed cues ── */
+function Scene(name) { this.name = name; this.up = []; this.ch = []; this.els = []; this.dur = 0; this.tokBase = () => "empty"; this.poolText = "built once per query by L20 (§2.3.2)"; }
+Scene.prototype.end = function (t) { if (t > this.dur) this.dur = t; return t; };
+Scene.prototype.chapter = function (t0, t1, title, text) { this.ch.push({ t0, t1, title, text }); return this.end(t1); };
+
+Scene.prototype.row = function (i, t0, t1, fill, o) {
+  o = o || {}; const a = o.a == null ? .85 : o.a, fi = o.fi || 90, fo = o.fo || 220;
+  this.up.push(t => { const e = env(t, t0, t1, fi, fo) * a; if (e > FX.row[i].a) { FX.row[i].a = e; FX.row[i].c = fill; } });
+  return this.end(t1);
+};
+Scene.prototype.chipfx = function (i, t0, t1, fill, o) {
+  o = o || {}; const a = o.a == null ? .95 : o.a;
+  this.up.push(t => { const e = env(t, t0, t1, o.fi || 80, o.fo || 220) * a; if (e > FX.chip[i].a) { FX.chip[i].a = e; FX.chip[i].c = fill; } });
+  return this.end(t1);
+};
+Scene.prototype.ring = function (i, t0, t1, stroke, o) {
+  o = o || {}; const a = o.a == null ? 1 : o.a;
+  this.up.push(t => { const e = env(t, t0, t1, o.fi || 70, o.fo || 220) * a; if (e > FX.ring[i].a) { FX.ring[i].a = e; FX.ring[i].c = stroke; } });
+  return this.end(t1);
+};
+Scene.prototype.dim = function (list, t0, t1, amount) {
+  this.up.push(t => { const e = env(t, t0, t1, 350, 450), v = 1 - (1 - amount) * e;
+    for (const i of list) if (v < FX.dim[i]) FX.dim[i] = v; });
+  return this.end(t1);
+};
+Scene.prototype.tok = function (range, t0, t1, state, o) {
+  o = o || {}; const [a, b] = Array.isArray(range) ? range : [range, range], st = o.stagger || 0;
+  this.up.push(t => { for (let i = a; i <= b; i++) { const s = t0 + (i - a) * st; if (t >= s && t < t1) FX.tok[i] = state; } });
+  return this.end(t1);
+};
+Scene.prototype.flow = function (key, t0, t1, o) {
+  o = Object.assign({ color: "#4e9af1", n: 5, r: 4, rev: false, guide: .4, mode: "stream", per: 1400, travel: 900, stagger: 160, gw: 1.2 }, o || {});
+  const p = mk("path", { d: PATHD[key] || key, fill: "none", stroke: o.color, "stroke-width": o.gw, "stroke-dasharray": "5 5", opacity: 0 }, PATHS);
+  const Lp = p.getTotalLength(), dots = [];
+  for (let i = 0; i < o.n; i++) dots.push(mk("circle", { r: o.r, fill: o.color, opacity: 0 }));
+  this.up.push(t => {
+    const e = env(t, t0, t1, 180, 300);
+    p.setAttribute("opacity", (e * o.guide).toFixed(3));
+    for (let i = 0; i < o.n; i++) {
+      const c = dots[i]; let ph = -1;
+      if (e > 0) {
+        if (o.mode === "stream") { const u = (t - t0)/o.per - i/o.n; ph = u < 0 ? -1 : u - Math.floor(u); }
+        else { const s = t0 + i*o.stagger; ph = (t >= s && t <= s + o.travel) ? (t - s)/o.travel : -1; }
+      }
+      if (ph < 0) { c.setAttribute("opacity", 0); continue; }
+      const q = easeIO(o.rev ? 1 - ph : ph), pt = p.getPointAtLength(Lp * q);
+      c.setAttribute("cx", pt.x.toFixed(1)); c.setAttribute("cy", pt.y.toFixed(1));
+      const f = ph < .07 ? ph/.07 : ph > .93 ? (1 - ph)/.07 : 1;
+      c.setAttribute("opacity", (e * f).toFixed(3));
+    }
+  });
+  return this.end(t1);
+};
+Scene.prototype.draw = function (key, t0, t1, o) {
+  o = Object.assign({ color: "var(--kv-lane)", width: 3.6, at: .52 }, o || {});
+  const p = mk("path", { d: PATHD[key] || key, fill: "none", stroke: o.color, "stroke-width": o.width, "stroke-linecap": "round", opacity: 0 });
+  const Lp = p.getTotalLength();
+  p.setAttribute("stroke-dasharray", Lp + " " + Lp);
+  const gt = t0 + (t1 - t0) * o.at;
+  this.up.push(t => {
+    p.setAttribute("opacity", env(t, t0, t1, 110, 380).toFixed(3));
+    p.setAttribute("stroke-dashoffset", (Lp * (1 - easeOut(prog(t, t0, gt)))).toFixed(1));
+  });
+  return this.end(t1);
+};
+Scene.prototype.note = function (x, y, t0, t1, str, o) {
+  o = Object.assign({ color: "#333", anchor: "start", cls: "note", rise: 9 }, o || {});
+  const e1 = mk("text", { x, y, "text-anchor": o.anchor, class: o.cls, fill: o.color, opacity: 0 });
+  e1.textContent = str;
+  this.up.push(t => {
+    e1.setAttribute("opacity", env(t, t0, t1, 220, 360).toFixed(3));
+    e1.setAttribute("transform", `translate(0 ${(o.rise * (1 - easeOut(prog(t, t0, t0 + 340)))).toFixed(1)})`);
+  });
+  return this.end(t1);
+};
+Scene.prototype.glow = function (x, y, w, h, rx, t0, t1, color, o) {
+  o = o || {};
+  const r = mk("rect", { x: x - 3, y: y - 3, width: w + 6, height: h + 6, rx: rx + 3, fill: o.fill || "none", stroke: color, "stroke-width": o.width || 2.6, opacity: 0 });
+  this.up.push(t => { const e = env(t, t0, t1, 160, 320); r.setAttribute("opacity", (e * (.74 + .26 * Math.sin((t - t0)/165))).toFixed(3)); });
+  return this.end(t1);
+};
+Scene.prototype.ping = function (x, y, t0, t1, color, o) {      // expanding ring
+  o = o || {}; const rMax = o.r || 26, per = o.per || 900, n = o.n || 2, rings = [];
+  for (let i = 0; i < n; i++) rings.push(mk("circle", { cx: x, cy: y, r: 4, fill: "none", stroke: color, "stroke-width": 2, opacity: 0 }));
+  this.up.push(t => {
+    const e = env(t, t0, t1, 140, 260);
+    rings.forEach((c, i) => {
+      if (e <= 0) { c.setAttribute("opacity", 0); return; }
+      const u = (t - t0)/per - i/n, ph = u < 0 ? -1 : u - Math.floor(u);
+      if (ph < 0) { c.setAttribute("opacity", 0); return; }
+      c.setAttribute("r", (4 + rMax * ph).toFixed(1));
+      c.setAttribute("opacity", (e * (1 - ph) * .9).toFixed(3));
+    });
+  });
+  return this.end(t1);
+};
+Scene.prototype.fadeEl = function (id, t0, t1, max) {
+  const el = document.getElementById(id);
+  if (!el) return this.end(t1);
+  if (!this.els.includes(el)) this.els.push(el);
+  const m = max == null ? 1 : max;
+  this.up.push(t => { const e = env(t, t0, t1, 260, 420) * m; if (e > el.__a) el.__a = e; });
+  return this.end(t1);
+};
+Scene.prototype.sweep = function (x0, x1, y0, y1, t0, t1, color, o) {
+  o = o || {};
+  const l = mk("line", { x1: x0, x2: x0, y1: y0, y2: y1, stroke: color, "stroke-width": o.width || 2.4, opacity: 0 });
+  this.up.push(t => {
+    const e = env(t, t0, t1, 120, 220);
+    l.setAttribute("opacity", e.toFixed(3));
+    const q = easeIO(prog(t, t0, t1)), x = x0 + (x1 - x0) * q;
+    l.setAttribute("x1", x.toFixed(1)); l.setAttribute("x2", x.toFixed(1));
+  });
+  return this.end(t1);
+};
+Scene.prototype.counter = function (x, y, t0, t1, from, to, o) {
+  o = Object.assign({ color: "var(--pool)", anchor: "middle", cls: "note", suffix: "", prefix: "" }, o || {});
+  const e1 = mk("text", { x, y, "text-anchor": o.anchor, class: o.cls, fill: o.color, opacity: 0 });
+  this.up.push(t => {
+    const e = env(t, t0, t1, 160, 340);
+    e1.setAttribute("opacity", e.toFixed(3));
+    const v = Math.round(from + (to - from) * easeOut(prog(t, t0, t0 + (t1 - t0) * .55)));
+    e1.textContent = o.prefix + v.toLocaleString() + o.suffix;
+  });
+  return this.end(t1);
+};
+Scene.prototype.poolFill = function (t0, t1, o) {
+  o = o || {};
+  this.up.push(t => {
+    const q = easeOut(prog(t, t0, t1));
+    if (t >= t0) { POOLBAR.setAttribute("width", (292 * q).toFixed(1)); POOLCT.textContent = q < 1 ? "scanning full context…" : "pool ready — 16,384 candidates"; }
+  });
+  return this.end(t1);
+};
+Scene.prototype.wave = function (list, t0, step, dwell, o) {
+  o = o || {}; let last = t0;
+  list.forEach((i, k) => {
+    const a = t0 + k * step, b = a + dwell; last = b;
+    this.row(i, a, b, o.fill || C.compute, { a: o.a == null ? .9 : o.a, fi: 70, fo: 180 });
+    if (o.ring !== false) this.ring(i, a, b, o.ring || C.computeS, { fi: 60, fo: 200 });
+    if (o.each) o.each(this, i, a, b, k);
+  });
+  return this.end(last);
+};
+
+/* extra motion paths used by the scenarios */
+const GY = IY + 472;
+Object.assign(PATHD, {
+  replayDec: `M ${tokCx(47)} 68 H 1600 V 1340 H ${DEC_X+176} V 1268`,
+  replayEnc: `M ${tokCx(30)} 68 H 6 V 1348 H ${ENC_X+83} V 1268`,
+  queryTok:  `M ${tokCx(RB.nPrompt-1)} 68 H 6 V 1348 H ${ENC_X+83} V 1268`,
+  engRdma:   `M ${IX+370} ${IY+322} H ${IX+16}`,
+  engH:      `M ${IX+10} ${GY} H ${IX+200}`,
+  engHup:    `M ${IX+67} ${GY-14} V ${GY-54}`,
+  engSig:    `M ${IX+110} ${GY-66} H ${IX+129}`,
+  engE:      `M ${IX+300} ${IY+312} V ${GY-66} H ${IX+160}`,
+  engMulOut: `M ${IX+144} ${GY-51} V ${GY-16}`,
+  engOut:    `M ${IX+232} ${GY} H ${IX+298}`,
+});
+TOKST.ctx = ["#e3eaf4", "#7d8fa8", 1.2];
+const ENC_IDX = LAYERS.filter(l => l.half === "encoder").map(l => l.idx);
+const DEC_IDX = LAYERS.filter(l => l.half === "decoder").map(l => l.idx);
+
+/* a Full / Reindex layer emitting state, and the lanes carrying it to its consumers */
+function produce(s, src, t0, o) {
+  o = o || {};
+  const k = o.scale == null ? 1 : o.scale;
+  const kvC = consumersOfKv(src), idxC = consumersOfIdx(src);
+  s.chipfx(src, t0, t0 + 900*k, o.chip || C.full);
+  s.ring(src, t0, t0 + 900*k, o.chipS || C.fullS);
+  s.ping(KVLANE(src) + 3, yC(src), t0 + 80, t0 + 850*k, C.kvS, { r: 17, per: 620 });
+  if (o.kv !== false) {
+    s.draw("kvlane" + src, t0 + 160, t0 + 1450*k, { color: C.kvS, width: 4 });
+    const st = Math.min(70, 800 / Math.max(1, kvC.length));
+    kvC.forEach((c, i) => s.row(c, t0 + 380 + i*st, t0 + 1200*k + i*st, C.kv, { a: .95 }));
+  }
+  if (o.idx !== false) {
+    s.draw("idxlane" + src, t0 + 400, t0 + 1650*k, { color: C.idxS, width: 4 });
+    const st = Math.min(70, 800 / Math.max(1, idxC.length));
+    idxC.forEach((c, i) => s.ring(c, t0 + 620 + i*st, t0 + 1380*k + i*st, C.idxS, { a: .8 }));
+  }
+  return t0 + 1650*k;
+}
+/* the two Engram attach points: prefetch lands BEFORE the wavefront arrives */
+function engram(s, i, arrive, o) {
+  o = o || {};
+  const lead = o.lead == null ? 1300 : o.lead;
+  s.flow(i === 1 ? "rdmaA" : "rdmaB", arrive - lead, arrive + 260,
+    { color: C.engramS, n: 6, r: 4.2, mode: "burst", stagger: 130, travel: lead - 120, guide: .5 });
+  s.glow(4, yC(i) - 40, 140, 80, 11, arrive - lead + 500, arrive + 900, C.engramS);
+  s.flow(i === 1 ? "gateA" : "gateB", arrive - 60, arrive + 520,
+    { color: C.engramS, n: 3, r: 4, mode: "burst", stagger: 90, travel: 330, guide: .35 });
+  s.ping(161, yC(i), arrive - 40, arrive + 640, C.engramS, { r: 20, per: 620 });
+  s.row(i, arrive, arrive + 620, C.engram, { a: .95 });
+  s.ring(i, arrive, arrive + 620, C.engramS);
+  return arrive + 900;
+}
+/* red ✗ over a storage chip */
+function evict(s, cx, cy, t0, t1) {
+  s.draw(`M ${cx-15} ${cy-13} L ${cx+15} ${cy+13}`, t0, t1, { color: "#c0392b", width: 3.4, at: .3 });
+  s.draw(`M ${cx+15} ${cy-13} L ${cx-15} ${cy+13}`, t0 + 160, t1, { color: "#c0392b", width: 3.4, at: .3 });
+}
+
+/* ════════════════════ SCENARIO · COLD PREFILL ════════════════════ */
+function sceneCold() {
+  const s = new Scene("cold");
+  s.dim(DEC_IDX, 0, 9900, .22);
+
+  s.chapter(0, 1750, "1 · The prompt arrives",
+    "N prompt tokens — text, plus vision patches already made 9× fewer by DeepSeek-ViT's 3×3 pixel unshuffle — are embedded and handed to layer 0 of the causal encoder.");
+  s.tok([0, RB.nPrompt - 1], 240, 1e9, "fresh", { stagger: 16, hold: true });
+  s.flow("inVit", 150, 1000, { color: "#8a8578", n: 3, per: 650, r: 3.4, guide: .3 });
+  s.flow("inText", 320, 1800, { color: C.computeS, n: 4, per: 760, r: 4.2 });
+  s.flow("inVis", 320, 1800, { color: C.computeS, n: 4, per: 760, r: 4.2 });
+  s.glow(ENC_X + 8, inY, 150, 38, 8, 280, 1750, C.computeS);
+  s.glow(ENC_X + 190, inY, 150, 38, 8, 280, 1750, C.computeS);
+
+  /* encoder sweep: one wavefront, bottom to top, 300 ms per layer */
+  const T0 = 1750, STEP = 300;
+  const at = i => T0 + i * STEP;
+  ENC_IDX.forEach(i => {
+    const m = LAYERS[i].global ? LAYERS[i].global.mode : "SWA";
+    const a = at(i), b = a + 340;
+    s.row(i, a, b, m === "Full" ? C.full : m === "Reuse" ? C.reuse : C.compute, { a: .9, fi: 70, fo: 180 });
+    s.ring(i, a, b, m === "Full" ? C.fullS : m === "Reuse" ? C.reuseS : C.computeS, { fi: 60, fo: 200 });
+  });
+
+  s.chapter(1750, 2900, "2 · Layers 0–1 — SWA only, and Engram A",
+    "The first two layers have no global attention at all. Meanwhile the Engram addresses for this token window were already known, so table rows have been streaming in over RDMA from host DRAM since before layer 0 started — the fetch hides entirely under compute.");
+  engram(s, 1, at(1), { lead: 1300 });
+
+  s.chapter(2900, 4450, "3 · L2 — the first Full layer",
+    "L2 computes a real main KV cache (two tokens → one FP4 entry, r = 2), projects indexer K from it, and picks a fresh Top-512 per query. That one cache and that one selection then serve L3–L7: six layers, one cache.");
+  produce(s, 2, at(2) + 150);
+  s.note(600, yC(5), 3200, 4500, "1 cache → 6 layers", { color: C.kvS, anchor: "middle", cls: "note" });
+
+  s.chapter(4450, 6300, "4 · L8 and L14 — the other two producers",
+    "Each Full layer restarts the pattern for the next span. Engram B attaches at L14 — the placement is a training-time memory decision, balancing how much each pipeline stage has to hold.");
+  produce(s, 8, at(8) + 150);
+  produce(s, 14, at(14) + 150);
+  engram(s, 14, at(14), { lead: 1250 });
+
+  s.chapter(6300, 8300, "5 · L15–L19 ride L14's cache → H₂₀",
+    "The Reuse layers compute only their own query and their own sliding-window KV, then read L14's main KV and Top-K directly. Layer 19's output is H₂₀ — the single tensor the whole decoder half is about to be built from.");
+  s.flow("toH20", at(19) + 200, at(19) + 1100, { color: "#8a8578", n: 4, r: 4, mode: "burst", stagger: 110, travel: 620 });
+  s.glow(ENC_X + 70, 96, 212, 40, 9, at(19) + 500, 10600, C.fullS);
+
+  s.chapter(8300, 11100, "6 · CED — decoder KV without a decoder pass",
+    "This is the trick that halves prefill. Instead of running layers 20–39 over the prompt, the decoder's global KV is projected straight out of H₂₀: Cₗ = H₂₀·Wₗᴷⱽ. Twenty cheap matmuls replace twenty transformer layers, and prefill drops to ≈ O(N·L/2).");
+  s.flow("ced", 8450, 10900, { color: C.cedS, n: 6, r: 4.6, per: 1500, guide: .55, gw: 1.6 });
+  s.note(628, cedY - 60, 8700, 11100, "20 projections,", { color: C.cedS, anchor: "middle" });
+  s.note(628, cedY - 46, 8700, 11100, "not 20 layers", { color: C.cedS, anchor: "middle" });
+  DEC_IDX.forEach((i, k) => s.row(i, 9100 + k * 45, 11000, C.ced, { a: .8, fi: 200 }));
+  produce(s, 20, 9250, { scale: 1.15 });
+  s.poolFill(9900, 11000);
+  s.glow(1300, poolY, 320, 200, 12, 9900, 11400, C.poolS);
+  s.flow("poolBuild", 9700, 11000, { color: C.poolS, n: 5, r: 4, per: 1200 });
+
+  s.chapter(11100, 14400, "7 · Decoder SWA bounded replay",
+    "One thing CED can't hand over: the decoder's sliding-window KV, which every layer computes from its own hidden state. So only the last n_win prompt tokens are actually pushed through L20–L39 — enough to refill the window, and nothing more.");
+  s.fadeEl("band-cold", 11200, 14400, .95);
+  s.tok([RB.nPrompt - NWIN, RB.nPrompt - 1], 11200, 14400, "replay");
+  s.flow("replayDec", 11250, 14200, { color: C.replayS, n: 5, r: 4.2, per: 1500, guide: .35 });
+  DEC_IDX.forEach((i, k) => { const a = 11800 + k * 115; s.row(i, a, a + 250, C.replay, { a: .9, fi: 60, fo: 150 }); s.ring(i, a, a + 250, C.replayS, { fi: 50, fo: 170 }); });
+
+  s.chapter(14400, 16700, "8 · Where all of it lands",
+    "Main KV (FP4) goes to HBM for the live request and to the SSD tier, where it survives ≥ 72 h for the next prefix hit. SWA KV (FP8) stays in HBM and the host-DRAM recycling pool — and is deliberately never persisted, because replaying n_win tokens is cheaper than storing L windows.");
+  s.flow("kvHbm", 14500, 16500, { color: C.kvS, n: 4, r: 4.2, per: 1500 });
+  s.flow("kvSsd", 14700, 16500, { color: C.kvS, n: 4, r: 4.2, per: 1600 });
+  s.flow("swaHbm", 14900, 16500, { color: C.replayS, n: 4, r: 4.2, per: 1500 });
+  s.flow("swaDram", 15100, 16500, { color: C.replayS, n: 4, r: 4.2, per: 1600 });
+  s.glow(HBM_X, stY, 360, 104, 12, 15000, 16600, C.kvS, { width: 2.2 });
+  s.glow(DRAM_X, stY, 360, 104, 12, 15400, 16600, C.replayS, { width: 2.2 });
+  s.glow(SSD_X, stY, 380, 104, 12, 15200, 16600, C.kvS, { width: 2.2 });
+  evict(s, chipCx(SSD_X, 1), chipCy, 15700, 18600);
+  s.note(chipCx(SSD_X, 1), stY - 28, 15900, 18600, "SWA KV evicted on purpose", { color: "#c0392b", anchor: "middle", cls: "note2" });
+
+  s.chapter(16700, 18600, "9 · What the cold path cost",
+    "Twenty layers over the prompt instead of forty · 8B active parameters per token · one main KV per span instead of one per layer · and a persistent footprint one-eighth of DeepSeek-V4's.");
+  s.note(ENC_X + ROW_W / 2, TOP - 74, 16800, 18600, "prefill ≈ O(N · L / 2)  ·  8B active params / token", { color: C.computeS, anchor: "middle" });
+  s.dur = 18600;
+  return s;
+}
+
+/* ════════════════════ SCENARIO · CACHE-HIT PREFILL ════════════════════ */
+function sceneHit() {
+  const s = new Scene("hit");
+  s.tokBase = i => i < PREFIX_END ? "cached" : i < RB.nPrompt ? "fresh" : "empty";
+
+  s.chapter(0, 2100, "1 · The prefix is already in the cache",
+    "The leading tokens of this prompt were served before, so their FP4 global KV is still sitting in the persistent SSD tier — global KV only, and only that, is kept there for ≥ 72 hours.");
+  s.sweep(RB.x, tokX(PREFIX_END), RB.y - 7, RB.y + RB.h + 7, 300, 1700, "#5f9161");
+  s.note(tokX(PREFIX_END / 2), RB.y - 24, 500, 1e9, "cached prefix — skipped entirely", { color: "#4d7a50", anchor: "middle", cls: "note2" });
+  s.note(tokX(PREFIX_END) + 10, RB.y - 24, 900, 1e9, "uncached suffix", { color: C.computeS, cls: "note2" });
+  s.glow(SSD_X, stY, 380, 104, 12, 600, 5200, C.kvS, { width: 2.4 });
+  s.dim(DEC_IDX, 0, 13600, .3);
+
+  s.chapter(2100, 5200, "2 · FP4 global KV streams back in",
+    "No recompute: the shared main KV and indexer K for the cached span are read back out of the persistent cache straight into the provenance lanes. The Full layers don't have to run over that span at all.");
+  s.flow("kvSsd", 2150, 5100, { color: C.kvS, n: 6, r: 4.4, per: 1500, rev: true, guide: .5, gw: 1.5 });
+  [2, 8, 14].forEach((src, k) => {
+    s.draw("kvlane" + src, 2600 + k * 320, 5200, { color: C.kvS, width: 4 });
+    s.draw("idxlane" + src, 2900 + k * 320, 5200, { color: C.idxS, width: 3.6 });
+    consumersOfKv(src).forEach((c, i) => s.row(c, 2800 + k * 320 + i * 50, 5200, C.kv, { a: .85, fi: 160 }));
+    s.row(src, 2600 + k * 320, 5200, C.kv, { a: .9, fi: 160 });
+  });
+  s.note(600, yC(10), 3000, 5300, "read back, not recomputed", { color: C.kvS, anchor: "middle" });
+
+  s.chapter(5200, 6900, "3 · …but the SWA cache is gone",
+    "Sliding-window KV is deliberately evicted from the persistent tier. Storing it would mean one window per layer; rebuilding it means replaying a bounded number of tokens once. The second is cheaper, so the system chooses to lose it.");
+  evict(s, chipCx(SSD_X, 1), chipCy, 5300, 7400);
+  s.note(chipCx(SSD_X, 1), stY - 28, 5500, 7400, "SWA KV was never persisted", { color: "#c0392b", anchor: "middle", cls: "note2" });
+
+  s.chapter(6900, 10300, "4 · Bounded replay rebuilds the window",
+    "Only the last n_win tokens of the cached prefix are pushed back through the encoder — just far enough to repopulate every layer's sliding window. The miss costs n_win tokens, not L × n_win.");
+  s.fadeEl("band-hit", 6950, 10300, .95);
+  s.tok([PREFIX_END - NWIN, PREFIX_END - 1], 6950, 10300, "replay");
+  s.flow("replayEnc", 7000, 10100, { color: C.replayS, n: 5, r: 4.2, per: 1500, guide: .35 });
+  ENC_IDX.forEach((i, k) => { const a = 7450 + k * 135; s.row(i, a, a + 270, C.replay, { a: .9, fi: 60, fo: 160 }); s.ring(i, a, a + 270, C.replayS, { fi: 50, fo: 180 }); });
+  s.note(ENC_X + ROW_W / 2, TOP + 20 * PITCH + 52, 7600, 10300, "SWA KV only — global attention untouched", { color: C.replayS, anchor: "middle", cls: "note2" });
+
+  s.chapter(10300, 14000, "5 · Only the uncached suffix computes fresh",
+    "Now the real work: the new tail of the prompt runs the full encoder stack. The Full layers append to the existing caches, the Engram tables are prefetched again, and every Reuse layer keeps riding the span it inherited.");
+  const T0 = 10550, STEP = 165, at = k => T0 + k * STEP;
+  s.tok([PREFIX_END, RB.nPrompt - 1], 10400, 14000, "hot", { stagger: 40 });
+  s.flow("inText", 10400, 11600, { color: C.computeS, n: 3, per: 700, r: 4 });
+  ENC_IDX.forEach((i, k) => {
+    const m = LAYERS[i].global ? LAYERS[i].global.mode : "SWA", a = at(k), b = a + 260;
+    s.row(i, a, b, m === "Full" ? C.full : m === "Reuse" ? C.reuse : C.compute, { a: .9, fi: 60, fo: 160 });
+    s.ring(i, a, b, m === "Full" ? C.fullS : m === "Reuse" ? C.reuseS : C.computeS, { fi: 50, fo: 180 });
+  });
+  engram(s, 1, at(1), { lead: 900 });
+  engram(s, 14, at(14), { lead: 900 });
+  [2, 8, 14].forEach(src => produce(s, src, at(src) + 90, { scale: .65 }));
+
+  s.chapter(14000, 16300, "6 · CED and the decoder replay, as before",
+    "The suffix's H₂₀ projects into decoder global KV, and the last n_win tokens sweep L20–L39 to rebuild the decoder's own sliding windows. From here the cache-hit path and the cold path are identical.");
+  s.flow("ced", 14100, 16200, { color: C.cedS, n: 5, r: 4.4, per: 1300, guide: .5, gw: 1.6 });
+  DEC_IDX.forEach((i, k) => s.row(i, 14400 + k * 35, 16200, C.ced, { a: .75, fi: 180 }));
+  s.tok([RB.nPrompt - NWIN, RB.nPrompt - 1], 15000, 16300, "replay");
+  DEC_IDX.forEach((i, k) => { const a = 15100 + k * 55; s.row(i, a, a + 180, C.replay, { a: .9, fi: 50, fo: 120 }); s.ring(i, a, a + 180, C.replayS, { fi: 40, fo: 140 }); });
+
+  s.chapter(16300, 18200, "7 · What the hit saved",
+    "Everything the prefix would have cost in attention and MoE compute, for the price of re-reading FP4 KV plus n_win replayed tokens. That asymmetry is the whole reason SWA KV is thrown away and global KV is kept.");
+  s.note(ENC_X + ROW_W / 2, TOP - 74, 16400, 18200, "a miss costs n_win tokens — not L × n_win", { color: C.replayS, anchor: "middle" });
+  s.dur = 18200;
+  return s;
+}
+
+/* ════════════════════ SCENARIO · DECODE ════════════════════ */
+function sceneDecode() {
+  const s = new Scene("decode");
+  s.tokBase = i => i < RB.nPrompt ? "ctx" : "empty";
+  s.fadeEl("band-decode", 400, 15600, .9);
+
+  s.chapter(0, 1700, "1 · One token, all forty layers",
+    "Prefill was allowed to skip the decoder. Decode is not: a single new token walks the whole 40-layer stack, 16B active parameters. Because Engram addresses are a deterministic hash of the token window, both tables are already being fetched over RDMA before layer 0 runs.");
+  s.tok(RB.nPrompt - 1, 200, 1e9, "hot");
+  s.note(tokCx(RB.nPrompt - 1), RB.y - 24, 350, 2600, "current token", { color: "#1f5e9e", anchor: "middle", cls: "note2" });
+  s.flow("queryTok", 300, 1900, { color: C.computeS, n: 4, r: 4.2, per: 900, guide: .3 });
+  s.glow(chipCx(DRAM_X, 1) - 74, stY + 50, 148, 40, 7, 300, 4600, C.engramS, { width: 2.4 });
+
+  /* encoder half */
+  const T0 = 1700, STEP = 175, at = i => T0 + i * STEP;
+  ENC_IDX.forEach(i => {
+    const m = LAYERS[i].global ? LAYERS[i].global.mode : "SWA", a = at(i), b = a + 280;
+    s.row(i, a, b, m === "Full" ? C.full : m === "Reuse" ? C.reuse : C.compute, { a: .9, fi: 60, fo: 160 });
+    s.ring(i, a, b, m === "Full" ? C.fullS : m === "Reuse" ? C.reuseS : C.computeS, { fi: 50, fo: 180 });
+  });
+  s.chapter(1700, 5300, "2 · Through the encoder half",
+    "The three encoder Full layers each append exactly one new entry to the cache they own; their Reuse spans simply read it. Engram A gates in at L1 and Engram B at L14 — the fetched rows arrived while earlier layers were still computing, so neither layer ever waits on host DRAM.");
+  engram(s, 1, at(1), { lead: 1400 });
+  engram(s, 14, at(14), { lead: 1400 });
+  [2, 8, 14].forEach(src => {
+    s.ping(KVLANE(src) + 3, yC(src), at(src), at(src) + 700, C.kvS, { r: 15, per: 560 });
+    s.ping(IDXLANE(src) + 3, yC(src), at(src) + 120, at(src) + 760, C.idxS, { r: 15, per: 560 });
+  });
+  s.note(600, yC(8) - 26, 3000, 5400, "+1 KV entry each", { color: C.kvS, anchor: "middle", cls: "note2" });
+
+  /* decoder half */
+  const D0 = 5300, DSTEP = 200, dat = i => D0 + (i - 20) * DSTEP;
+  DEC_IDX.forEach(i => {
+    const m = LAYERS[i].global.mode, a = dat(i), b = a + 300;
+    s.row(i, a, b, m === "Full" ? C.full : m === "Reindex" ? C.pool : C.reuse, { a: .9, fi: 60, fo: 170 });
+    s.ring(i, a, b, m === "Full" ? C.fullS : m === "Reindex" ? C.poolS : C.reuseS, { fi: 50, fo: 190 });
+  });
+
+  s.chapter(5300, 7100, "3 · L20 — the only layer that reads everything",
+    "L20 is the single decoder indexer that scores the entire visible context. It keeps its Top-512 and, in the same sweep, block-max-scores the context down to 2,048 blocks × 8 positions — a 16,384-entry candidate pool that bounds every indexer above it.");
+  s.chipfx(20, 5300, 7000, C.full);
+  s.sweep(RB.x, tokX(RB.nPrompt), RB.y - 7, RB.y + RB.h + 7, 5450, 6500, C.poolS, { width: 2.6 });
+  s.note(RB.x + 300, RB.y + RB.h + 22, 5500, 7100, "L20 scans the full context — once per query", { color: C.poolS, cls: "note2" });
+  s.flow("poolBuild", 5500, 7100, { color: C.poolS, n: 5, r: 4.2, per: 1100, guide: .5, gw: 1.5 });
+  s.poolFill(5600, 6700);
+  s.glow(1300, poolY, 320, 200, 12, 5600, 15600, C.poolS, { width: 2.2 });
+  s.counter(1460, poolY - 14, 5700, 7600, 0, 16384, { suffix: " candidates", color: C.poolS });
+  s.draw("kvlane20", 5500, 6900, { color: C.kvS, width: 4 });
+  s.draw("idxlane20", 5800, 7200, { color: C.idxS, width: 3.6 });
+  [21, 22, 23].forEach((c, i) => s.ring(c, 6000 + i * 70, 7200, C.idxS, { a: .8 }));
+
+  s.chapter(7100, 10200, "4 · Reindex layers re-score — but only the pool",
+    "L24, L28, L32 and L36 reuse L20's main KV and indexer K, so they add no storage at all. What they do add is their own indexer Q: they re-rank, and their Top-512 can differ. Crucially they search only the 16,384-entry pool, so their cost is constant no matter how long the context is.");
+  REINDEX.forEach(r => {
+    const a = dat(r);
+    s.chipfx(r, a, a + 900, C.pool, { a: .95 });
+    s.flow("poolQ" + r, a, a + 420, { color: C.poolS, n: 3, r: 3.8, mode: "burst", stagger: 70, travel: 320, guide: .45 });
+    s.flow("poolQ" + r, a + 380, a + 820, { color: "#38b0d8", n: 3, r: 3.8, mode: "burst", stagger: 70, travel: 320, rev: true, guide: 0 });
+    s.draw("idxlane" + r, a + 520, a + 1700, { color: C.idxS, width: 4 });
+    consumersOfIdx(r).forEach((c, i) => s.ring(c, a + 700 + i * 80, a + 1600 + i * 80, C.idxS, { a: .85 }));
+    s.note(DEC_X - 34, yC(r) + 4, a + 200, a + 1700, "rescores pool only", { color: C.poolS, anchor: "end", cls: "note2" });
+  });
+  s.note(DEC_X + ROW_W / 2, TOP + 20 * PITCH + 52, 7300, 10200, "30 Reuse layers: no indexer, no scoring, no new cache — 11 fused kernels each", { color: C.reuseS, anchor: "middle", cls: "note2" });
+
+  s.chapter(10200, 11900, "5 · Out of L39, into DSpark",
+    "The last layer's hidden state becomes the next-token distribution — and the drafting head's input. DSpark is a 3-block drafter that proposes several tokens per pass; a scheduler picks how many to verify from measured throughput curves.");
+  s.flow("toDspark", 9500, 10600, { color: "#8a8578", n: 4, r: 4, mode: "burst", stagger: 110, travel: 620 });
+  s.glow(DEC_X + 100, 96, 160, 40, 9, 9900, 13400, C.engramS, { width: 2.4 });
+  s.flow("dsOut", 10500, 12200, { color: "#9a6fd0", n: 5, r: 4.2, per: 1200, guide: .4 });
+
+  s.chapter(11900, 14200, "6 · Five drafted, four kept",
+    "The drafter proposes 5 tokens in one pass; the full model verifies them in parallel. Accepted tokens are emitted for free — the rejected one costs only the draft. Then the whole 40-layer walk begins again for the next token.");
+  s.tok([RB.nPrompt, RB.nPrompt + 4], 11200, 12700, "draft", { stagger: 160 });
+  s.note(tokCx(RB.nPrompt + 2), RB.y - 24, 11400, 12900, "drafted ×5", { color: "#7b3fbf", anchor: "middle", cls: "note2" });
+  s.tok([RB.nPrompt, RB.nPrompt + 3], 12700, 1e9, "accept", { stagger: 130 });
+  s.tok(RB.nPrompt + 4, 12700, 1e9, "reject");
+  s.note(tokCx(RB.nPrompt + 1), RB.y - 24, 13000, 15600, "4 accepted", { color: C.fullS, anchor: "middle", cls: "note2" });
+  s.note(tokCx(RB.nPrompt + 4) + 14, RB.y - 24, 13000, 15600, "1 rejected", { color: "#8a8578", cls: "note2" });
+  s.tok(RB.nPrompt + 5, 13600, 1e9, "hot");
+
+  s.chapter(14200, 15600, "7 · The steady-state cost",
+    "16B active parameters per token · one full-context scan at L20 and four constant-cost pool re-rankings above it · thirty Reuse layers that touch no cache they didn't inherit.");
+  s.note(DEC_X + ROW_W / 2, TOP - 74, 14300, 15600, "16B active / token  ·  indexer cost independent of context length", { color: C.poolS, anchor: "middle" });
+  s.dur = 15600;
+  return s;
+}
+
+/* ════════════════════ SCENARIO · ENGRAM PREFETCH & GATE ════════════════════ */
+function sceneEngram() {
+  const s = new Scene("engram");
+  s.tokBase = i => i < RB.nPrompt ? "ctx" : "empty";
+  s.dim(LAYERS.filter(l => !l.engram).map(l => l.idx), 0, 13800, .34);
+  s.fadeEl("eng-inset", 200, 13800);
+  s.tok([RB.nPrompt - 4, RB.nPrompt - 1], 300, 13800, "query");
+
+  s.chapter(0, 2200, "1 · Two tables, two attach points",
+    "Engram is a 196B-parameter hashed n-gram memory — far bigger than the 552B backbone's active path, but almost none of it is touched per token. It attaches at exactly two layers, L1 and L14; the placement balances how much memory each pipeline stage must hold during training.");
+  s.glow(4, yC(1) - 40, 140, 80, 11, 500, 2600, C.engramS);
+  s.glow(4, yC(14) - 40, 140, 80, 11, 700, 2600, C.engramS);
+  s.ring(1, 600, 2600, C.engramS); s.ring(14, 800, 2600, C.engramS);
+  s.row(1, 600, 2600, C.engram, { a: .8 }); s.row(14, 800, 2600, C.engram, { a: .8 });
+
+  s.chapter(2200, 4000, "2 · The current token window → n-grams",
+    "For the token being processed, Engram forms n-grams of orders 2, 3 and 4 over the immediately preceding tokens. Nothing is learned about which n-grams exist — the structure is fixed, which is what makes the next step possible.");
+  s.fadeEl("eng-toks", 2300, 13800);
+  s.fadeEl("eng-ngrams", 3000, 13800);
+  s.glow(IX + 16, IY + 58, 248, 28, 5, 2500, 4200, C.engramS, { width: 2.2 });
+
+  s.chapter(4000, 5800, "3 · Deterministic hashing → row ids",
+    "Each n-gram is hashed straight to a row id. There is no lookup structure to consult and no dependence on anything the network computes, so the addresses are known the moment the tokens are known — long before layer 1 needs the result.");
+  s.fadeEl("eng-hash", 4100, 13800);
+  s.fadeEl("eng-addr", 4800, 13800);
+  for (let i = 0; i < 3; i++) s.ping(IX + 61 + i * 100, IY + 194, 5000 + i * 160, 6400, C.engramS, { r: 14, per: 620, n: 1 });
+
+  s.chapter(5800, 8600, "4 · RDMA prefetch — the latency hides under compute",
+    "The tables live in host DRAM in FP8, not in HBM. Because the addresses are available early, the fetch is issued ahead of time and streams in over RDMA while earlier layers are still running. Only a handful of rows per token ever cross the wire.");
+  s.fadeEl("eng-table", 5900, 13800);
+  s.fadeEl("eng-rdma", 6300, 13800);
+  s.flow("engRdma", 6400, 8600, { color: C.engramS, n: 5, r: 4, per: 1100, guide: 0 });
+  s.glow(chipCx(DRAM_X, 1) - 74, stY + 50, 148, 40, 7, 5900, 13600, C.engramS, { width: 2.4 });
+  s.flow("rdmaA", 6200, 8600, { color: C.engramS, n: 5, r: 4.2, per: 1700, guide: .45 });
+  s.flow("rdmaB", 6500, 8600, { color: C.engramS, n: 5, r: 4.2, per: 1700, guide: .45 });
+  [[0, 5], [1, 13], [2, 21]].forEach(([r, c], k) =>
+    s.glow(IX + 26 + c * 12.7, IY + 242 + r * 20, 10.4, 15, 2, 6800 + k * 220, 13600, C.engramS, { width: 2, fill: "#e9d7fb" }));
+
+  s.chapter(8600, 11400, "5 · The gate decides how much gets through",
+    "The retrieved rows are summed, passed through a learned gate computed from the layer's own hidden state, and added back into the residual stream. The gate is what keeps a hashed memory — with its inevitable collisions — from corrupting the representation: when the lookup isn't useful, it closes.");
+  s.fadeEl("eng-gate", 8700, 13800);
+  s.flow("engE", 9000, 11400, { color: C.engramS, n: 3, r: 3.6, per: 1100, guide: 0 });
+  s.flow("engH", 9100, 11400, { color: "#6b7280", n: 3, r: 3.6, per: 1200, guide: 0 });
+  s.flow("engHup", 9300, 11400, { color: "#6b7280", n: 2, r: 3.2, per: 900, guide: 0 });
+  s.flow("engSig", 9600, 11400, { color: C.engramS, n: 2, r: 3.2, per: 700, guide: 0 });
+  s.flow("engMulOut", 9900, 11400, { color: C.engramS, n: 2, r: 3.4, per: 800, guide: 0 });
+  s.flow("engOut", 10200, 11400, { color: C.engramS, n: 3, r: 3.8, per: 900, guide: 0 });
+  s.ping(IX + 144, GY - 66, 9500, 11400, C.engramS, { r: 18, per: 800, n: 1 });
+  s.ping(IX + 217, GY, 10000, 11400, C.engramS, { r: 18, per: 800, n: 1 });
+  s.flow("gateA", 10200, 11400, { color: C.engramS, n: 3, r: 4, per: 700, guide: .35 });
+  s.flow("gateB", 10400, 11400, { color: C.engramS, n: 3, r: 4, per: 700, guide: .35 });
+  s.ping(161, yC(1), 10200, 11500, C.engramS, { r: 20, per: 640 });
+  s.ping(161, yC(14), 10400, 11500, C.engramS, { r: 20, per: 640 });
+  s.row(1, 10200, 11500, C.engram, { a: .95 }); s.ring(1, 10200, 11500, C.engramS);
+  s.row(14, 10400, 11500, C.engram, { a: .95 }); s.ring(14, 10400, 11500, C.engramS);
+
+  s.chapter(11400, 13800, "6 · Why this is close to free",
+    "196B parameters of memory that cost no HBM, no extra matmul of any consequence, and no stall: the table sits in host DRAM, the addressing is a hash, the fetch overlaps compute, and the gate makes the whole thing safe to be wrong. It runs in both prefill and decode, unchanged.");
+  s.note(4, yC(14) - 54, 11500, 13800, "prefetch issued before the layer runs", { color: C.engramS, cls: "note2" });
+  s.note(4, yC(1) + 52, 11700, 13800, "same path in prefill and decode", { color: C.engramS, cls: "note2" });
+  s.dur = 13800;
+  return s;
+}
+
+const BUILDERS = { cold: sceneCold, hit: sceneHit, decode: sceneDecode, engram: sceneEngram };
+
+/* ════════════════════ RENDER · a pure function of time ════════════════════ */
+const STATIC_FX = new Set(Array.from(ANIM.children));
+const FADE_IDS = ["band-cold", "band-hit", "band-decode", "eng-inset", "eng-toks", "eng-ngrams",
+                  "eng-hash", "eng-addr", "eng-table", "eng-rdma", "eng-gate"];
+function clearScene() {
+  for (const c of Array.from(ANIM.children)) if (!STATIC_FX.has(c)) c.remove();
+  PATHS.innerHTML = "";
+  for (const id of FADE_IDS) { const e = document.getElementById(id); if (e) { e.style.opacity = 0; e.__a = 0; } }
+}
+function render(t) {
+  for (let i = 0; i < 40; i++) {
+    FX.row[i].a = 0; FX.row[i].c = null; FX.chip[i].a = 0; FX.chip[i].c = null;
+    FX.ring[i].a = 0; FX.ring[i].c = null; FX.dim[i] = 1;
+  }
+  for (let i = 0; i < RB.n; i++) FX.tok[i] = SC.tokBase(i);
+  for (const el of SC.els) el.__a = 0;
+  POOLBAR.setAttribute("width", 0);
+  POOLCT.textContent = SC.poolText;
+
+  for (const u of SC.up) u(t);
+
+  for (let i = 0; i < 40; i++) {
+    const f = FX.row[i], c = FX.chip[i], r = FX.ring[i];
+    RFX[i].setAttribute("fill", f.c || "none");   RFX[i].setAttribute("opacity", f.a.toFixed(3));
+    CFX[i].setAttribute("fill", c.c || "none");   CFX[i].setAttribute("opacity", c.a.toFixed(3));
+    RRING[i].setAttribute("stroke", r.c || "none"); RRING[i].setAttribute("opacity", r.a.toFixed(3));
+    ROWG[i].style.opacity = FX.dim[i].toFixed(3);
+  }
+  for (let i = 0; i < RB.n; i++) {
+    const st = FX.tok[i], e = TOKEL[i];
+    if (e.__st === st) continue;
+    e.__st = st;
+    const d = TOKST[st] || TOKST.empty;
+    e.setAttribute("fill", d[0]); e.setAttribute("stroke", d[1]); e.setAttribute("stroke-width", d[2]);
+    if (d[3]) e.setAttribute("stroke-dasharray", d[3]); else e.removeAttribute("stroke-dasharray");
+  }
+  for (const el of SC.els) el.style.opacity = el.__a.toFixed(3);
+  setCaption(t);
+}
+
+/* ════════════════════ TRANSPORT ════════════════════ */
+const playBtn = document.getElementById("play"), scrub = document.getElementById("scrub"),
+      tread = document.getElementById("tread"), loopEl = document.getElementById("loop"),
+      capEl = document.getElementById("cap"), chapsEl = document.getElementById("chaps"),
+      statsEl = document.getElementById("stats"), mapwrap = document.getElementById("mapwrap");
+let SC = null, PHASE = "none", playing = false, T = 0, SPEED = 0.5, rafId = null, lastTs = 0, curCh = -2, chapEls = [];
+
+function setCaption(t) {
+  if (!SC.ch.length) return;
+  let k = 0;
+  for (let i = 0; i < SC.ch.length; i++) if (t >= SC.ch[i].t0) k = i;
+  if (k === curCh) return;
+  curCh = k;
+  const c = SC.ch[k];
+  capEl.classList.remove("idle");
+  capEl.innerHTML = `<b>${c.title}</b> &nbsp;${c.text}`;
+  chapEls.forEach((b, i) => { b.classList.toggle("on", i === k); b.classList.toggle("done", i < k); });
+}
+function buildChaps() {
+  chapsEl.innerHTML = ""; chapEls = [];
+  SC.ch.forEach((c, i) => {
+    const b = document.createElement("button");
+    b.className = "chap"; b.textContent = c.title;
+    b.onclick = () => { T = c.t0 + 30; render(T); syncUI(); if (!playing) play(); };
+    chapsEl.appendChild(b); chapEls.push(b);
+  });
+}
+function syncUI() {
+  scrub.value = Math.round(T);
+  tread.textContent = (T / 1000).toFixed(1) + " / " + (SC.dur / 1000).toFixed(1) + " s";
+}
+function play() {
+  if (!SC || SC.dur <= 0) return;
+  if (T >= SC.dur - 20) T = 0;
+  playing = true;
+  playBtn.classList.add("playing"); playBtn.innerHTML = "❚❚&nbsp; Pause";
+  lastTs = performance.now();
+  rafId = requestAnimationFrame(frame);
+}
+function pause() {
+  playing = false;
+  playBtn.classList.remove("playing"); playBtn.innerHTML = "▶&nbsp; Animate";
+  if (rafId) cancelAnimationFrame(rafId);
+  rafId = null;
+}
+function frame(ts) {
+  if (!playing) return;
+  const dt = Math.min(70, ts - lastTs); lastTs = ts;
+  T += dt * SPEED;
+  if (T >= SC.dur) {
+    if (loopEl.checked) { T = 0; curCh = -2; }
+    else { T = SC.dur; render(T); syncUI(); pause(); return; }
+  }
+  render(T); syncUI();
+  rafId = requestAnimationFrame(frame);
+}
+playBtn.onclick = () => playing ? pause() : play();
+document.getElementById("restart").onclick = () => { T = 0; curCh = -2; render(0); syncUI(); if (!playing) play(); };
+scrub.addEventListener("input", () => { pause(); T = +scrub.value; render(T); syncUI(); });
+document.getElementById("speed").onchange = e => { SPEED = +e.target.value; };
+addEventListener("keydown", e => {
+  if (e.target.tagName === "INPUT" && e.target.type !== "range") return;
+  if (e.code === "Space") { e.preventDefault(); playing ? pause() : play(); }
+  else if (e.key === "r" || e.key === "R") { T = 0; curCh = -2; render(0); syncUI(); }
+  else if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+    e.preventDefault();
+    if (!SC.ch.length) return;
+    const dir = e.key === "ArrowRight" ? 1 : -1;
+    let k = 0; for (let i = 0; i < SC.ch.length; i++) if (T >= SC.ch[i].t0) k = i;
+    k = clamp(k + dir, 0, SC.ch.length - 1);
+    pause(); T = SC.ch[k].t0 + 30; curCh = -2; render(T); syncUI();
+  }
+});
+
+/* zoom (the diagram is 1620 × 1712 — fit it to the pane by default) */
+let ZOOM = 1;
+function applyZoom(z) { ZOOM = clamp(z, .35, 1.6); SVG.setAttribute("width", Math.round(W * ZOOM)); SVG.setAttribute("height", Math.round(H * ZOOM)); }
+function fitZoom() { applyZoom(Math.min((mapwrap.clientWidth - 22) / W, (mapwrap.clientHeight - 22) / H)); }
+(function zoomUI() {
+  const wrap = document.createElement("div");
+  wrap.className = "spd";
+  wrap.innerHTML = `<button class="sbtn" id="zout">−</button><button class="sbtn" id="zfit">fit</button><button class="sbtn" id="zin">+</button>`;
+  document.getElementById("ctl").insertBefore(wrap, scrub);
+  wrap.querySelector("#zout").onclick = () => applyZoom(ZOOM / 1.15);
+  wrap.querySelector("#zin").onclick  = () => applyZoom(ZOOM * 1.15);
+  wrap.querySelector("#zfit").onclick = fitZoom;
+})();
+
+/* ── inspector panel: draggable width, and a text zoom that touches nothing else ── */
+const gutter = document.getElementById("gutter"), inspEl = document.getElementById("inspector"),
+      izPct = document.getElementById("iz-pct");
+const INSP_DEFAULT = 370;
+function setInspW(w) {
+  inspEl.style.width = clamp(w, 240, Math.max(300, innerWidth - 420)) + "px";
+  try { localStorage.setItem("la-insp-w", inspEl.style.width); } catch (e) {}
+  if (ZOOM <= 1) fitZoom();                      // the diagram refits into whatever is left
+}
+let dragging = false;
+gutter.addEventListener("pointerdown", e => {
+  dragging = true; gutter.setPointerCapture(e.pointerId);
+  gutter.classList.add("drag"); document.body.style.userSelect = "none"; e.preventDefault();
+});
+gutter.addEventListener("pointermove", e => { if (dragging) setInspW(innerWidth - e.clientX - 4); });
+const endDrag = () => { if (!dragging) return; dragging = false; gutter.classList.remove("drag"); document.body.style.userSelect = ""; };
+gutter.addEventListener("pointerup", endDrag);
+gutter.addEventListener("pointercancel", endDrag);
+gutter.addEventListener("dblclick", () => setInspW(INSP_DEFAULT));
+
+let IZ = 1;
+function setIZ(v) {
+  IZ = clamp(v, .8, 2.2);
+  document.documentElement.style.setProperty("--iz", IZ.toFixed(3));
+  izPct.textContent = Math.round(IZ * 100) + "%";
+  try { localStorage.setItem("la-insp-z", IZ); } catch (e) {}
+}
+document.getElementById("iz-out").onclick = () => setIZ(IZ / 1.12);
+document.getElementById("iz-in").onclick  = () => setIZ(IZ * 1.12);
+izPct.onclick = () => setIZ(1);
+(function restorePanel() {
+  let w = null, z = 1;
+  try { w = localStorage.getItem("la-insp-w"); z = parseFloat(localStorage.getItem("la-insp-z")) || 1; } catch (e) {}
+  if (w) setInspW(parseFloat(w));
+  setIZ(z);
+})();
+
+/* ════════════════════ INSPECTOR ════════════════════ */
+const insp = document.getElementById("insp-body");
+const modeTag = m => {
+  const map = { Full: ["Full","var(--full-f)","var(--full-s)"], Reindex: ["Reindex","var(--reindex-f)","var(--reindex-s)"],
+                Reuse: ["Reuse","var(--reuse-f)","var(--reuse-s)"], SWA: ["SWA-only","var(--swa-f)","var(--swa-s)"] };
+  const [t, f, s] = map[m];
+  return `<span class="tag" style="background:${f};color:${s};border-color:${s}">${t}</span>`;
+};
+const GLOSS = `
+  <h3>Glossary</h3>
+  <dl class="gloss">
+    <dt>main (global) KV <span class="ref">§2.3</span></dt><dd>Compressed key-value cache for global attention. Produced only by Full layers (L2, 8, 14, 20); stored in FP4 (§2.4.4). Encoder compresses 2 tokens → 1 entry (r=2); decoder is uncompressed (r=1).</dd>
+    <dt>SWA KV <span class="ref">§2.1</span></dt><dd>Sliding-window keys/values, computed by <i>every</i> layer from its own hidden state, kept in FP8. Never persisted — rebuilt by bounded replay on miss (§3.2.2).</dd>
+    <dt>indexer K / Top-K <span class="ref">§2.3.1</span></dt><dd>A lightweight indexer scores main-KV entries per query and keeps the Top-K (512). Indexer K is projected from main KV. Yellow lanes = shared KV; red lanes = reused Top-K selections.</dd>
+    <dt>CED <span class="ref">§2.2</span></dt><dd>Causal Encoder-Decoder: decoder layers get global KV by projecting the encoder output H₂₀ (Cₗ = H₂₀Wₗᴷⱽ) instead of running over the prompt — prefill drops to ≈ O(N·L/2).</dd>
+    <dt>Candidate Pool <span class="ref">§2.3.2</span></dt><dd>L20 scans the full context once, keeps the best 2,048 blocks (×8 positions = 16,384 candidates); Reindex layers search only this pool — constant cost per query regardless of context length.</dd>
+    <dt>Engram <span class="ref">§2.4.2</span></dt><dd>196B-parameter hashed n-gram memory (orders 2–4, 8 heads, ~16M entries/table, FP8) attached at layers 1 and 14. Deterministic addressing → prefetched from host DRAM over RDMA before the layers run.</dd>
+    <dt>mHC <span class="ref">§2.4.1</span></dt><dd>n residual streams between blocks; Single-Pass variant shifts mixing coefficients one block so the Mega-mHC kernel reaches the (2n+2)d memory-traffic lower bound.</dd>
+    <dt>DSpark <span class="ref">§2.4.3</span></dt><dd>Speculative decoder: 3-block drafter proposes 5 tokens/pass; a scheduler picks verification length from throughput curves.</dd>
+  </dl>`;
+
+function overviewHTML() {
+  return `
+  <h2>How to read this diagram</h2>
+  <p class="ref">DeepSeek-V4.1-Flash Tech Report §2 (Architecture) &amp; §3 (Infrastructures)</p>
+  <p>Each row is one of the <b>40 real layers</b> (Figure 3 draws them with ×N shorthand; here they are
+  unrolled). Towers read <b>bottom-up</b>. Click any layer for its exact responsibilities; click a
+  <b>Full</b> or <b>Reindex</b> layer to light up every layer that consumes its state.</p>
+  <p><b>Every labelled box is clickable too</b> — the towers, H₂₀, the CED equation, DSpark, the
+  Candidate Pool, both Engram tables, the GATE glyphs, the provenance lanes, the input boxes, the
+  token strip and each storage tier. Click one for what it does and why it's there.</p>
+  <h3>The animation</h3>
+  <p>Pick a phase in the header, then press <b>Animate</b>. Each phase is a timeline: the strip of
+  cells at the top of the diagram is the token sequence, the towers light up in the order the
+  hardware actually touches them, and the lanes fill in the direction state actually flows.</p>
+  <p>The scrubber is authoritative — every frame is computed from the clock alone, so dragging
+  backwards shows exactly what playing forwards showed. Use the <b>Speed</b> dropdown (0.25×–4×) to
+  give each caption as long as you need; it starts at 0.5×. <b>Space</b> plays/pauses, <b>←/→</b> jump
+  between steps, <b>R</b> restarts.</p>
+  <h3>This panel</h3>
+  <p>Drag the grey bar on its left edge to widen it (double-click the bar to snap back to the
+  default), and use <b>A−/A+</b> above to scale this text on its own — the diagram keeps its own
+  <b>−/fit/+</b> zoom in the header. Both settings are remembered between visits.</p>
+  ${GLOSS}
+  <h3>Key numbers</h3>
+  <p>552B backbone + 196B Engram · 8B active/token prefill, 16B decode · Reuse layers run in
+  15 kernels (prefill) / 11 (decode) · persistent cache 1/8 of V4.</p>`;
+}
+const PHASE_META = {
+  cold: ["Prefill · cold", "§2.2 · §2.3 · §3.2.2",
+    "Nothing is cached. The prompt runs the 20-layer causal encoder once, and the entire decoder half receives its global KV as a projection of H₂₀ rather than by running. The only decoder work over the prompt is a bounded replay to refill the sliding windows."],
+  hit: ["Prefill · cache-hit", "§3.2.1 · §3.2.2",
+    "The prefix was served before. Its FP4 global KV comes back from the persistent tier; its SWA KV does not, because it was deliberately evicted. A bounded replay of the last n_win prefix tokens rebuilds the windows, and only the uncached suffix is actually computed."],
+  decode: ["Decode", "§2.3 · §2.3.2 · §2.4.3 · §3.2",
+    "One token at a time through all 40 layers. L20 is the only layer that reads the whole context; it leaves behind a 16,384-entry candidate pool that bounds the four Reindex layers above it, while the 30 Reuse layers just consume what they inherited."],
+  engram: ["Engram — prefetch &amp; gate", "§2.4.2 · §3.2.1",
+    "A 196B-parameter hashed n-gram memory attached at L1 and L14. Because the addressing is a deterministic hash of the token window, the rows can be fetched from host DRAM over RDMA before the layer that needs them ever runs — and a learned gate decides how much of the retrieved vector reaches the residual stream."],
+};
+function phaseHTML() {
+  if (!SC || !SC.ch.length) return overviewHTML();
+  const [title, ref, lead] = PHASE_META[PHASE];
+  return `<h2>${title}</h2><p class="ref">${ref}</p><p>${lead}</p>
+  <h3>What the animation shows</h3>
+  <ol class="steps">${SC.ch.map(c => `<li><b>${c.title.replace(/^\d+ · /, "")}</b> — ${c.text}</li>`).join("")}</ol>
+  ${GLOSS}`;
+}
+
+function layerHTML(L) {
+  const m = L.global ? L.global.mode : "SWA";
+  const consumersKV  = consumersOfKv(L.idx), consumersIdx = consumersOfIdx(L.idx);
+  let body = "";
+  if (m === "SWA") body += `
+    <p>One of the two <b>SWA-only</b> layers: it has <b>no global attention at all</b> — each token
+    attends only within the local window over this layer's own keys/values (FP8). All other 38 layers
+    combine SWA with CSA2 global attention.</p>
+    ${L.engram ? `<p><b>Engram module A attaches here.</b> Its FP8 embeddings are prefetched from host
+    DRAM via RDMA, overlapping the first block's computation (§2.4.2).</p>` : ""}
+    <h3>References</h3><p class="ref">§2.1 (layer plan) · §2.4.2 (Engram) · Fig. 3</p>`;
+  else if (m === "Full" && L.idx < 20) body += `
+    <p>An encoder <b>Full</b> layer — a complete CSA2 producer. It computes its <b>own main KV</b> at
+    compression ratio 2 (two tokens → one FP4 entry, no overlap, no absolute positional embedding),
+    projects <b>indexer K</b> from that KV, and runs the indexer over all visible entries to select
+    fresh <b>Top-512</b> per query.</p>
+    <p><b>Feeds layers ${consumersKV.join(", ")}</b> with both its cache and its selections — one
+    produced cache serves six layers, cutting storage 6× along the layer dimension.</p>
+    ${L.engram ? `<p><b>Engram module B attaches here</b> (placed at L14 to balance pipeline-stage memory, §2.4.2).</p>` : ""}
+    <h3>References</h3><p class="ref">§2.3, §2.3.1 (Full Mode) · Fig. 4 · §2.4.4 (FP4)</p>`;
+  else if (m === "Full") body += `
+    <p>The decoder's single <b>Full</b> layer and the busiest layer in the network. Three jobs:</p>
+    <p>1 · <b>CED endpoint:</b> its main KV is <i>not</i> computed from its own hidden state but
+    projected from the encoder output:</p>
+    <div class="frm">C₂₀ = H₂₀·W₂₀ᴷⱽ    Z₂₀ = H₂₀·W₂₀ᶻ    (Eq. 1, r=1 — uncompressed)</div>
+    <p>2 · <b>Full-range indexing:</b> the only decoder indexer that scores the entire visible
+    context per query (Top-512).</p>
+    <p>3 · <b>Pool builder:</b> blockwise max-scoring keeps 2,048 blocks × 8 positions = a 16,384-entry
+    <b>candidate pool</b> that bounds every deeper indexer's search (§2.3.2). Training applies the same
+    restriction, so deep indexers optimize under their deployment search domain.</p>
+    <p><b>Its KV serves all of L21–39</b>; its Top-K serves L21–23.</p>
+    <h3>References</h3><p class="ref">§2.2 (CED) · §2.3.1 · §2.3.2 · Fig. 3–5</p>`;
+  else if (m === "Reindex") body += `
+    <p>A <b>Reindex</b> layer — the deliberate middle point between producing and consuming. It
+    <b>reuses</b> L20's main KV and indexer K (no new cache → no new storage), but computes its
+    <b>own indexer Q</b> and <b>rescores</b>, so its Top-512 selection can differ from other layers'.</p>
+    <p>Its scoring is cheap: it searches <b>only the candidate pool</b> built by L20 — cost is constant
+    in context length instead of linear (§2.3.2).</p>
+    <p><b>Its fresh Top-K feeds layers ${consumersIdx.join(", ")}.</b></p>
+    <h3>References</h3><p class="ref">§2.3.1 (Reindex Mode) · §2.3.2 · Fig. 4–5</p>`;
+  else body += `
+    <p>A <b>Reuse</b> layer — the cheapest and most common kind (30 of 40 layers). It computes only its
+    own query and SWA KV, then <b>reads main KV from L${L.kvFrom} and Top-K indices from
+    L${L.idxFrom}</b>. No indexer Q, no scoring, no new cache.</p>
+    <p>This is why serving is so lean: Reuse layers execute in just <b>15 fused kernels during prefill
+    and 11 during decode</b> (FlashMLA, Mega-Gate/mHC/MoE, DeepSelect TopK — §3.2).</p>
+    <h3>References</h3><p class="ref">§2.3.1 (Reuse Mode) · §3.2 (kernels) · Fig. 4</p>`;
+  body += `
+    <h3>Present in every layer</h3>
+    <p><b>SWA</b> (own local KV, FP8; window replayed—not persisted—on cache miss, §3.2.2) ·
+    <b>MoE FFN</b> (DeepSeekMoE shared + fine-grained routed experts; separate expert-bias sets per
+    modality, §2.1.1) · <b>mHC residual streams</b> (Single-Pass, §2.4.1).</p>`;
+  return `
+  <h2>Layer ${L.idx} — ${L.half === "encoder" ? "Causal Encoder" : "Decoder"}</h2>
+  <div class="tagrow">${modeTag(m)}
+    ${L.global ? `<span class="tag" style="background:#f2f4f8;color:#333;border-color:#bbb">ratio ${L.global.ratio}</span>` : ""}
+    ${L.engram ? `<span class="tag" style="background:#f3ebfc;color:var(--engram);border-color:var(--engram)">Engram</span>` : ""}
+    ${L.kvSource === "H20" ? `<span class="tag" style="background:#e2f2e3;color:var(--full-s);border-color:var(--full-s)">KV from H₂₀</span>` : ""}
+  </div>${body}`;
+}
+
+/* ════════════════════ BOX DESCRIPTIONS ════════════════════
+   Every labelled element in the diagram carries data-box; clicking it lands here. */
+const BOXES = {
+  ribbon: ["Token sequence", "§2.2 · §3.2.2 · §2.4.3", `
+    <p>The towers show <b>depth</b>; this strip shows <b>position</b>. Each cell stands for a chunk of
+    the prompt, and the last eight are slots for generated tokens. Without it the diagram can't
+    distinguish the two axes the whole design trades between.</p>
+    <p>During an animation the cells carry state:</p>
+    <p><span class="tag" style="background:#dbeafb;color:#1f5e9e;border-color:#6fa3d8">fresh</span>
+    prompt token being computed ·
+    <span class="tag" style="background:#dcead9;color:#3f6b42;border-color:#5f9161">cached</span>
+    prefix already in the persistent KV cache ·
+    <span class="tag" style="background:#fbdfcc;color:#8f380a;border-color:#8f380a">replay</span>
+    inside the n_win bounded-replay window ·
+    <span class="tag" style="background:#f6eeff;color:#5f1f9e;border-color:#9a6fd0">draft</span>
+    proposed by DSpark ·
+    <span class="tag" style="background:#c9e7cb;color:#1f6323;border-color:#1f6323">accepted</span> /
+    <span class="tag" style="background:#efece7;color:#6b665e;border-color:#b5aea3">rejected</span>
+    after verification.</p>
+    <p>Cost in this model is work per <i>token</i> × work per <i>layer</i>. CED cuts the layer axis in
+    half; a prefix cache hit cuts the token axis; bounded replay is the small correction that makes
+    the second one legal.</p>
+    <h3>References</h3><p class="ref">§2.2 (CED) · §3.2.1–3.2.2 (cache, replay) · §2.4.3 (DSpark)</p>`],
+
+  "enc-tower": ["Causal Encoder — layers 0–19", "§2.1 · §2.3 · Fig. 3–4", `
+    <p>The half that actually runs over the prompt. Prefill touches <b>these 20 layers only</b>;
+    layers 20–39 are skipped entirely and reconstructed by projection (CED).</p>
+    <p><b>Census:</b> 2 SWA-only (L0, L1) · 3 Full (L2, L8, L14) · 15 Reuse.</p>
+    <p>Global attention here runs at <b>compression ratio 2</b> — two tokens collapse into one FP4
+    main-KV entry, with no overlap and no absolute positional embedding. Combined with sharing, the
+    20 encoder layers hold <b>three</b> main KV caches, not twenty.</p>
+    <p>Every layer, regardless of mode, still computes its own sliding-window KV in FP8 and its own
+    MoE FFN, and is threaded by the Single-Pass mHC residual streams.</p>
+    <h3>References</h3><p class="ref">§2.1 (layer plan) · §2.3 (CSA2) · §2.4.4 (FP4) · Fig. 3–4</p>`],
+
+  "dec-tower": ["Decoder — layers 20–39", "§2.2 · §2.3.1 · §2.3.2", `
+    <p>The half that <b>never runs over the prompt</b>. During prefill its global KV arrives as a
+    projection of H₂₀; the only prompt tokens it sees are the n_win replayed ones needed to refill
+    sliding windows. During decode it runs in full, every token.</p>
+    <p><b>Census:</b> 1 Full (L20) · 4 Reindex (L24, L28, L32, L36) · 15 Reuse.</p>
+    <p>Compression ratio is <b>1</b> here — decoder main KV is uncompressed. There is exactly
+    <b>one</b> main KV cache for all twenty layers, produced at L20. Above L20 the only thing that
+    varies between layers is <i>which</i> Top-512 they attend to.</p>
+    <h3>References</h3><p class="ref">§2.2 (CED) · §2.3.1 (modes) · §2.3.2 (pool) · Fig. 3–5</p>`],
+
+  h20: ["Enc. Hidden States H₂₀", "§2.2, Eq. 1", `
+    <p>The output of layer 19 — the encoder's final hidden state, and the <b>only thing the decoder
+    half ever sees of the prompt</b>.</p>
+    <p>Every decoder layer's global KV is a linear projection of it:</p>
+    <div class="frm">C₂₀ = H₂₀·W₂₀ᴷⱽ    Z₂₀ = H₂₀·W₂₀ᶻ    (Eq. 1)</div>
+    <p>That single fact is what CED buys. Because the decoder's cache is a function of one tensor,
+    producing it costs twenty matmuls instead of twenty transformer layers — so prefill complexity
+    drops from O(N·L) to <b>≈ O(N·L/2)</b>.</p>
+    <p>It is also the bottleneck by construction: anything the decoder needs about the prompt has to
+    survive into H₂₀.</p>
+    <h3>References</h3><p class="ref">§2.2 (CED, Eq. 1) · Fig. 3</p>`],
+
+  ced: ["CED — Causal Encoder-Decoder", "§2.2 · §3.2.2", `
+    <div class="frm">Cₗ = H₂₀ · Wₗᴷⱽ,    l &gt; 20</div>
+    <p>Instead of pushing the prompt through all 40 layers, the decoder's global KV for every layer
+    above 20 is projected from the encoder's final hidden state. Twenty cheap projections replace
+    twenty transformer layers, and prefill drops to <b>≈ O(N·L/2)</b> with <b>8B</b> active
+    parameters per token.</p>
+    <p><b>What it cannot hand over:</b> sliding-window KV, which each layer computes from its own
+    hidden state and therefore can't be projected. That gap is closed by <b>bounded replay</b> —
+    pushing only the last n_win prompt tokens through L20–L39 (§3.2.2).</p>
+    <p>Watch the <b>Prefill · cold</b> animation, step 6: the decoder rows light up pale green as they
+    receive KV, but never light up as <i>computed</i>.</p>
+    <h3>References</h3><p class="ref">§2.2 (Eq. 1) · §3.2.2 (bounded replay)</p>`],
+
+  dspark: ["DSpark — speculative drafting", "§2.4.3", `
+    <p>A speculative decoding head sitting on top of the stack. A <b>3-block drafter</b> proposes
+    several tokens in a single pass; the full model then verifies them in parallel, and every accepted
+    token is emitted for the price of the draft rather than a full 40-layer walk.</p>
+    <p>The interesting part is the scheduler: rather than a fixed speculation length, it picks how
+    many tokens to verify from <b>measured throughput curves</b>, so the draft length tracks what the
+    hardware is actually doing at that batch size and context length.</p>
+    <p>A rejected token costs only its draft — which is why proposing five and keeping four is a win.</p>
+    <h3>References</h3><p class="ref">§2.4.3 (DSpark)</p>`],
+
+  pool: ["Candidate Pool", "§2.3.2", `
+    <h3>Candidates of what?</h3>
+    <p><b>Of main-KV positions.</b> The pool is a shortlist of entries in the decoder's global KV
+    cache that a deeper layer's indexer is <i>allowed to score</i> — the restricted domain its
+    Top-512 selection must be drawn from. It is not a pool of tokens, layers, or experts.</p>
+    <h3>How it is built</h3>
+    <p>L20 is the only decoder layer that scores the <b>entire</b> visible context. In the same sweep
+    it block-max-scores that context — blocks of 8 positions — and keeps the best <b>2,048 blocks</b>.
+    2,048 × 8 = <b>16,384</b> candidate positions, built <b>once per query</b>.</p>
+    <h3>Who searches it</h3>
+    <p>The four <b>Reindex</b> layers (L24, L28, L32, L36). They reuse L20's main KV and indexer K, so
+    they add no storage; what they add is their own indexer Q, and they re-rank <i>within the pool</i>
+    to pick a possibly different Top-512. The 15 decoder <b>Reuse</b> layers don't score anything —
+    they read an inherited selection directly.</p>
+    <h3>Why it exists</h3>
+    <p>Without the pool, every deep indexer would cost O(context) per query, and five indexers would
+    make sparse attention linear again. With it they cost O(16,384) — <b>constant in context
+    length</b>. Training applies the same restriction, so the deep indexers are optimized on exactly
+    the search domain they will face in deployment.</p>
+    <h3>References</h3><p class="ref">§2.3.2 (Hierarchical Sparse Indexer) · §2.3.1 · Fig. 5</p>`],
+
+  "eng-box-a": ["Engram A → L1", "§2.4.2 · §3.2.1", `
+    <p>One of two hashed <b>n-gram memory</b> tables. Together they hold <b>196B parameters</b> —
+    more than a third of the model's total weight — yet almost none of it is touched per token.</p>
+    <p><b>Shape:</b> n-gram orders {2, 3, 4} · 8 heads · ~16M rows per table · FP8 · resident in
+    <b>host DRAM</b>, never HBM.</p>
+    <p><b>Why it's free:</b> the row address is a deterministic hash of the token window, so it is
+    known before any layer computes anything. The fetch is issued early and streams in over RDMA
+    while earlier layers are still running — the latency hides under compute rather than stalling it.</p>
+    <p>This table is read at <b>layer 1</b>; its partner is read at layer 14. The placement is a
+    training-time decision: it balances how much memory each pipeline stage has to hold.</p>
+    <p>See the <b>Engram prefetch &amp; gate</b> phase for the full path, and click the <b>GATE</b>
+    glyph for how the retrieved vector enters the residual stream.</p>
+    <h3>References</h3><p class="ref">§2.4.2 (Engram) · §3.2.1 (host DRAM tier)</p>`],
+
+  "eng-box-b": ["Engram B → L14", "§2.4.2 · §3.2.1", `
+    <p>The second hashed <b>n-gram memory</b> table, read at <b>layer 14</b> — the encoder's last Full
+    layer. Same shape as Engram A: orders {2, 3, 4} · 8 heads · ~16M rows · FP8 · host DRAM, ~98B
+    parameters each and 196B across the pair.</p>
+    <p>Placing the two attach points at L1 and L14 rather than adjacent layers spreads the table
+    weight across pipeline stages during training, which is the constraint that decided it.</p>
+    <p>Both tables are addressed by a deterministic hash of the token window, so both prefetches can
+    be issued at the same time — before layer 0 runs — and both overlap compute.</p>
+    <h3>References</h3><p class="ref">§2.4.2 (Engram) · §3.2.1 (host DRAM tier)</p>`],
+
+  gate: ["Engram output gate", "§2.4.2", `
+    <p>Where the retrieved memory actually enters the network. The fetched rows are summed, scaled by
+    a learned gate computed from the layer's own hidden state, and <b>added into the residual
+    stream</b>:</p>
+    <div class="frm">g  = σ(W_g · h)
+h′ = h + W_o ( g ⊙ Σₙ eₙ )</div>
+    <p class="ref">(schematic — the diagram shows the shape of the operation, not verbatim notation)</p>
+    <p><b>Why a gate and not a plain add:</b> the addressing is a hash, so collisions are guaranteed —
+    unrelated n-grams will sometimes land on the same row. The gate lets the layer discount a lookup
+    that isn't useful, which is what makes a deliberately lossy memory safe to attach to a residual
+    stream. When the retrieval is noise, the gate closes and the layer is unharmed.</p>
+    <p>The same gate runs at <b>L1</b> and <b>L14</b>, unchanged in prefill and decode.</p>
+    <h3>References</h3><p class="ref">§2.4.2 (Engram)</p>`],
+
+  inset: ["Engram — end to end", "§2.4.2 · §3.2.1", `
+    <p>The full path for one token, left to right and top to bottom:</p>
+    <ol class="steps">
+      <li><b>Token window</b> — the current token and its immediate predecessors.</li>
+      <li><b>n-grams</b> of orders 2, 3 and 4 are formed over that window. The structure is fixed;
+      nothing is learned about which n-grams exist.</li>
+      <li><b>Hash → row id.</b> No lookup structure, no dependence on anything the network computes —
+      so the addresses are known as soon as the tokens are.</li>
+      <li><b>RDMA fetch</b> from the host-DRAM table, issued ahead of the layer and overlapped with
+      earlier layers' compute. Only a handful of rows per token cross the wire.</li>
+      <li><b>Gate and residual add</b> — see the GATE glyph in the diagram.</li>
+    </ol>
+    <p>Net effect: 196B parameters of memory that cost no HBM, no consequential matmul, and no stall.</p>
+    <h3>References</h3><p class="ref">§2.4.2 · §3.2.1</p>`],
+
+  "lane-kv": ["Shared main-KV span (yellow)", "§2.3 · §2.3.1 · §2.4.4", `
+    <p>A yellow bracket marks one <b>Full</b> layer's main KV cache and every layer that reads it
+    instead of computing its own. The dot sits on the producer.</p>
+    <p><b>Encoder:</b> L2 → L3–L7, L8 → L9–L13, L14 → L15–L19. Three caches for twenty layers, at
+    compression ratio 2 and FP4 — roughly a 6× cut along the layer dimension.</p>
+    <p><b>Decoder:</b> a single span, L20 → L21–L39. One uncompressed cache for the whole half.</p>
+    <p>Main KV is the part that <b>is</b> persisted: it's what lands on the SSD tier for ≥ 72 h and
+    what a prefix cache hit reads back.</p>
+    <h3>References</h3><p class="ref">§2.3 · §2.3.1 (Full/Reuse) · §2.4.4 (FP4) · §3.2.1</p>`],
+
+  "lane-idx": ["Reused Top-K span (red)", "§2.3.1 · §2.3.2", `
+    <p>A red bracket marks one layer's <b>Top-512 selection</b> and every layer that inherits it
+    rather than scoring for itself. The dot sits on the producer.</p>
+    <p>Note the two brackets are <b>not</b> the same shape. In the decoder, one KV span (L20 → L21–39)
+    is subdivided into five selection spans — L20, then each Reindex layer at L24, L28, L32, L36.
+    That's the whole point of Reindex mode: <b>re-rank without re-caching</b>.</p>
+    <p>An inherited Top-K costs nothing — no indexer Q, no scoring pass. It is why 30 of 40 layers
+    run in 11 fused kernels during decode.</p>
+    <h3>References</h3><p class="ref">§2.3.1 (Reindex/Reuse) · §2.3.2 (pool) · §3.2 (kernels)</p>`],
+
+  txt: ["Text Embedding", "§2.1.1", `
+    <p>Standard token embedding into the encoder's residual stream at layer 0.</p>
+    <p>Text and vision tokens share the backbone but not the routing bias: the MoE FFN carries
+    <b>separate expert-bias sets per modality</b>, so the two streams can prefer different experts
+    without needing separate experts.</p>
+    <h3>References</h3><p class="ref">§2.1.1 (multimodal backbone)</p>`],
+
+  vis: ["Vision Embedding", "§2.1.1", `
+    <p>Visual patches entering the same layer-0 residual stream as text, after DeepSeek-ViT and the
+    3×3 pixel unshuffle have already reduced their count ninefold.</p>
+    <p>From layer 0 onward they are ordinary tokens: the same SWA, the same CSA2 global attention, the
+    same KV sharing. The only modality-specific machinery is the MoE expert-bias set.</p>
+    <h3>References</h3><p class="ref">§2.1.1</p>`],
+
+  vit: ["DeepSeek-ViT → 3×3 pixel unshuffle", "§2.1.1", `
+    <p>The vision front-end. After the ViT encodes an image, a <b>3×3 pixel unshuffle</b> folds each
+    3×3 neighbourhood of patches into a single token — <b>9× fewer visual tokens</b> reach the
+    backbone.</p>
+    <p>This matters more here than in a standard model. Every prompt token costs work in 20 encoder
+    layers, one FP4 main-KV entry per two tokens, and a sliding window in all 40 — so cutting the
+    visual token count ninefold cuts all of that ninefold too, before any of the architecture's own
+    savings apply.</p>
+    <h3>References</h3><p class="ref">§2.1.1 (vision tokenization)</p>`],
+
+  "t-hbm": ["GPU HBM — hot working set", "§2.4.4 · §3.2.1", `
+    <p>What has to be on the accelerator for the request currently running: <b>main KV in FP4</b> for
+    active requests, and <b>SWA KV in FP8</b> for the active window.</p>
+    <p>FP4 for the global cache is what makes the persistent footprint land at <b>1/8 of
+    DeepSeek-V4</b> — combined with producing only 4 main KV caches across 40 layers rather than 40.</p>
+    <h3>References</h3><p class="ref">§2.4.4 (FP4 KV) · §3.2.1 (tiering)</p>`],
+
+  "t-dram": ["Host DRAM — warm pool", "§3.2.1 · §2.4.2", `
+    <p>Two very different residents:</p>
+    <p><b>SWA KV (FP8)</b> in a recycling pool sized at ~10% with a minute-scale TTL. It's a
+    short-horizon buffer for windows that will be wanted again almost immediately — not persistence.</p>
+    <p><b>Engram tables (FP8)</b>, which live here permanently. 196B parameters that never enter HBM;
+    the few rows a token needs are pulled across by RDMA, prefetched early enough that the transfer
+    disappears under compute.</p>
+    <p>The tier is doing opposite jobs for the two: transient for one, permanent-but-remote for the
+    other.</p>
+    <h3>References</h3><p class="ref">§3.2.1 (tiering, TTL) · §2.4.2 (Engram residency)</p>`],
+
+  "t-ssd": ["SSD — persistent KV cache", "§3.2.1 · §3.2.2", `
+    <p><b>Global KV only</b>, retained <b>≥ 72 hours</b>. This is what a prefix cache hit reads back,
+    and the reason the cache-hit path can skip a prefix entirely instead of recomputing it.</p>
+    <p><b>SWA KV is deliberately evicted.</b> Persisting it would mean storing one window per layer —
+    L × n_win. Rebuilding it means replaying n_win tokens <i>once</i> through the stack. The second is
+    cheaper, so the system chooses to throw the data away and pay the replay.</p>
+    <p>That asymmetry is the single design decision this whole tier diagram exists to show: keep what
+    is expensive to recompute and cheap to compress (FP4 global KV), discard what is cheap to
+    reconstruct (sliding windows).</p>
+    <h3>References</h3><p class="ref">§3.2.1 (retention) · §3.2.2 (bounded replay)</p>`],
+};
+function boxHTML(id) {
+  const b = BOXES[id];
+  if (!b) return PHASE === "none" ? overviewHTML() : phaseHTML();
+  return `<h2>${b[0]}</h2><p class="ref">${b[1]}</p>${b[2]}`;
+}
+
+/* ════════════════════ INTERACTION ════════════════════ */
+let selected = null, selectedBox = null;
+const BOXSEL = document.getElementById("boxsel");
+function markBox(el) {
+  try {
+    const b = el.getBBox();
+    BOXSEL.setAttribute("x", (b.x - 6).toFixed(1));  BOXSEL.setAttribute("y", (b.y - 6).toFixed(1));
+    BOXSEL.setAttribute("width", (b.width + 12).toFixed(1));
+    BOXSEL.setAttribute("height", (b.height + 12).toFixed(1));
+    BOXSEL.setAttribute("opacity", 1);
+  } catch (err) { BOXSEL.setAttribute("opacity", 0); }
+}
+const clearBox = () => { BOXSEL.setAttribute("opacity", 0); selectedBox = null; };
+
+document.getElementById("map").addEventListener("click", e => {
+  const g = e.target.closest(".rowg");
+  const bx = g ? null : e.target.closest("[data-box]");
+  document.querySelectorAll(".rowg").forEach(r => r.classList.remove("sel", "hl-kv", "hl-idx", "hl-src"));
+  clearBox();
+  if (bx) {
+    selected = null; selectedBox = bx.dataset.box;
+    markBox(bx); insp.innerHTML = boxHTML(selectedBox); insp.scrollTop = 0;
+    return;
+  }
+  if (!g) { selected = null; insp.innerHTML = PHASE === "none" ? overviewHTML() : phaseHTML(); return; }
+  const idx = +g.dataset.idx, L = LAYERS[idx];
+  selected = idx;
+  g.classList.add("sel");
+  insp.innerHTML = layerHTML(L);
+  insp.scrollTop = 0;
+  const mark = (i, cls) => document.querySelector(`.rowg[data-idx="${i}"]`)?.classList.add(cls);
+  const m = L.global ? L.global.mode : "SWA";
+  if (m === "Full" || m === "Reindex") {
+    g.classList.add("hl-src");
+    LAYERS.forEach(o => { if (o.idx !== idx && o.kvFrom  === idx) mark(o.idx, "hl-kv");  });
+    LAYERS.forEach(o => { if (o.idx !== idx && o.idxFrom === idx) mark(o.idx, "hl-idx"); });
+  } else if (m === "Reuse") {
+    if (L.kvFrom  !== null) mark(L.kvFrom,  "hl-src");
+    if (L.idxFrom !== null && L.idxFrom !== L.kvFrom) mark(L.idxFrom, "hl-idx");
+  }
+});
+
+/* ════════════════════ PHASES ════════════════════ */
+const STATS = {
+  none: `<b>Structure view.</b> 40 layers = 20-layer causal encoder + 20-layer decoder. Census: encoder 2 SWA-only · 3 Full · 15 Reuse — decoder 1 Full · 4 Reindex · 15 Reuse. Engram at L1 &amp; L14. 552B backbone + 196B Engram; 8B/16B active per token.`,
+  cold: `<b>Cold prefill (§2.2):</b> the prompt's N tokens run through <b>encoder layers 0–19 only</b>. Decoder global KV falls out of 20 cheap projections of H₂₀ (green arrow); decoder SWA KV comes from bounded replay of just the last n_win tokens (orange box). Complexity O(N·L) → <b>≈ O(N·L/2)</b>. Active params/token: <b>8B</b>.`,
+  hit: `<b>Cache-hit prefill (§3.2.1–3.2.2):</b> the cached prefix is skipped entirely — its FP4 global KV is read back from the persistent cache (SSD, ≥72h). SWA KV was deliberately evicted; the <b>last n_win prefix tokens are replayed</b> (orange) to rebuild it approximately. Only the uncached suffix computes fresh state. A miss costs n_win tokens, not L×n_win.`,
+  decode: `<b>Decode (§2.3, §3.2):</b> each new token traverses all 40 layers — <b>16B active params</b>. L20 scans the full context and refreshes the candidate pool; Reindex layers (24/28/32/36) score only the 16,384-entry pool; 30 Reuse layers read inherited Top-512 directly and run in <b>11 fused kernels</b>. Engram embeddings arrive via RDMA prefetch; DSpark drafts 5 tokens per verification pass.`,
+  engram: `<b>Engram (§2.4.2):</b> 196B params of hashed n-gram memory in two FP8 tables (orders 2–4, 8 heads, ~16M rows each) attached at <b>L1</b> and <b>L14</b>. Addresses are a deterministic hash of the token window, so rows are <b>prefetched from host DRAM over RDMA</b> and the transfer hides under earlier layers' compute. A learned gate controls how much of the retrieved vector enters the residual stream.`,
+};
+function setPhase(p, autoplay) {
+  pause();
+  clearScene();
+  PHASE = p;
+  SC = p === "none" ? Object.assign(new Scene("none"), { dur: 0 }) : BUILDERS[p]();
+  curCh = -2; T = 0;
+  buildChaps();
+  scrub.max = Math.max(1, SC.dur);
+  scrub.value = 0;
+  playBtn.disabled = SC.dur <= 0;
+  document.querySelectorAll(".pbtn").forEach(b => b.classList.toggle("on", b.dataset.phase === p));
+  statsEl.innerHTML = STATS[p];
+  if (selected == null && selectedBox == null) insp.innerHTML = p === "none" ? overviewHTML() : phaseHTML();
+  render(0);
+  syncUI();
+  if (SC.dur <= 0) {
+    capEl.className = "idle";
+    capEl.textContent = "Structure view — no timeline. Pick a phase to animate it, or click any layer for its role.";
+  } else if (autoplay) play();
+}
+document.querySelectorAll(".pbtn").forEach(b => b.onclick = () => setPhase(b.dataset.phase, b.dataset.phase !== "none"));
+
+/* ════════════════════ BOOT ════════════════════ */
+fitZoom();
+addEventListener("resize", () => { setInspW(inspEl.getBoundingClientRect().width); });
+setPhase("none", false);
+console.log("animated layer anatomy ready — scenarios:", Object.keys(BUILDERS).join(", "));
+</script>
+</body>
+</html>

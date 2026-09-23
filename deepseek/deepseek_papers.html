@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DeepSeek Papers Map</title>
+<meta name="description" content="Timeline and thematic map of DeepSeek research papers, 2024 to 2026.">
+<style>
+  :root {
+    --bg: #f7f6f3; --panel: #ffffff; --ink: #1f2430; --muted: #6b7280; --line: #e3e1da;
+    --accent: #2653d4; --accent-soft: #e8eeff; --shadow: 0 1px 2px rgba(0,0,0,.05), 0 6px 20px rgba(20,30,60,.08);
+    /* theme palette: one hue per lane */
+    --t-scale: #2653d4; --t-moe: #0f8a6a; --t-attn: #b3411f; --t-rl: #7b3fb8;
+    --t-mem: #c48a00; --t-topo: #c2285f; --t-dom: #0e7c9c;
+    --mono: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #141720; --panel: #1d2130; --ink: #e8eaf1; --muted: #9aa1b4; --line: #2c3245;
+      --accent: #7c9cff; --accent-soft: #232c4a; --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+      --t-scale: #7c9cff; --t-moe: #4fd1a5; --t-attn: #ff9a6b; --t-rl: #c59bff;
+      --t-mem: #ffd166; --t-topo: #ff7fa8; --t-dom: #5fd3ef;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #141720; --panel: #1d2130; --ink: #e8eaf1; --muted: #9aa1b4; --line: #2c3245;
+    --accent: #7c9cff; --accent-soft: #232c4a; --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+    --t-scale: #7c9cff; --t-moe: #4fd1a5; --t-attn: #ff9a6b; --t-rl: #c59bff;
+    --t-mem: #ffd166; --t-topo: #ff7fa8; --t-dom: #5fd3ef;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+    background: var(--bg); color: var(--ink); line-height: 1.45;
+  }
+  a { color: var(--accent); }
+
+  /* ── Header ── */
+  header {
+    position: sticky; top: 0; z-index: 20; background: var(--panel); border-bottom: 1px solid var(--line);
+    padding: 12px 20px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  }
+  header h1 { font-size: 17px; font-weight: 700; letter-spacing: -.01em; }
+  header .sub { font-size: 12px; color: var(--muted); }
+  .spacer { flex: 1; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .seg button {
+    border: 0; background: transparent; color: var(--ink); padding: 7px 14px; font-size: 13px; cursor: pointer; font-weight: 600;
+  }
+  .seg button.active { background: var(--accent); color: #fff; }
+  .seg button:not(.active):hover { background: var(--accent-soft); }
+  .iconbtn {
+    border: 1px solid var(--line); background: transparent; color: var(--ink); border-radius: 8px;
+    padding: 6px 10px; font-size: 13px; cursor: pointer;
+  }
+  .iconbtn:hover { background: var(--accent-soft); }
+
+  /* ── Legend / filter chips ── */
+  #legend { display: flex; gap: 8px; flex-wrap: wrap; padding: 12px 20px 0; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px;
+    border: 1px solid var(--line); background: var(--panel); font-size: 12px; cursor: pointer; user-select: none;
+    color: var(--ink);
+  }
+  .chip .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--c); }
+  .chip.active { border-color: var(--c); box-shadow: inset 0 0 0 1px var(--c); }
+  .chip.dim { opacity: .45; }
+  .hint { font-size: 12px; color: var(--muted); padding: 6px 20px 0; }
+
+  /* ── Views ── */
+  main { padding: 12px 20px 60px; max-width: 1400px; margin: 0 auto; }
+  body[data-view="themes"] main { max-width: 1900px; }
+  .view { display: none; }
+  .view.active { display: block; animation: fadein .25s ease; }
+  @keyframes fadein { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+  /* Timeline */
+  .yearrow { display: grid; grid-template-columns: 90px 1fr; gap: 0 16px; position: relative; padding: 18px 0; }
+  .yearrow + .yearrow { border-top: 1px dashed var(--line); }
+  .yearlabel { position: sticky; top: 64px; align-self: start; }
+  .yearlabel .y { font-size: 30px; font-weight: 800; letter-spacing: -.03em; line-height: 1; }
+  .yearlabel .n { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .yearlabel .axis { position: absolute; left: 70px; top: 0; bottom: 0; width: 2px; background: var(--line); }
+  .papers { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+
+  .block {
+    position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 12px 14px 12px 16px; cursor: pointer; box-shadow: var(--shadow);
+    transition: transform .15s ease, box-shadow .15s ease, opacity .2s ease; text-align: left; color: var(--ink);
+    font: inherit; display: block; width: 100%;
+  }
+  .block::before { content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 4px; border-radius: 4px; background: var(--c, var(--accent)); }
+  .block:hover, .block:focus-visible { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(20,30,60,.16); outline: none; }
+  .block.dim { opacity: .25; }
+  .block.release { border-style: dashed; }
+  .block.external { border-style: dotted; border-color: var(--muted); background: transparent; }
+  .block.external .name { font-style: italic; }
+  .block .date { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+  .block .name { font-size: 15px; font-weight: 700; margin: 2px 0 3px; }
+  .block .tag { font-size: 12.5px; color: var(--muted); line-height: 1.35; }
+  .block .tdots { display: flex; gap: 4px; margin-top: 8px; }
+  .block .tdots span { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .block .kind { display: inline-block; margin-left: 6px; padding: 0 5px; border-radius: 4px; border: 1px solid var(--line); font-size: 9.5px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); vertical-align: 1px; }
+
+  /* Themes */
+  #themes-wrap { position: relative; }
+  #edges { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
+  #edges path { fill: none; stroke-width: 1.8; opacity: .7; }
+  #edges path.hl { stroke-width: 3; opacity: 1; }
+  #edges path.faded { opacity: .08; }
+  .capstone { position: relative; z-index: 2; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; margin-bottom: 26px; }
+  .capstone .block { border-width: 2px; }
+  .caplabel { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin: 0 0 8px; }
+  .laneheads, .lanes { position: relative; z-index: 2; display: grid; grid-template-columns: repeat(7, minmax(215px, 1fr)); gap: 12px; }
+  .laneheads { margin-bottom: 14px; }
+  .lanes { align-items: start; }
+  #view-themes.compact .block .note, #view-themes.compact .block .ev { display: none; }
+  #btn-notes { display: none; }
+  body[data-view="themes"] #btn-notes { display: inline-block; }
+  .lane { display: flex; flex-direction: column-reverse; gap: 22px; min-height: 120px; }
+  .lanehead {
+    font-size: 12px; font-weight: 700; padding: 6px 10px; border-radius: 8px; cursor: pointer; text-align: left; font-family: inherit;
+    background: var(--panel); border: 1px solid var(--c); color: var(--c);
+  }
+  .lanehead:hover { background: var(--accent-soft); }
+  .lanehead .more { display: block; font-weight: 400; color: var(--muted); font-size: 10.5px; margin-top: 2px; }
+  #drawer .story { font-size: 14.5px; line-height: 1.55; }
+  #drawer .today { background: var(--accent-soft); border-radius: 8px; padding: 10px 12px; font-size: 14px; }
+  .lanehead small { display: block; font-weight: 400; color: var(--muted); font-size: 11px; }
+  .lane .block { padding: 10px 12px 10px 14px; }
+  .lane .block .name { font-size: 13.5px; }
+  .lane .block .tag { font-size: 12px; }
+  .lane .block .note, .capstone .block .note { font-size: 12px; color: var(--ink); opacity: .85; margin-top: 6px; line-height: 1.4; }
+  .lane .block .ev, .capstone .block .ev { font-family: var(--mono); font-size: 10.5px; color: var(--muted); margin-top: 6px; line-height: 1.35; border-top: 1px dashed var(--line); padding-top: 5px; }
+  .lane .block .refs { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 4px; }
+  .refs span { font-family: var(--mono); font-size: 10.5px; padding: 1px 6px; border-radius: 4px; background: var(--accent-soft); color: var(--ink); }
+  .block.hl { box-shadow: 0 0 0 2px var(--c), var(--shadow); }
+  .lanes-scroll { overflow-x: auto; padding-bottom: 8px; }
+
+  /* Drawer */
+  #overlay { position: fixed; inset: 0; background: rgba(10,14,30,.35); opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 30; }
+  #overlay.open { opacity: 1; pointer-events: auto; }
+  #drawer {
+    position: fixed; top: 0; right: 0; bottom: 0; width: min(560px, 100%); background: var(--panel); z-index: 31;
+    transform: translateX(100%); transition: transform .25s ease; overflow-y: auto; border-left: 1px solid var(--line);
+    padding: 22px 26px 40px;
+  }
+  #drawer.open { transform: none; }
+  #drawer .close { position: absolute; right: 14px; top: 12px; }
+  #drawer .eyebrow { font-family: var(--mono); font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  #drawer h2 { font-size: 21px; line-height: 1.25; margin-bottom: 4px; padding-right: 50px; }
+  #drawer .full { font-size: 13.5px; color: var(--muted); margin-bottom: 14px; }
+  #drawer .themes { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+  #drawer .themes span { font-size: 11.5px; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--c); color: var(--c); }
+  #drawer h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin: 18px 0 8px; }
+  #drawer p { font-size: 14.5px; margin-bottom: 10px; }
+  #drawer ul { padding-left: 20px; font-size: 14px; }
+  #drawer li { margin-bottom: 6px; }
+  .links { display: flex; flex-wrap: wrap; gap: 8px; }
+  .links a, .links button {
+    font-size: 13px; padding: 6px 11px; border-radius: 8px; border: 1px solid var(--line); background: transparent;
+    text-decoration: none; color: var(--ink); cursor: pointer; font-family: inherit;
+  }
+  .links a:hover, .links button:hover { background: var(--accent-soft); }
+  .links a.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .note { font-size: 12.5px; color: var(--muted); background: var(--bg); border: 1px dashed var(--line); border-radius: 8px; padding: 8px 10px; margin-top: 8px; }
+  .rel { list-style: none; padding: 0; }
+  .rel li { margin-bottom: 4px; }
+  .rel button { background: none; border: 0; color: var(--accent); cursor: pointer; font-size: 14px; text-align: left; font-family: inherit; padding: 0; }
+  .rel button:hover { text-decoration: underline; }
+
+  @media (max-width: 720px) {
+    header { padding: 10px 16px; }
+    main, #legend, .hint { padding-left: 16px; padding-right: 16px; }
+    .yearrow { grid-template-columns: 1fr; }
+    .yearlabel { position: static; display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; }
+    .yearlabel .axis { display: none; }
+    .yearlabel .y { font-size: 24px; }
+    .laneheads, .lanes { grid-template-columns: repeat(7, 200px); }
+    #drawer { padding: 18px 16px 40px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>DeepSeek Papers Map</h1>
+    <div class="sub">2024 &rarr; 2026 &middot; click any block for its summary</div>
+  </div>
+  <div class="spacer"></div>
+  <div class="seg" role="tablist">
+    <button id="btn-timeline" class="active" role="tab">Timeline</button>
+    <button id="btn-themes" role="tab">Themes</button>
+  </div>
+  <button class="iconbtn" id="btn-notes" title="Show or hide the evolution notes inside the blocks">Notes: on</button>
+  <button class="iconbtn" id="btn-theme-toggle" title="Toggle light / dark">&#9681;</button>
+</header>
+
+<div id="legend"></div>
+<div class="hint" id="hint"></div>
+
+<main>
+  <section id="view-timeline" class="view active"></section>
+  <section id="view-themes" class="view">
+    <div id="themes-wrap">
+      <svg id="edges"></svg>
+      <div class="caplabel">Where the ideas converge (most recent)</div>
+      <div class="capstone" id="capstone"></div>
+      <div class="caplabel">Building blocks, oldest at the bottom of each lane</div>
+      <div class="lanes-scroll"><div class="laneheads" id="laneheads"></div><div class="lanes" id="lanes"></div></div>
+    </div>
+  </section>
+</main>
+
+<div id="overlay"></div>
+<aside id="drawer" aria-hidden="true">
+  <button class="iconbtn close" id="drawer-close" aria-label="Close">&#10005;</button>
+  <div id="drawer-body"></div>
+</aside>
+
+<script>
+/* =====================================================================
+   DATA — edit this block to add papers, blocks, or summaries.
+
+   papers[]:
+     id        short key used by blocks and relations
+     name      short display name
+     title     full paper title
+     date      ISO date (YYYY-MM-DD); used for ordering in the timeline
+     kind      "paper" | "release" | "draft"  (release = model release notes, no arXiv paper;
+                                                draft = entry whose citation is not yet confirmed)
+     arxiv     arXiv id (optional)
+     venue     extra venue note (optional)
+     pdf       relative path to a local PDF (optional). Paths are relative to this HTML file.
+     summary   relative path to a detailed summary (HTML or Markdown) — ADD LATER. Leave "" if none yet.
+     themes    array of theme ids (see THEMES below)
+     tag       one-line takeaway shown on the block
+     abstract  a few sentences shown in the drawer
+     points    bullet list of key contributions
+     buildsOn  ids of earlier papers this one builds on (used for "builds on" / "leads to")
+
+   blocks[]  (Themes view):
+     id, lane (theme id), name, tag, papers (ids), buildsOn (block ids),
+     note      2-4 sentences: the problem at that point, what changed vs the previous block, what carried forward
+     evidence  one line of concrete numbers from the paper
+   THEMES[] also carry:
+     evolution paragraph tracing the thread oldest to newest
+     today     why the thread matters for the newest model
+   ===================================================================== */
+const THEMES = [
+  { id: "scale", name: "Scaling & data",          sub: "laws, corpora, training recipes", color: "var(--t-scale)",
+    evolution: "DeepSeek LLM treats scaling as measurement: it fits power laws for optimal batch size and learning rate against compute, replaces parameter count with non-embedding FLOPs per token, and derives a model versus data allocation used to train 7B and 67B dense models on 2T tokens under a multi-step learning rate schedule. DeepSeek-V3 shifts the mechanism to cost per token: FP8 mixed precision with tile and block scaling, DualPipe overlap and node-limited MoE communication let 14.8T tokens run in 2.788M H800 GPU hours with no irrecoverable loss spikes. DeepSeek-V4 changes the optimizer to Muon with hybrid Newton-Schulz orthogonalization, adds batch size scheduling, staged sequence lengths from 4K to 1M, and Anticipatory Routing plus SwiGLU clamping against loss spikes at 1.6T parameters over 32T tokens. DeepSeek-V4.1-Flash keeps that recipe but trains 45T multimodal tokens with sparse attention from scratch, FP4 KV caches during training and FP4 QAT afterwards, so training matches deployment.",
+    today: "DeepSeek-V4.1-Flash is the direct product of this lane: a 45T-token run with no instability, sparse attention from step one, and FP4 caches trained rather than bolted on are what let a 552B backbone that activates 8B parameters in prefill match V4-Pro-Base with 1/3 of the total parameters. The recurring lesson from LLM through V4.1 is that each generation first lowered cost per training token (allocation, then precision and overlap, then optimizer, then training under deployment precision) and only then scaled the corpus." },
+  { id: "moe",   name: "Sparse MoE",              sub: "experts, routing, load balance", color: "var(--t-moe)",
+    evolution: "DeepSeekMoE set the expert layout: split each GShard-style expert into m finer pieces, activate mK of them, and isolate K_s always-on shared experts, with expert-level and device-level balance losses; 16B and 145B models matched dense quality at 40% or less of the compute. DeepSeek-V2 kept that layout at 236B total and 21B active and changed the communication side: device-limited routing sends each token to at most M devices, plus a communication balance loss and training-time token dropping. DeepSeek-V3 replaced the auxiliary losses with a routing-only bias term updated by an overload signal, moved to sigmoid affinities, added multi-token prediction, and limited tokens to 4 nodes with no dropping. DeepSeek-V4 removed the node constraint, switched affinities to Sqrt(Softplus), hash-routed the first 3 MoE layers, and reached 1.6T total with 49B active. DeepSeek-V4.1-Flash changed what an activated parameter means: the Causal Encoder-Decoder runs only the encoder in prefill, so 8B parameters are active in prefill and 16B in decode.",
+    today: "V4.1-Flash still uses the DeepSeekMoE recipe from 2024, 1 shared expert plus 384 fine-grained routed experts with 6 active per token, balanced by the V3 bias term with a small sequence-level loss. What is new is that expert sparsity is paired with depth sparsity: because agentic workloads are prefill-heavy, CED halves prefill compute by activating only 8B of the 552B backbone during prefill while decode still gets 16B. The lane moved from cheaper training compute to cheaper serving compute per input token." },
+  { id: "attn",  name: "Attention & KV cache",    sub: "compression, sparsity, context", color: "var(--t-attn)",
+    evolution: "The thread starts with DeepSeek-V2's Multi-head Latent Attention, which replaces per-head keys and values with one low-rank latent vector per token plus a small decoupled RoPE key, cutting the cache without losing MHA quality. V3.2 keeps that latent entry but stops attending to all of them: a lightning indexer scores prior tokens and the main attention reads only the top-k latent entries, turning core attention from quadratic to linear in context, introduced by continued pretraining on V3.1-Terminus. V4 compresses along the sequence axis before selecting: CSA merges every 4 tokens into one entry and then runs DSA, HCA merges every 128 tokens and attends densely, with FP8 KV and FP4 indexer. V4.1 adds the layer axis: CSA2 layers share main KV and indexer keys, reuse Top-K indices, restrict deeper indexers to a candidate pool, and store main KV in FP4, reaching 890 bytes per token.",
+    today: "DeepSeek-V4.1-Flash's serving economics rest on this lane: 890 bytes of global KV per token in HBM, persistent KV at 1/8 of V4-Flash, and decode FLOPs that grow by only a quarter from 4K to 1M context. Each step (shared latent entry, cheap indexer, sequence compression, cross-layer sharing) multiplied the previous one, which is what makes million-token agentic workloads affordable rather than exotic." },
+  { id: "rl",    name: "Reasoning via RL",        sub: "GRPO, R1, post-training", color: "var(--t-rl)",
+    evolution: "The thread starts with DeepSeekMath (Feb 2024), where GRPO drops PPO's value model and normalizes each sample's reward against a group of outputs for the same question, putting KL in the loss rather than the reward. R1 (Jan 2025) ran the same algorithm on V3-Base with only rule-based rewards and no SFT, and long chain-of-thought, reflection and an aha moment emerged; a cold-start and rejection-sampling pipeline made it usable. R1-0528 and V3.1 (2025) folded thinking and non-thinking into one serving model and pushed tool use. V3.2 (Dec 2025) made GRPO scale: unbiased KL gradient, off-policy sequence masking, keep-routing and keep-sampling masks, thousands of synthesized agent environments, RL compute above 10 percent of pre-training. V4 and V4.1 (2026) keep GRPO for domain specialists but replace mixed RL with multi-teacher on-policy distillation, add explicit reasoning-effort conditioning, and train the drafter and cache replay inside the RL loop.",
+    today: "V4.1-Flash is post-trained with the same SFT, GRPO RL and on-policy distillation recipe that this lane built up, and the paper says outright that almost all remaining gains come from task and environment synthesis rather than new algorithms. The scalar effort signal learned in RL is what lets one model span cheap and maximal reasoning, and DSpark plus SWA Bounded Replay are trained inside the RL loop so the served model matches the trained one." },
+  { id: "mem",   name: "Long context & memory",   sub: "context length, lookup memory", color: "var(--t-mem)",
+    evolution: "Long context began as a post-training patch: V2 and V3 pretrain at 4K and then apply YaRN to the decoupled RoPE key for 1000-step extension phases to 32K and 128K, validated by needle-in-a-haystack. The Engram paper reframes memory itself: a hashed N-gram lookup table sits beside the MoE as a second sparsity axis, a U-shaped allocation law says 20 to 25 percent of sparse parameters belong in memory, and freeing attention from local patterns lifts long-context retrieval. V4 makes one million tokens native rather than an extension, growing sequence length 4K to 16K to 64K to 1M inside pretraining on compressed hybrid attention, with an on-disk KV hierarchy and a million-token RL stack. V4.1-Flash ships 196B of Engram in production with host-DRAM prefetch, trains sparse attention from scratch at 64K, extends to 1M at 34T tokens, and moves sliding-window KV out of persistent storage using SWA Bounded Replay.",
+    today: "DeepSeek-V4.1-Flash runs one-million-token agentic sessions where the question is no longer how far attention can reach but where each kind of memory lives: global KV in HBM, sliding-window KV in a host DRAM pool with minute-scale TTL, prefix KV on SSD for 72 hours, and static knowledge in Engram tables prefetched from host memory. Extending RL to 1M context continued to improve extremely long-horizon tasks such as Terminal-Bench v3.0 (V4.1 Fig 7), so this lane directly sets what agents can hold in a single session." },
+  { id: "topo",  name: "Residual topology",       sub: "hyper-connections, stability", color: "var(--t-topo)",
+    evolution: "The thread starts from the plain residual connection, whose identity mapping keeps the average signal invariant across depth. Hyper-Connections (HC) widened the residual stream to n parallel streams with learnable mixing matrices, buying accuracy but losing that conservation property: composed mixing matrices amplified or attenuated signals without bound, so 27B training became unstable and memory traffic grew roughly n-fold. mHC (Dec 2025) restored the guarantee by projecting the residual mixing matrix onto the doubly stochastic manifold with Sinkhorn-Knopp, bounding its spectral norm by 1 and making stability compose across layers, and paid for the wider stream with fused TileLang kernels, block recomputation and an extended DualPipe schedule. DeepSeek-V4 (Apr 2026) adopted mHC unchanged at 284B and 1.6T scale with n equal 4 and 20 Sinkhorn iterations. V4.1-Flash (Sep 2026) changed the dataflow, not the math: Single-Pass mHC shifts input-mixing coefficients by one block so a single Mega-mHC kernel reads and writes the residual once, halving activation traffic.",
+    today: "V4.1-Flash keeps the four-stream mHC residual as a standard component and trains 45T multimodal tokens with no instability, showing that the manifold constraint made a widened residual stream safe at frontier scale. Because V4.1-Flash is built for cheap decoding, the Single-Pass rewrite matters as much as the original idea: the residual stream is now memory-bound work, and reading it once per block is what keeps mHC affordable in deployment." },
+  { id: "dom",   name: "Domains & modality",      sub: "code, math, vision, agents", color: "var(--t-dom)",
+    evolution: "The domain thread begins with DeepSeek-Coder (Jan 2024), which showed that data construction is the lever: repository-level packing with topological dependency ordering, a fill-in-the-middle objective at a 50% PSM rate, and a 16K window on 2T tokens that were 87% code. DeepSeekMath (Feb 2024) reused Coder-Base-v1.5 as the starting point and changed the data engine to an iterative fastText classifier over Common Crawl, yielding a 120B-token math corpus and 51.7% on MATH after GRPO. DeepSeek-VL (Mar 2024) added a modality with a hybrid SigLIP-L plus SAM-B encoder at 1024x1024 and learned that language data must stay near 70% to avoid forgetting. The 2025 releases (R1-0528, V3.1, V3.2) moved the focus from domain corpora to agents: thinking inside tool calls and synthesized environments. V4.1-Flash (Sep 2026) folds vision into the backbone from the first pre-training token with a from-scratch DeepSeek-ViT and 45T multimodal tokens.",
+    today: "V4.1-Flash is a single multimodal MoE that is evaluated mainly as an agent: Terminal-Bench, DeepSWE and AutomationBench for text, and Chartography, BabyVision and ZeroBench with tools for vision. Every ingredient traces back to this lane: code and math corpora set the pre-training recipe, VL established the encoder-plus-projector path and the text-to-image data ratio, and V3.2 supplied the agentic task synthesis that now drives RL." },
+];
+
+const PAPERS = [
+  {
+    id: "llm", name: "DeepSeek LLM", date: "2024-01-05", kind: "paper", arxiv: "2401.02954",
+    title: "DeepSeek LLM: Scaling Open-Source Language Models with Longtermism",
+    themes: ["scale"], pdf: "pdfs/2401.02954.pdf", summary: "",
+    tag: "Scaling laws for hyperparameters and model/data allocation; 7B and 67B dense models on 2T tokens.",
+    abstract: "The first DeepSeek foundation-model paper. It revisits scaling laws with a careful treatment of hyperparameters (batch size and learning rate as functions of compute) and of how to split a compute budget between model size and data. Model scale is measured in non-embedding FLOPs per token, which the authors argue predicts performance better than parameter count. The recipe is used to train dense 7B and 67B models on a 2T-token bilingual corpus.",
+    points: [
+      "Empirical scaling laws for optimal batch size and learning rate as functions of compute budget.",
+      "Compute-optimal allocation between model scale and data scale, with the finding that data quality shifts the optimal allocation toward larger models.",
+      "Multi-step learning-rate scheduler that makes continual training easier than cosine decay.",
+      "DeepSeek 67B Chat outperforms LLaMA-2 70B on code, math and reasoning; released with full weights."
+    ],
+    buildsOn: []
+  },
+  {
+    id: "moe", name: "DeepSeekMoE", date: "2024-01-11", kind: "paper", arxiv: "2401.06066",
+    title: "DeepSeekMoE: Towards Ultimate Expert Specialization in Mixture-of-Experts Language Models",
+    themes: ["moe", "scale"], pdf: "../2401.06066v1_deepseek_MOE.pdf", summary: "",
+    tag: "Fine-grained expert segmentation plus shared experts; the MoE design every later DeepSeek model inherits.",
+    abstract: "Conventional top-K-of-N MoE (GShard style) struggles to make experts specialize. DeepSeekMoE finely segments each expert into m smaller experts and activates mK of them, giving far more expert combinations, and isolates K_s shared experts that always run to absorb common knowledge and reduce redundancy among routed experts.",
+    points: [
+      "DeepSeekMoE 2B matches GShard 2.9B, which uses 1.5x the expert parameters and compute, and nearly matches a dense model with the same total parameters.",
+      "DeepSeekMoE 16B matches LLaMA-2 7B with about 40% of the computation.",
+      "Preliminary 145B run matches DeepSeek 67B using 28.5% (possibly 18.2%) of the compute.",
+      "This architecture is the backbone of V2, V3, V3.2, V4 and V4.1."
+    ],
+    buildsOn: ["llm"]
+  },
+  {
+    id: "coder", name: "DeepSeek-Coder", date: "2024-01-25", kind: "paper", arxiv: "2401.14196",
+    title: "DeepSeek-Coder: When the Large Language Model Meets Programming — The Rise of Code Intelligence",
+    themes: ["dom", "scale"], pdf: "pdfs/2401.14196.pdf", summary: "",
+    tag: "1.3B to 33B code models trained on 2T tokens with repository-level context and fill-in-the-middle.",
+    abstract: "A family of open code models from 1.3B to 33B parameters trained from scratch on 2T tokens (87% source code, plus code-related English and Chinese text). The data pipeline organizes files at the repository level using dependency parsing so the model sees cross-file context, and training uses a fill-in-the-middle objective with a 16K window.",
+    points: [
+      "Repository-level data construction with dependency ordering and deduplication.",
+      "Fill-in-the-middle (FIM) training and 16K context for practical completion.",
+      "DeepSeek-Coder-Base 33B beat CodeLlama-34B on HumanEval, MBPP and DS-1000 at release.",
+      "Instruction-tuned variants; later DeepSeek-Coder-V2 moved code to the MoE line."
+    ],
+    buildsOn: ["llm"]
+  },
+  {
+    id: "math", name: "DeepSeekMath (GRPO)", date: "2024-02-05", kind: "paper", arxiv: "2402.03300",
+    title: "DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models",
+    themes: ["rl", "dom"], pdf: "pdfs/2402.03300.pdf", summary: "",
+    tag: "Introduces Group Relative Policy Optimization; a 7B model reaches 51.7% on MATH.",
+    abstract: "A 7B model continued from DeepSeek-Coder-Base on 120B math tokens mined from Common Crawl with a fastText classifier. The paper introduces Group Relative Policy Optimization (GRPO), a PPO variant that drops the value network and instead normalizes rewards within a group of sampled responses to the same prompt. GRPO is the RL algorithm behind R1.",
+    points: [
+      "Large-scale web math corpus (DeepSeekMath Corpus, 120B tokens) via iterative classifier-based mining.",
+      "GRPO: group-relative advantage, no critic, KL term folded into the loss; much cheaper than PPO.",
+      "DeepSeekMath 7B scores 51.7% on MATH without external tools, approaching GPT-4 at the time.",
+      "Unified view of SFT, RFT, DPO, PPO and GRPO as forms of the same gradient with different data sources and rewards."
+    ],
+    buildsOn: ["coder"]
+  },
+  {
+    id: "vl", name: "DeepSeek-VL", date: "2024-03-08", kind: "paper", arxiv: "2403.05525",
+    title: "DeepSeek-VL: Towards Real-World Vision-Language Understanding",
+    themes: ["dom"], pdf: "pdfs/2403.05525.pdf", summary: "",
+    tag: "1.3B and 7B vision-language models with a hybrid high-resolution encoder that keep their language ability.",
+    abstract: "DeepSeek's first multimodal line. It emphasizes realistic use cases (web pages, charts, OCR, documents) with a data mix built around them, a hybrid vision encoder (SigLIP-L for semantics plus SAM-B for 1024x1024 detail), and a training strategy that preserves language ability by keeping a large fraction of text-only data during multimodal pretraining.",
+    points: [
+      "Hybrid vision encoder covering both semantic and fine-grained high-resolution features.",
+      "Three-stage training: adaptor warm-up, joint vision-language pretraining, supervised fine-tuning.",
+      "Careful ratio of text to multimodal data to avoid degrading the language backbone.",
+      "Lineage continues in DeepSeek-VL2 and the multimodal V4.1-Flash."
+    ],
+    buildsOn: ["llm"]
+  },
+  {
+    id: "v2", name: "DeepSeek-V2", date: "2024-05-07", kind: "paper", arxiv: "2405.04434",
+    title: "DeepSeek-V2: A Strong, Economical, and Efficient Mixture-of-Experts Language Model",
+    themes: ["attn", "moe", "scale"], pdf: "pdfs/2405.04434.pdf", summary: "",
+    tag: "Multi-head Latent Attention cuts the KV cache by 93.3%; 236B total, 21B active, 128K context.",
+    abstract: "V2 pairs DeepSeekMoE with a new attention mechanism, Multi-head Latent Attention (MLA), which compresses keys and values into a low-rank latent vector so the KV cache shrinks dramatically without hurting quality. Compared with DeepSeek 67B it saves 42.5% of training cost, reduces the KV cache by 93.3%, and raises maximum generation throughput 5.76x.",
+    points: [
+      "MLA: low-rank joint compression of K and V, with decoupled RoPE keys to keep positional information.",
+      "DeepSeekMoE with device-limited routing and auxiliary balance losses.",
+      "8.1T tokens of pretraining; 128K context; open weights.",
+      "MLA is the starting point of the KV-compression thread that runs through V3.2, V4 and V4.1."
+    ],
+    buildsOn: ["moe", "llm"]
+  },
+  {
+    id: "yoco", name: "YOCO (external)", date: "2024-05-08", kind: "external", arxiv: "2405.05254", venue: "Microsoft Research",
+    title: "You Only Cache Once: Decoder-Decoder Architectures for Language Models (Sun et al.)",
+    themes: ["attn"], pdf: "pdfs/2405.05254_yoco.pdf", summary: "",
+    tag: "Not a DeepSeek paper. Bottom-half self-decoder, top-half cross-decoder sharing one global KV cache; prefill exits early.",
+    abstract: "External reference cited by V4.1-Flash as the inspiration for its Causal Encoder-Decoder. YOCO splits L layers into a self-decoder (efficient attention with constant-size state, gated retention or sliding window) and a cross-decoder. One global key/value pair is projected once from the self-decoder output and reused by every cross-decoder layer, which only has its own query projection. Because nothing above the split depends on prompt tokens except through that cache, prefill can stop after the self-decoder.",
+    points: [
+      "KV memory O((N + CL)D) instead of O(LND); prefill O(LND) instead of O(LN^2 D).",
+      "3B model: 12.4 GB inference memory at 1M tokens (9.4x less), 512K prefill from 180 s to under 6 s, 512K throughput 4.5 to 43.1 tokens/s.",
+      "Scaling curves 160M to 13B match a Llama-style Transformer; near-perfect single-needle retrieval at 1M.",
+      "Trade-offs: one shared cache for all upper layers, no global attention in the bottom half, decode FLOPs unchanged, and no story for regenerating the window state on prefix-cache misses."
+    ],
+    buildsOn: []
+  },
+  {
+    id: "v3", name: "DeepSeek-V3", date: "2024-12-27", kind: "paper", arxiv: "2412.19437",
+    title: "DeepSeek-V3 Technical Report",
+    themes: ["moe", "scale"], pdf: "pdfs/2412.19437.pdf", summary: "",
+    tag: "671B total, 37B active; auxiliary-loss-free load balancing, multi-token prediction, FP8 training.",
+    abstract: "V3 scales the V2 recipe to 671B parameters (37B activated) on 14.8T tokens. It introduces an auxiliary-loss-free load-balancing strategy that adjusts per-expert bias terms instead of adding a balance loss, a multi-token prediction (MTP) objective, and FP8 mixed-precision training with the DualPipe pipeline schedule. The full training run cost about 2.788M H800 GPU hours.",
+    points: [
+      "Auxiliary-loss-free balancing avoids the quality tax of balance losses.",
+      "Multi-token prediction improves quality and enables speculative decoding.",
+      "FP8 mixed-precision training validated at scale; DualPipe overlaps computation and all-to-all communication.",
+      "Base model for R1 and for V3.1, V3.2; the architectural baseline that V4 inherits."
+    ],
+    buildsOn: ["v2"]
+  },
+  {
+    id: "r1", name: "DeepSeek-R1", date: "2025-01-22", kind: "paper", arxiv: "2501.12948", venue: "Nature (Sept 2025); arXiv revised Jan 2026",
+    title: "DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via Reinforcement Learning",
+    themes: ["rl"], pdf: "pdfs/2501.12948.pdf", summary: "",
+    tag: "Pure RL with GRPO on V3-Base yields long chain-of-thought reasoning; published in Nature.",
+    abstract: "R1-Zero applies GRPO with rule-based rewards directly to DeepSeek-V3-Base with no supervised data, and reasoning behaviors such as self-verification and reflection emerge on their own. R1 adds a small cold-start SFT set and multi-stage training to fix readability and language mixing, reaching OpenAI-o1-level results. Smaller Qwen and Llama models are distilled from R1's outputs.",
+    points: [
+      "R1-Zero: RL only, accuracy and format rewards, emergent longer reasoning over training.",
+      "R1: cold-start SFT, reasoning RL, rejection sampling, then RL for all scenarios.",
+      "Distillation transfers reasoning to 1.5B to 70B dense models.",
+      "Peer-reviewed version in Nature (September 2025) added training-cost and safety details."
+    ],
+    buildsOn: ["math", "v3"]
+  },
+  {
+    id: "r1-0528", name: "R1-0528", date: "2025-05-28", kind: "release",
+    title: "DeepSeek-R1-0528 (model release)",
+    themes: ["rl"], summary: "",
+    tag: "R1 update: deeper reasoning, lower hallucination rate, JSON and function-calling support.",
+    abstract: "A model release rather than a paper. R1-0528 continues post-training of R1 with more compute and algorithmic refinements, improving depth of reasoning (AIME 2025 from 70% to 87.5%), reducing hallucinations, and adding system-prompt, JSON output and tool-calling support. A distilled R1-0528-Qwen3-8B was released alongside it.",
+    points: [
+      "Longer and more careful reasoning traces on math and code.",
+      "Reduced hallucination and better front-end code generation.",
+      "Function calling and JSON mode make R1 usable in agent stacks.",
+      "Bridge between the original R1 and the V3.1 hybrid-thinking model."
+    ],
+    buildsOn: ["r1"]
+  },
+  {
+    id: "v31", name: "DeepSeek-V3.1", date: "2025-08-21", kind: "release",
+    title: "DeepSeek-V3.1 (model release)",
+    themes: ["rl", "dom"], summary: "",
+    tag: "One model with thinking and non-thinking modes; stronger tool use and agent skills.",
+    abstract: "A model release rather than a paper. V3.1 merges the V3 chat line and the R1 reasoning line into a single hybrid model that switches between thinking and non-thinking modes via the chat template. It was further pretrained on about 840B additional long-context tokens, uses UE8M0 FP8 scaling for compatibility with domestic accelerators, and improves tool calling and agentic benchmarks. V3.1-Terminus (September 2025) refined language consistency and agents.",
+    points: [
+      "Hybrid thinking mode: one set of weights, two inference behaviors.",
+      "Faster thinking than R1-0528 at comparable quality.",
+      "Post-training focused on tool use, code agents and search agents.",
+      "Sets up V3.2's stronger RL framework and agentic data synthesis."
+    ],
+    buildsOn: ["r1-0528", "v3"]
+  },
+  {
+    id: "v32", name: "DeepSeek-V3.2", date: "2025-12-01", kind: "paper", arxiv: "2512.02556",
+    title: "DeepSeek-V3.2: Pushing the Frontier of Open Large Language Models",
+    themes: ["attn", "rl"], pdf: "pdfs/2512.02556.pdf", summary: "",
+    tag: "DeepSeek Sparse Attention (lightning indexer + top-k token selection) and a scalable RL framework.",
+    abstract: "V3.2 keeps the V3 backbone but adds DeepSeek Sparse Attention (DSA): a lightweight lightning indexer scores past tokens and only a top-k subset enters attention, giving near-linear long-context cost on top of MLA. On the post-training side it describes a robust large-scale RL framework with agentic task synthesis; the V3.2-Speciale variant reached gold-medal level at IMO 2025, IOI 2025 and the ICPC World Finals.",
+    points: [
+      "DSA: lightning indexer plus fine-grained token selection, first previewed in V3.2-Exp (Sept 2025).",
+      "Long-context training and inference cost drop sharply with no measurable quality loss.",
+      "Scalable RL recipe (GRPO refinements, unbiased KL, routing/sampling masks) for reasoning and agents.",
+      "Baseline that V4 measures itself against: V4-Pro needs 27% of the FLOPs and 10% of the KV cache at 1M tokens."
+    ],
+    buildsOn: ["v31", "v2"]
+  },
+  {
+    id: "mhc", name: "mHC", date: "2025-12-31", kind: "paper", arxiv: "2512.24880",
+    title: "mHC: Manifold-Constrained Hyper-Connections",
+    themes: ["topo", "scale"], pdf: "../2512.24880v2_deepseek_mHC.pdf", summary: "",
+    tag: "Widens the residual stream (Hyper-Connections) while restoring identity mapping via a manifold constraint.",
+    abstract: "Hyper-Connections (HC) widen the residual stream and let layers mix multiple residual streams, which helps quality but breaks the identity-mapping property of residual connections, causing training instability and memory-traffic overhead. mHC projects the HC mixing matrices onto a constrained manifold (doubly-stochastic matrices via Sinkhorn-Knopp) so signals stay bounded, and adds kernel fusion, recomputation and DualPipe overlap to keep it cheap.",
+    points: [
+      "Diagnoses instability in HC as loss of identity mapping in the residual stream.",
+      "Manifold projection restores stability while keeping the expressivity gains.",
+      "Infrastructure co-design: fused kernels, recompute, communication overlap.",
+      "Adopted in V4 and simplified to Single-Pass mHC in V4.1-Flash."
+    ],
+    buildsOn: ["v3"]
+  },
+  {
+    id: "engram", name: "Engram", date: "2026-01-12", kind: "paper", arxiv: "2601.07372",
+    title: "Conditional Memory via Scalable Lookup: A New Axis of Sparsity for Large Language Models",
+    themes: ["mem", "moe"], pdf: "../2601.07372v2_deepseek_EngramConditionalMemory.pdf", summary: "",
+    tag: "Conditional memory: O(1) N-gram lookup as a second sparsity axis alongside MoE; U-shaped sparsity allocation law.",
+    abstract: "Transformers have no native primitive for knowledge lookup and must simulate retrieval with computation. Engram adds one: a hashed N-gram embedding table read with O(1) lookup, treated as conditional memory that complements MoE's conditional computation. Formulating a sparsity-allocation problem reveals a U-shaped scaling law for splitting parameters between MoE experts and Engram memory. At 27B it beats an iso-parameter, iso-FLOPs MoE baseline.",
+    points: [
+      "Gains not only in knowledge (MMLU +3.4) but larger gains in reasoning (BBH +5.0) and code/math.",
+      "Relieves early layers from static reconstruction, effectively deepening the network.",
+      "Frees attention for global context: Multi-Query NIAH 84.2 to 97.0.",
+      "Deterministic addressing allows prefetch from host memory with negligible overhead; V4.1-Flash carries a 196B Engram."
+    ],
+    buildsOn: ["moe", "v3"]
+  },
+  {
+    id: "v4", name: "DeepSeek-V4", date: "2026-04-26", kind: "paper", arxiv: "2606.19348",
+    title: "DeepSeek-V4: Towards Highly Efficient Million-Token Context Intelligence",
+    themes: ["attn", "mem", "topo", "moe", "scale"], pdf: "../2606.19348v1_deepseek_v4.pdf", summary: "",
+    tag: "V4-Pro (1.6T / 49B active) and V4-Flash (284B / 13B active) with 1M-token context; CSA + HCA hybrid attention, mHC, Muon.",
+    abstract: "A preview of the V4 series: two MoE models, V4-Pro with 1.6T parameters (49B activated) and V4-Flash with 284B (13B activated), both trained for one-million-token contexts on more than 32T tokens. Three architectural upgrades: a hybrid attention combining Compressed Sparse Attention (CSA) and Heavily Compressed Attention (HCA), Manifold-Constrained Hyper-Connections, and the Muon optimizer. V4-Pro-Max, the maximum-reasoning-effort mode, set a new state of the art for open models.",
+    points: [
+      "At 1M tokens V4-Pro needs 27% of the single-token FLOPs and 10% of the KV cache of V3.2.",
+      "CSA extends DSA-style sparse selection with sequence compression; HCA compresses even more heavily for most layers.",
+      "mHC adopted at frontier scale; Muon optimizer for faster and more stable convergence.",
+      "Routine million-token contexts make long-horizon agent tasks and test-time scaling feasible."
+    ],
+    buildsOn: ["v32", "mhc", "v3"]
+  },
+  {
+    id: "v41", name: "DeepSeek-V4.1-Flash", date: "2026-09-17", kind: "paper", arxiv: "2609.19969",
+    title: "DeepSeek-V4.1-Flash: Pushing the Limits of KV Cache Compression",
+    themes: ["attn", "mem", "moe", "topo", "dom", "scale"], pdf: "pdfs/2609.19969.pdf", summary: "",
+    tag: "552B multimodal MoE, 1M context; Causal Encoder-Decoder, CSA2 cross-layer KV reuse, FP4 KV: 890 bytes per token.",
+    abstract: "Long-horizon agents make workloads input-heavy, so prefill compute and KV storage become the cost bottleneck. V4.1-Flash is a multimodal MoE with 552B backbone parameters (plus a 196B Engram) supporting one-million-token contexts. Its Causal Encoder-Decoder (CED) architecture activates 16B parameters per token in decode but only 8B in prefill. Compressed Sparse Attention 2 (CSA2) reuses KV entries and indexes across layers and stores the main KV cache in FP4, shrinking the global KV footprint to 890 bytes per token, about 1/4 of V4-Flash and 1/437 of DeepSeek-V1. SWA Bounded Replay cuts the persistent cache to roughly 1/8. Pretrained on 45T multimodal tokens.",
+    points: [
+      "CED: decoder-layer global KV is projected from the encoder's final hidden state, so prefill runs only the bottom half of the network.",
+      "CSA2: cross-layer KV and index reuse plus a Hierarchical Sparse Indexer that keeps indexing cost constant at extreme context.",
+      "Single-Pass mHC, Engram (196B, prefetched from host memory), DSpark speculative decoding, FP4 main KV cache.",
+      "Strong results on text and multimodal agentic benchmarks despite a much smaller KV cache."
+    ],
+    buildsOn: ["v4", "engram", "mhc", "vl", "v32", "yoco"]
+  }
+];
+
+/* Idea blocks for the Themes view. Lanes stack oldest at the bottom. */
+const BLOCKS = [
+  // scale
+  { id: "b-scalinglaws", lane: "scale", name: "Scaling laws & training recipe", tag: "Fitted scaling laws for hyperparameters and model/data allocation",
+    note: "In early 2024 published scaling laws disagreed, so DeepSeek LLM re-derived them on its own data. It grid-searched batch size and learning rate at small scale, fit both as power laws of compute, and adopted non-embedding FLOPs per token M instead of parameter count N because 6N1 and 6N2 misestimate compute by up to 50% on small models. The fitted M_opt and D_opt curves predicted 7B and 67B loss, and a multi-step LR scheduler replaced cosine so runs could be continued. These hyperparameter rules carried into every later DeepSeek recipe.",
+    evidence: "eta_opt = 0.3118 C^-0.1250 and B_opt = 0.2920 C^0.3271; M_opt exponent 0.5243, D_opt exponent 0.4757; 7B and 67B each trained on 2.0T tokens with batch 2304 and 4608 (DeepSeek LLM Sections 2.2, 3.1, 3.2)", papers: ["llm"], buildsOn: [] },
+  { id: "b-fp8", lane: "scale", name: "FP8 training & DualPipe", tag: "FP8 mixed precision plus DualPipe make 14.8T tokens cheap and stable",
+    note: "By late 2024 the bottleneck at 671B parameters was cost per token, not allocation. V3 introduced a fine-grained FP8 framework (1x128 activation tiles, 128x128 weight blocks, E4M3 everywhere) validated for the first time at extreme scale, the DualPipe schedule that overlaps computation and communication with fewer pipeline bubbles, and node-limited routing so MoE traffic nearly fully overlaps. The run covered 14.8T tokens plus 32K and 128K context stages without irrecoverable loss spikes or rollbacks. The LLM hyperparameter practice carried forward; the precision and pipeline machinery became the base for V4.",
+    evidence: "2.788M H800 GPU hours total (2664K pre-training, 119K context extension, 5K post-training), 180K GPU hours per trillion tokens, FP8 relative loss error below 0.25% versus BF16 (DeepSeek-V3 Sections 1, 3.3)", papers: ["v3"], buildsOn: ["b-scalinglaws", "b-moe-eff"] },
+  { id: "b-muon", lane: "scale", name: "Muon optimizer, 32T tokens", tag: "Muon optimizer and staged 1M-context recipe at 1.6T parameters",
+    note: "V4 scaled to 1.6T parameters and 32T tokens; the mechanism that changed was the optimizer: Muon with weight decay, Nesterov momentum, RMS-rescaled updates that reuse AdamW learning rates, and 10-iteration hybrid Newton-Schulz orthogonalization; AdamW remains only for embeddings, heads and norms. The recipe schedules batch size, extends sequence length 4K to 16K to 64K to 1M, and warms up dense for 1T tokens before going sparse. Unlike V3, loss spikes occurred, traced to MoE outliers and cured by Anticipatory Routing plus SwiGLU clamping. FP8 and MTP carried over from V3.",
+    evidence: "V4-Flash 32T tokens with batch up to 75.5M and LR 2.7e-4 to 2.7e-5; V4-Pro 33T tokens with batch up to 94.4M; Anticipatory Routing overhead bounded to about 20% and SwiGLU clamped to [-10, 10] (DeepSeek-V4 Sections 2.4, 4.2.2, 4.2.3)", papers: ["v4"], buildsOn: ["b-fp8"] },
+  { id: "b-45t", lane: "scale", name: "45T multimodal tokens", tag: "45T multimodal tokens trained under deployment precision and sparsity",
+    note: "V4.1-Flash keeps the Muon recipe (momentum 0.95, weight decay 0.1, update RMS 0.18) but changes the training regime: 45T multimodal tokens with a fixed 100.6M-token batch, sparse attention from scratch at 64K with no dense warmup, context extended to 1M at 34T tokens, FP4 global KV caches during training, and post-training QAT so the main KV cache is stored as FP4 (E2M1, one E4M3 scale per 16 channels). No instability is reported, unlike V4. Training in the regime the model serves in makes compression nearly free at deployment.",
+    evidence: "45T tokens with no instability, LR 2.6e-4 held to 28T then cosine to 2.6e-5 by 40T; V4.1-Flash-Base matches V4-Pro-Base with 1/3 total and 1/4 activated parameters and 5%-10% better held-out scores; FP4 main KV cache nearly halves storage versus V4 FP8 (DeepSeek-V4.1-Flash Sections 1, 2.4.4, 4.2.2)", papers: ["v41"], buildsOn: ["b-muon"] },
+  // moe
+  { id: "b-moe", lane: "moe", name: "Fine-grained + shared experts", tag: "Fine-grained expert segmentation plus shared expert isolation",
+    note: "Top-K over a few large experts (GShard) mixes unrelated knowledge in each expert and duplicates common knowledge across experts. DeepSeekMoE segments experts into mN smaller ones and activates mK, giving far more combinations, and isolates K_s shared experts that every token uses so routed experts can specialize. Routing collapse is prevented with a small expert-level balance loss and a larger device-level balance loss. This shared-plus-routed FFN layout is inherited unchanged by every later DeepSeek model.",
+    evidence: "DeepSeekMoE 16B (2 shared plus 64 routed experts, 6 activated, 2.8B active of 16.4B) matches LLaMA2 7B with 39.6% of computations on 2T tokens; 145B (4 shared plus 128 routed, 12 activated, 22.2B active) matches DeepSeek 67B at 28.5%, a half-activated 142B variant at 18.2% (DeepSeekMoE Abstract, Sections 5, 7)", papers: ["moe"], buildsOn: [] },
+  { id: "b-moe-eff", lane: "moe", name: "Economical MoE at 236B", tag: "DeepSeekMoE at 236B with device-limited routing and three balance losses",
+    note: "With 160 routed experts under expert parallelism, fine-grained routing lets one token touch many devices, so all-to-all communication becomes the cost. V2 keeps the DeepSeekMoE layout (2 shared plus 160 routed, 6 activated, 21B of 236B) and adds device-limited routing: pick the M devices holding the highest-affinity experts, then top-K within them; M of 3 roughly matches unrestricted routing. A communication balance loss joins the expert-level and device-level losses, and device-level token dropping is used in training only. With MLA, this cuts training cost sharply versus dense 67B.",
+    evidence: "236B total, 21B activated, 8.1T tokens; each token sent to at most 3 devices; 172.8K versus 300.6K H800 GPU hours per trillion tokens, saving 42.5% of training cost versus DeepSeek 67B (DeepSeek-V2 Sections 2.2.2, 2.2.3, 4.1, 3.1.4)", papers: ["v2"], buildsOn: ["b-moe"] },
+  { id: "b-auxfree", lane: "moe", name: "Aux-loss-free balancing + MTP", tag: "Auxiliary-loss-free bias routing, MTP, 671B with 37B active",
+    note: "Auxiliary balance losses trade model quality for balance. V3 adds a per-expert bias b_i to the affinity score only for the top-K decision, lowering it by gamma when an expert is overloaded and raising it when underloaded after each step, while the gating weight still uses the raw score; only a small complementary sequence-wise loss remains. Affinities switch from softmax to sigmoid, a depth-1 multi-token prediction module is added, device-limited routing becomes node-limited, and no tokens are dropped in training or inference. Fine-grained plus shared experts carry over from V2.",
+    evidence: "671B total, 37B activated; 1 shared plus 256 routed experts with 8 activated per token, each token sent to at most 4 nodes; 14.8T tokens with no token dropping (DeepSeek-V3 Sections 2.1.2, 4.2)", papers: ["v3"], buildsOn: ["b-moe-eff"] },
+  { id: "b-moe-scale", lane: "moe", name: "MoE at 1.6T / 49B active", tag: "Same MoE layer at 1.6T/49B and 284B/13B, node limit removed",
+    note: "V4 states it inherits the DeepSeekMoE FFN, the auxiliary-loss-free bias strategy with a slight sequence-wise balance loss, and unmodified MTP from V3, with only minor MoE adjustments: affinity scores use Sqrt(Softplus) instead of sigmoid, the constraint on routing target nodes is removed with parallelism redesigned to compensate, and the initial dense FFN blocks become hash-routed MoE layers. Scaling to 1.6T parameters surfaced loss spikes tied to MoE outliers, addressed by Anticipatory Routing (routing indices from lagged parameters) and SwiGLU clamping.",
+    evidence: "V4-Pro 1.6T total, 49B active, 1 shared plus 384 routed experts, 6 activated; V4-Flash 284B total, 13B active, 1 shared plus 256 routed, 6 activated; hash routing in the first 3 MoE layers; bias update speed 0.001, sequence balance loss weight 0.0001 (DeepSeek-V4 Sections 2.1, 4.2.1, 4.2.2)", papers: ["v4"], buildsOn: ["b-auxfree"] },
+  { id: "b-ced", lane: "moe", name: "Causal Encoder-Decoder", tag: "Causal Encoder-Decoder: 8B active in prefill, 16B in decode",
+    note: "Long-horizon agents make workloads input-heavy: frequent tool calls generate large prefill requests on KV cache misses, so prefill compute drives cost. V4.1-Flash keeps the V4 MoE layer (1 shared plus 384 routed, 6 active, SwiGLU clamped at 10) but stacks it as a 20-layer causal encoder and 20-layer decoder; decoder global KV is projected from the final encoder hidden state, so prefill runs only the encoder and decode runs all 40. Inspired by YOCO, this nearly halves prefill complexity from O(NL) to about O(NL/2); load balancing is unchanged from V4.",
+    evidence: "552B backbone plus 196B Engram parameters; 8B activated per token in prefill and 16B in decode; global KV 890 bytes per token, about 1/4 of V4-Flash; 45T multimodal tokens (DeepSeek-V4.1-Flash Abstract, Sections 2.2, 4.2.1)", papers: ["v41"], buildsOn: ["b-moe-scale", "b-yoco"] },
+  // attn
+  { id: "b-yoco", lane: "attn", name: "YOCO (external)", tag: "Cache global KV once; prefill exits after the self-decoder",
+    note: "External idea from Microsoft Research, not a DeepSeek paper. The bottom half of the layers uses windowed or recurrent attention with constant state; a single global KV pair is projected from its output and shared by every upper layer, so prefill stops halfway. The cost is one undifferentiated cache for all upper layers and no global attention below the split. V4.1 borrows the split but gives each decoder layer its own KV projection and keeps sparse global attention in the encoder.",
+    evidence: "3B: 1M-token inference memory 12.4 GB (9.4x less); 512K prefill 180 s to under 6 s; 512K throughput 4.5 to 43.1 tok/s; scaling 160M to 13B on par (YOCO Sec 2.3, 4.2, 4.4)",
+    papers: ["yoco"], buildsOn: [] },
+  { id: "b-mla", lane: "attn", name: "Multi-head Latent Attention", tag: "Multi-head Latent Attention: one low-rank latent per token replaces KV",
+    note: "In 2024 the KV cache of multi-head attention (2 heads times head dim per layer per token) capped batch size and sequence length at serving, and MQA or GQA cut it only by losing quality. MLA down-projects each token into a single latent c_KV that is cached, with up-projections absorbed into the query and output matrices; a small decoupled RoPE key carries position because RoPE cannot be absorbed. The shared latent entry became the substrate every later sparse scheme selects over.",
+    evidence: "KV cache per token (d_c + d_h^R) l, equal to GQA with 2.25 groups; KV cache reduced 93.3% and max generation throughput 5.76x vs DeepSeek 67B, over 50K tokens/s on 8 H800 (V2 abstract, Table 1, §3.4)", papers: ["v2"], buildsOn: [] },
+  { id: "b-dsa", lane: "attn", name: "DeepSeek Sparse Attention", tag: "DeepSeek Sparse Attention: lightning indexer picks top-k latent entries",
+    note: "By late 2025 the 128K context made dense attention over MLA latents the dominant cost. DSA adds a lightning indexer (few heads, ReLU, FP8) that scores each query against prior tokens, and the main attention reads only the top-k=2048 latent entries, run in MLA's MQA mode so one latent serves all query heads. It was grafted onto V3.1-Terminus by continued pretraining: a dense warm-up trains only the indexer with a KL loss, then a sparse stage trains everything. Core attention drops from O(L^2) to O(Lk).",
+    evidence: "top-k 2048; indexer warm-up 1000 steps on 2.1B tokens, sparse stage 15000 steps on 943.7B tokens at 128K; core attention O(L^2) to O(Lk) (V3.2 §2.1.1, §2.3)", papers: ["v32"], buildsOn: ["b-mla"] },
+  { id: "b-csa", lane: "attn", name: "CSA + HCA hybrid attention", tag: "Hybrid CSA and HCA: compress KV along the sequence, then go sparse",
+    note: "Targeting one million tokens, even O(Lk) attention plus an O(L^2) indexer was too heavy. V4 compresses first: CSA folds every m=4 tokens into one KV entry (built from 2m overlapped entries) and then applies DSA over compressed entries with top-k 512 (Flash) or 1024 (Pro); HCA folds every m'=128 tokens into one entry and attends densely. Layers interleave the two; a 128-token sliding-window branch and attention sinks recover local detail. KV is stored FP8 with BF16 RoPE dims and the indexer runs in FP4.",
+    evidence: "At 1M tokens V4-Pro needs 27% of single-token FLOPs and 10% of KV cache vs V3.2, V4-Flash 10% and 7%; KV about 2% of a BF16 GQA8 baseline (V4 abstract, §1, §2.3.4)", papers: ["v4"], buildsOn: ["b-dsa"] },
+  { id: "b-csa2", lane: "attn", name: "CSA2 + FP4 KV: 890 B/token", tag: "CSA2: cross-layer KV and index reuse with FP4 main KV cache",
+    note: "With entry size (MLA) and sequence (CSA) already compressed, V4.1 attacks the layer axis. Each CSA2 layer is Full (own KV, own indexing), Reindex (reuse KV, rescore), or Reuse (reuse KV and Top-K indices); the encoder uses 1 Full plus 5 Reuse per group at m=2, the decoder m=1 in groups of four. A Hierarchical Sparse Indexer limits decoder indexers to a candidate pool, so their cost stops growing with context. Main KV moves to FP4 via QAT, and pure CSA2 replaces the CSA/HCA hybrid.",
+    evidence: "Global KV 890 bytes per token, about 1/4 of V4-Flash and 437-fold below DeepSeek-V1; candidate pool 2048 blocks x 8 = 16384 positions; decode FLOPs rise only 1/4 from 4K to 1M (V4.1 abstract, Fig 1b, Fig 2, §2.3.2)", papers: ["v41"], buildsOn: ["b-csa"] },
+  // rl
+  { id: "b-grpo", lane: "rl", name: "GRPO", tag: "GRPO: group-normalized advantages replace PPO's critic for math RL",
+    note: "PPO needs a value model as large as the policy, yet LLM rewards arrive only at the last token, so per-token value estimation is hard and costly. GRPO samples a group of outputs per question and uses each reward minus the group mean, divided by the group std, as the advantage for every token, with an unbiased KL to the reference model added directly in the loss. The paper also frames SFT, RFT, DPO, PPO and GRPO as one gradient form differing in data source, reward and gradient coefficient.",
+    evidence: "DeepSeekMath-RL 7B MATH 46.8% to 51.7% and GSM8K 82.9% to 88.2% with 64 samples per question, KL coefficient 0.04, lr 1e-6 on ~144K questions (DeepSeekMath abstract, §4.2)", papers: ["math"], buildsOn: [] },
+  { id: "b-r1", lane: "rl", name: "R1-Zero / R1", tag: "R1-Zero and R1: reasoning emerges from pure rule-rewarded RL",
+    note: "Human-written reasoning traces cap what SFT can teach. R1-Zero runs GRPO on V3-Base with no SFT and only rule-based accuracy and format rewards; the model on its own grows response length, adds reflection and verification, and shows an aha moment where use of the word wait spikes. Because R1-Zero mixes languages and reads poorly, R1 adds thousands of cold-start CoT examples, reasoning RL with a language-consistency reward, rejection-sampling SFT over reasoning and non-reasoning data, and a final RL stage for all scenarios, then distills into smaller open models.",
+    evidence: "R1-Zero AIME 2024 pass@1 15.6% to 77.9% (86.7% with self-consistency); R1 AIME 2024 79.8%, MATH-500 97.3%, Codeforces rating 2029 (R1 Fig 1, Table 3)", papers: ["r1"], buildsOn: ["b-grpo"] },
+  { id: "b-hybrid", lane: "rl", name: "Hybrid thinking, agent RL", tag: "R1-0528 and V3.1: deeper reasoning, tool calling, hybrid thinking modes",
+    note: "After R1, DeepSeek released R1-0528, a further post-trained R1 with longer and more careful reasoning and support for function calling, and then V3.1, which put thinking and non-thinking behaviour into a single checkpoint selected by the chat template and shifted post-training toward agent and tool-use tasks. The mechanism carried forward is that one model now serves both fast and deliberate modes, which V3.2 and V4 formalize as mode and effort control. No paper text is available for these releases, so specific figures are omitted.",
+    evidence: "Model releases without a paper in the corpus (R1-0528 May 2025, V3.1 Aug 2025); V3.2 later notes keep-routing had been in its RL pipeline since V3-0324 (V3.2 §3.1)", papers: ["r1-0528", "v31"], buildsOn: ["b-r1"] },
+  { id: "b-rlscale", lane: "rl", name: "Scalable RL framework", tag: "V3.2: a stable recipe for scaling GRPO compute and agentic RL",
+    note: "Training for thousands of steps on a large MoE exposed instabilities in vanilla GRPO. V3.2 corrects the K3 KL estimator with the old-policy importance ratio so its gradient is unbiased, masks negative sequences that drifted far off-policy, keeps the expert routing and the top-p or top-k sampling masks from rollout fixed during training, and merges reasoning, agent and alignment data into one mixed RL stage with rule rewards, length penalties and a generative reward model. A synthesis agent builds verifiable tool environments; Speciale relaxes the length penalty.",
+    evidence: "Post-training compute exceeds 10% of pre-training; 1,827 synthesized environments and over 85,000 prompts; V3.2-Speciale gold at IMO 2025 (35/42), IOI 2025 (492/600), ICPC WF 2025 (10/12), CMO 2025 (102/126) (V3.2 §1, §3.2.3, Table 4)", papers: ["v32"], buildsOn: ["b-hybrid"] },
+  { id: "b-promax", lane: "rl", name: "Reasoning-effort modes", tag: "V4 and V4.1: specialists via GRPO, merged by on-policy distillation, effort-conditioned",
+    note: "V4 keeps the V3.2 specialist pipeline (SFT then GRPO) but replaces the mixed RL stage with multi-teacher on-policy distillation: the student minimizes reverse KL to over ten expert teachers, and three reasoning modes come from different length penalties and context windows, Pro-Max adding a max-effort system prompt. V4.1 adds a 1 to 100 effort scalar whose length penalty decays with effort, trains DSpark alongside the backbone without back-propagating into it so the drafter tracks the evolving policy, simulates SWA Bounded Replay in post-training, and distills from over 40 teachers.",
+    evidence: "V4-Pro-Max Codeforces rating 3206 and HMMT 2026 Feb 95.2 (V4 Table); V4.1-Flash effort 25 to 100 raises DeepSWE v1.1 66.0% to 74.2% and Terminal-Bench 2.1 82.4% to 90.6% at about 2.5x output tokens (V4.1 §5.3.3)", papers: ["v4", "v41"], buildsOn: ["b-rlscale"] },
+  // mem
+  { id: "b-128k", lane: "mem", name: "128K context via YaRN", tag: "YaRN extension from 4K to 128K on the decoupled RoPE key",
+    note: "In 2024 models pretrained at 4K needed a cheap way to serve 128K. V2 applies YaRN only to the decoupled shared key that carries RoPE (scale 40, alpha 1, beta 32, target 160K) and trains 1000 steps at 32K sequence length; the model still passes needle tests at 128K. V3 keeps the same YaRN configuration but splits extension into two 1000-step phases, 32K then 128K, at learning rate 7.3e-6. That 128K checkpoint became the base that V3.1 and V3.2 continued from.",
+    evidence: "V2: YaRN s=40, 1000 steps at 32K with batch 576, NIAH good up to 128K (V2 §3.1.4); V3: phases at 32K batch 1920 and 128K batch 480, context extension cost 119K H800 GPU hours of 2788K total (V3 §4.3, Table 1)", papers: ["v2", "v3"], buildsOn: ["b-mla"] },
+  { id: "b-engram", lane: "mem", name: "Engram conditional memory", tag: "Engram: hashed N-gram conditional memory as a second sparsity axis",
+    note: "Transformers have no lookup primitive, so early layers burn compute reconstructing static multi-token patterns. Engram compresses token IDs to canonical forms, hashes suffix N-grams with multiple heads into embedding tables for O(1) lookup, and adds the gated result residually. Framing MoE versus memory as a Sparsity Allocation problem gives a U-shaped loss curve whose optimum is stable across scales. Because lookups absorb local dependencies, attention is freed for global context, and deterministic addressing lets tables live in host memory with prefetch.",
+    evidence: "Optimum at rho 75 to 80% (20 to 25% of sparse budget to Engram), loss 1.7248 to 1.7109 in the 10B regime; Engram-27B vs iso-FLOPs MoE-27B: MMLU +3.4, BBH +5.0, Multi-Query NIAH 84.2 to 97.0, Variable Tracking 77.0 to 89.0; 100B table on host memory under 3% overhead (Engram abstract, §3.1, Table 2)", papers: ["engram"], buildsOn: ["b-moe"] },
+  { id: "b-1m", lane: "mem", name: "Million-token context", tag: "DeepSeek-V4: one-million-token context as a routine capability",
+    note: "Quadratic attention was the stated ceiling on test-time scaling and long-horizon agentic work. Instead of a post-hoc YaRN patch, V4 trains long context inside pretraining: sequence length grows 4K to 16K to 64K to 1M, dense attention for the first 1T tokens, then indexer warm-up and sparse CSA from 64K onward. The serving side adds a heterogeneous KV cache with on-disk storage for shared-prefix reuse, and the RL framework is rebuilt to handle million-token rollouts. Evaluation moves to MRCR 1M and CorpusQA 1M.",
+    evidence: "V4-Pro-Max MRCR 1M 83.5 vs Gemini-3.1-Pro 76.3 and Opus-4.6 92.9; CorpusQA 1M 62.0 vs 53.8; retrieval stable within 128K with visible degradation beyond; V4-Pro at 1M uses 27% FLOPs and 10% KV of V3.2 (V4 §4.1.4 setup, Table 6, §4.4, abstract)", papers: ["v4"], buildsOn: ["b-128k", "b-csa"] },
+  { id: "b-engram-prod", lane: "mem", name: "196B Engram in production", tag: "196B Engram in production with host-DRAM prefetch and bounded replay",
+    note: "V4.1-Flash turns the Engram result into a 552B-backbone production model and reworks where long-context memory lives. Two Engram modules at layers 1 and 14 hold 196B parameters in FP8 tables, prefetched from host memory by background RDMA; the causal convolution is dropped and tables use momentum plus Sinkhorn updates. Sparse attention trains from scratch at 64K and extends to 1M at 34T tokens. Sliding-window KV leaves the persistent cache for a 10% host-DRAM pool, and SWA Bounded Replay recomputes only the last 128 tokens on a miss.",
+    evidence: "196B Engram params, N-gram orders 2 to 4, 8 hash heads, about 16M entries per head; persistent KV 1/8 of V4-Flash; global KV kept at least 72 hours; LongBench-V2 base 45.2 vs V4-Flash 44.7 (V4.1 §2.4.2, §3.2.1, §3.2.2, base eval table)", papers: ["v41"], buildsOn: ["b-1m", "b-engram"] },
+  // topo
+  { id: "b-mhc", lane: "topo", name: "mHC", tag: "Sinkhorn-constrained Hyper-Connections restore identity mapping at scale",
+    note: "Hyper-Connections widen the residual stream from C to n times C with learnable mixing matrices, but the unconstrained residual matrix breaks identity mapping: the composite product across layers stops preserving the feature mean, gains explode with depth, 27B training destabilizes, and memory access grows about n-fold. mHC projects the residual matrix onto the Birkhoff polytope with 20 Sinkhorn-Knopp iterations, so each map is a convex combination with spectral norm at most 1 that survives composition. TileLang kernels, recomputation and an extended DualPipe schedule keep overhead small.",
+    evidence: "n equal 4 costs only 6.7% extra training time; 27B mHC final loss 0.021 below baseline; 27B MMLU 59.0 baseline, 63.0 HC, 63.4 mHC; BBH 43.8, 48.9, 51.0 (mHC paper Sec 1, 5.2, Table 4)", papers: ["mhc"], buildsOn: [] },
+  { id: "b-mhc-v4", lane: "topo", name: "mHC at frontier scale", tag: "V4 ships mHC in production 284B and 1.6T MoE models",
+    note: "With the stability fix proven at 27B, V4 needed to carry a widened residual stream through trillion-parameter MoE training that already suffered loss spikes from MoE outliers. V4 adopts mHC as one of three headline upgrades, keeping the doubly stochastic residual map, sigmoid-bounded input and output maps and dynamic plus static parameterization, and adds fused training and inference kernels, selective checkpointing, DualPipe 1F1B adjustments and a deterministic split-k reduction for the tiny mHC matmul. The static biases and gates of mHC stay on AdamW while the rest moves to Muon.",
+    evidence: "n_hc equal 4 and t_max equal 20 for both V4-Flash (284B total, 13B active) and V4-Pro (1.6T total, 49B active); mHC wall-time overhead 6.7% of the overlapped 1F1B stage; V4-Pro trained on 33T tokens (V4 Sec 2.2, 3.4.2, 4.2.1)", papers: ["v4"], buildsOn: ["b-mhc"] },
+  { id: "b-mhc-sp", lane: "topo", name: "Single-Pass mHC", tag: "Single-Pass mHC: one kernel, residual read once, traffic halved",
+    note: "In V4 the mHC step ran as three sequential kernels because the mixing coefficients A_l need a full reduction over X_l; with the pre-norm this moved (4n+4)d activation elements per token, twice the (2n+2)d lower bound. V4.1-Flash shifts the mixing coefficients by one block, so block l mixes with A_{l-1}, and the dependency disappears at negligible cost. The deployment Mega-mHC kernel tiles X_l along the hidden dimension, fuses update, mixing, prediction, pre-norm and FP8 conversion, and touches the residual once. Expansion 4 and 20 iterations carry forward.",
+    evidence: "Activation traffic (4n+4)d in V4 versus (2n+2)d for Single-Pass mHC, i.e. halved; V4.1-Flash trained on 45T multimodal tokens with no instability; separately, head-wise Muon for Q and K weights and Sinkhorn-balanced updates for embeddings and prediction head (V4.1 Sec 2.4.1, 2.5, 4.2.2)", papers: ["v41"], buildsOn: ["b-mhc-v4"] },
+  // dom
+  { id: "b-code", lane: "dom", name: "Code intelligence", tag: "Repository-level code pre-training with FIM and 16K window",
+    note: "Open code models trailed closed ones, and file-level training ignored cross-file structure. DeepSeek-Coder trained 1.3B, 6.7B and 33B models from scratch on 2T tokens (87% source code, 10% English code-related text, 3% Chinese), deduplicated at repository level and packed files in topological dependency order so the model sees whole projects. A fill-in-the-middle objective at a 50% PSM rate balances infilling against completion, and RoPE was reconfigured to extend context to 16K. This data recipe became the base for DeepSeekMath and later general models.",
+    evidence: "Coder-Base 33B averages 50.3% on multilingual HumanEval and 66.0% on MBPP versus 41.0% and 55.2% for CodeLlama 34B; Coder-Base 6.7B (44.7%) beats CodeLlama 34B (Coder Table 3)", papers: ["coder"], buildsOn: [] },
+  { id: "b-mathdom", lane: "dom", name: "Math corpus mining", tag: "120B-token math corpus mined from Common Crawl with iterative fastText",
+    note: "Competition-level math needed far more math text than existing open corpora offered. Starting from OpenWebMath as seed, DeepSeekMath trained a fastText classifier to recall math pages from deduplicated Common Crawl, then used domain statistics to find uncollected math-heavy domains, relabel, and retrain; after four iterations 35.5M pages gave 120B tokens, about 9 times OpenWebMath. DeepSeekMath-Base 7B continues from DeepSeek-Coder-Base-v1.5 7B for 500B tokens (56% math corpus plus code and text), directly inheriting the previous block. The GRPO algorithm is introduced in the same paper but belongs to the RL lane.",
+    evidence: "DeepSeekMath-Base 7B: 64.2% GSM8K, 36.2% MATH; DeepSeekMath-RL 7B: 51.7% MATH, 88.2% GSM8K; 60.9% MATH with self-consistency over 64 samples (DeepSeekMath abstract, Sec 2.1, Table 2)", papers: ["math"], buildsOn: ["b-code"] },
+  { id: "b-vl", lane: "dom", name: "Vision-language", tag: "Hybrid SigLIP-L plus SAM-B encoder, 1024x1024 in 576 tokens",
+    note: "Extending the LLM to images raised two problems: a single CLIP-style encoder misses fine detail such as OCR and charts, and multimodal training erodes language ability. DeepSeek-VL pairs SigLIP-L at 384x384 for semantics with SAM-B at 1024x1024 for detail, compressing a high-resolution image into 576 visual tokens. Data is built from a use-case taxonomy of real user scenarios (screenshots, PDFs, OCR, charts), and pre-training keeps language data at roughly 70% because performance per modality tracks its share. Design was iterated on 1.3B then scaled to 7B on DeepSeek-LLM.",
+    evidence: "SAM-B 64x64x256 feature map downsampled to 576x1024 and concatenated with SigLIP-L 576x1024; language to multimodal ratio 7:3; 7B trained 5 days on 64 nodes of 8 A100 (DeepSeek-VL Sec 3, 4.2, 4.5)", papers: ["vl"], buildsOn: ["b-mathdom"] },
+  { id: "b-agents", lane: "dom", name: "Agentic tool use", tag: "From tool calling to synthesized agentic environments and RL",
+    note: "Through 2025 the domain focus moved from corpora to agents. R1-0528 (May 2025) and V3.1 (Aug 2025) shipped without papers, publicly positioned as adding stronger function calling and JSON output, with V3.1 a hybrid thinking and non-thinking model tuned for agents, but those claims come from general knowledge, not these texts. DeepSeek-V3.2 documents the mechanism: thinking retention across tool calls, cold-start data merging reasoning traces with agentic trajectories, and a synthesis pipeline where an agent builds environments, tool functions and verifiable tasks feeding code, search and general agents into RL.",
+    evidence: "V3.2 synthesizes 1,827 environments and over 85,000 prompts; SWE Verified 73.1, BrowseComp 67.6 with context management, tau2-Bench 80.3, Tool-Decathlon 35.2 (V3.2 Sec 1, 3.2.3, Table 2)", papers: ["r1-0528", "v31"], buildsOn: ["b-vl"] },
+  { id: "b-mm", lane: "dom", name: "Multimodal agentic model", tag: "V4.1-Flash: native multimodal MoE, DeepSeek-ViT feeds the CED backbone",
+    note: "Instead of bolting an encoder onto a text model, V4.1-Flash is trained on multimodal data from the first pre-training step. A from-scratch DeepSeek-ViT (32 layers, 2D-RoPE, linear patch embedding so Muon applies, RMSNorm, SwiGLU) yields a feature grid; a 3x3 pixel-unshuffle cuts visual tokens nine-fold and a 2-layer MLP projector inserts them at image-token positions of the 40-layer causal encoder-decoder backbone. Modality-specific bias-based load balancing separates image and text expert routing. The corpus mixes image-text pairs, interleaved web and PDF data, image-code pairs and computer-use trajectories.",
+    evidence: "45T multimodal tokens with a 7:1 text-only to multimodal ratio; input resolution up to about 1344x1344; ViT pre-trained with SigLIP loss on about 47B pairs; with tools: Chartography 78.9, BabyVision 89.6, ZeroBench 49.0 versus Kimi-K3 68.1, 85.7, 41.0; Automation-Bench 54.8 (V4.1 Sec 2.1.1, 4.1, 4.2, Table 3)", papers: ["v41"], buildsOn: ["b-agents"] },
+];
+
+/* Blocks that sit in the capstone row at the top (converging point). */
+const CAPSTONE = ["b-csa2", "b-engram-prod", "b-ced"];
+
+/* ===================================================================== end DATA */
+
+const $ = s => document.querySelector(s);
+const byId = Object.fromEntries(PAPERS.map(p => [p.id, p]));
+const themeById = Object.fromEntries(THEMES.map(t => [t.id, t]));
+const blockById = Object.fromEntries(BLOCKS.map(b => [b.id, b]));
+const fmt = d => { const [y, m, day] = d.split("-").map(Number); return new Date(y, m - 1, day).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }); };
+const themeColor = id => themeById[id].color;
+let activeTheme = null;   // filter in timeline view
+let view = "timeline";
+
+/* ---------- Legend ---------- */
+function renderLegend() {
+  const el = $("#legend"); el.innerHTML = "";
+  THEMES.forEach(t => {
+    const c = document.createElement("button");
+    c.className = "chip"; c.style.setProperty("--c", t.color);
+    c.innerHTML = `<span class="dot"></span>${t.name}`;
+    c.onclick = () => { activeTheme = activeTheme === t.id ? null : t.id; applyFilter(); };
+    c.dataset.theme = t.id;
+    el.appendChild(c);
+  });
+  applyFilter();
+}
+function applyFilter() {
+  document.querySelectorAll(".chip").forEach(c => {
+    c.classList.toggle("active", c.dataset.theme === activeTheme);
+    c.classList.toggle("dim", activeTheme && c.dataset.theme !== activeTheme);
+  });
+  document.querySelectorAll("#view-timeline .block").forEach(b => {
+    const p = byId[b.dataset.id];
+    b.classList.toggle("dim", activeTheme && !p.themes.includes(activeTheme));
+  });
+  document.querySelectorAll("#view-themes .block").forEach(b => {
+    const bl = blockById[b.dataset.block];
+    b.classList.toggle("dim", activeTheme && bl.lane !== activeTheme);
+  });
+  document.querySelectorAll("#edges path").forEach(pth => {
+    pth.classList.toggle("faded", activeTheme && pth.dataset.lane !== activeTheme);
+  });
+  $("#hint").textContent = view === "timeline"
+    ? (activeTheme ? `Showing papers tagged “${themeById[activeTheme].name}”. Click the chip again to clear.` : "Newest at the top. Click a theme chip to highlight the papers in that thread.")
+    : "Each lane is a thread of ideas. Lines show what each block builds on. Hover a block to trace its lineage; click for the paper summary.";
+}
+
+/* ---------- Timeline ---------- */
+function paperBlock(p, compact) {
+  const b = document.createElement("button");
+  b.className = "block" + (p.kind === "external" ? " external" : p.kind !== "paper" ? " release" : "");
+  b.dataset.id = p.id;
+  b.style.setProperty("--c", themeColor(p.themes[0]));
+  b.innerHTML = `
+    <div class="date">${fmt(p.date)}${p.arxiv ? " &middot; " + p.arxiv : ""}${p.kind === "paper" ? "" : `<span class="kind">${p.kind}</span>`}</div>
+    <div class="name">${p.name}</div>
+    <div class="tag">${p.tag}</div>
+    <div class="tdots">${p.themes.map(t => `<span style="background:${themeColor(t)}" title="${themeById[t].name}"></span>`).join("")}</div>`;
+  b.onclick = () => openPaper(p.id);
+  return b;
+}
+function renderTimeline() {
+  const root = $("#view-timeline"); root.innerHTML = "";
+  const years = [...new Set(PAPERS.map(p => p.date.slice(0, 4)))].sort().reverse();
+  years.forEach(y => {
+    const ps = PAPERS.filter(p => p.date.startsWith(y)).sort((a, b) => b.date.localeCompare(a.date));
+    const row = document.createElement("div"); row.className = "yearrow";
+    row.innerHTML = `<div class="yearlabel"><div class="y">${y}</div><div class="n">${ps.length} ${ps.length === 1 ? "entry" : "entries"}</div></div>`;
+    const grid = document.createElement("div"); grid.className = "papers";
+    ps.forEach(p => grid.appendChild(paperBlock(p)));
+    row.appendChild(grid);
+    root.appendChild(row);
+  });
+}
+
+/* ---------- Themes ---------- */
+function ideaBlock(b) {
+  const el = document.createElement("button");
+  el.className = "block" + (b.papers.every(id => byId[id].kind === "external") ? " external" : ""); el.dataset.block = b.id;
+  el.style.setProperty("--c", themeColor(b.lane));
+  const papers = b.papers.map(id => byId[id]);
+  const dates = papers.map(p => p.date).sort();
+  el.innerHTML = `
+    <div class="date">${fmt(dates[0]).replace(/^(\w+) \d+, /, "$1 ")}${dates.length > 1 && dates[0].slice(0,7) !== dates[dates.length-1].slice(0,7) ? " &rarr; " + fmt(dates[dates.length-1]).replace(/^(\w+) \d+, /, "$1 ") : ""}</div>
+    <div class="name">${b.name}</div>
+    <div class="tag">${b.tag}</div>
+    ${b.note ? `<div class="note">${b.note}</div>` : ""}
+    ${b.evidence ? `<div class="ev">${b.evidence}</div>` : ""}
+    <div class="refs">${papers.map(p => `<span>${p.name}</span>`).join("")}</div>`;
+  el.onclick = () => openBlock(b.id);
+  el.onmouseenter = () => highlightLineage(b.id);
+  el.onmouseleave = () => highlightLineage(null);
+  el.onfocus = () => highlightLineage(b.id);
+  el.onblur = () => highlightLineage(null);
+  return el;
+}
+function renderThemes() {
+  const lanes = $("#lanes"); lanes.innerHTML = "";
+  const heads = $("#laneheads"); heads.innerHTML = "";
+  const cap = $("#capstone"); cap.innerHTML = "";
+  THEMES.forEach(t => {
+    const lane = document.createElement("div"); lane.className = "lane"; lane.dataset.lane = t.id;
+    const head = document.createElement("button"); head.className = "lanehead"; head.style.setProperty("--c", t.color);
+    head.innerHTML = `${t.name}<small>${t.sub}</small>${t.evolution ? `<span class="more">Click for the story of this thread</span>` : ""}`;
+    head.onclick = () => openTheme(t.id);
+    heads.appendChild(head);
+    BLOCKS.filter(b => b.lane === t.id && !CAPSTONE.includes(b.id))
+      .sort((a, b) => minDate(a).localeCompare(minDate(b)))
+      .forEach(b => lane.appendChild(ideaBlock(b)));
+    lanes.appendChild(lane);
+  });
+  CAPSTONE.forEach(id => cap.appendChild(ideaBlock(blockById[id])));
+  requestAnimationFrame(drawEdges);
+}
+function minDate(b) { return b.papers.map(id => byId[id].date).sort()[0]; }
+
+function drawEdges() {
+  const svg = $("#edges"); const wrap = $("#themes-wrap");
+  const W = wrap.clientWidth, H = wrap.scrollHeight;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.style.height = H + "px";
+  svg.innerHTML = "";
+  const wr = wrap.getBoundingClientRect();
+  const pos = {};
+  wrap.querySelectorAll(".block[data-block]").forEach(el => {
+    const r = el.getBoundingClientRect();
+    pos[el.dataset.block] = { x: r.left - wr.left + r.width / 2, top: r.top - wr.top, bottom: r.bottom - wr.top, w: r.width };
+  });
+  BLOCKS.forEach(b => b.buildsOn.forEach(src => {
+    const a = pos[src], c = pos[b.id]; if (!a || !c) return;
+    const x1 = a.x, y1 = a.top, x2 = c.x, y2 = c.bottom;
+    const dy = Math.max(24, (y1 - y2) / 2);
+    const d = `M${x1},${y1} C${x1},${y1 - dy} ${x2},${y2 + dy} ${x2},${y2}`;
+    const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    p.setAttribute("d", d); p.setAttribute("stroke", themeColor(blockById[src].lane));
+    p.dataset.from = src; p.dataset.to = b.id; p.dataset.lane = blockById[src].lane;
+    if (activeTheme && p.dataset.lane !== activeTheme) p.classList.add("faded");
+    svg.appendChild(p);
+  }));
+}
+function lineage(id) {
+  const anc = new Set(), desc = new Set();
+  const up = x => blockById[x].buildsOn.forEach(s => { if (!anc.has(s)) { anc.add(s); up(s); } });
+  const down = x => BLOCKS.filter(b => b.buildsOn.includes(x)).forEach(b => { if (!desc.has(b.id)) { desc.add(b.id); down(b.id); } });
+  up(id); down(id);
+  return new Set([id, ...anc, ...desc]);
+}
+function highlightLineage(id) {
+  const set = id ? lineage(id) : null;
+  document.querySelectorAll("#view-themes .block").forEach(el => {
+    el.classList.toggle("hl", !!set && set.has(el.dataset.block));
+  });
+  document.querySelectorAll("#edges path").forEach(p => {
+    const on = !!set && set.has(p.dataset.from) && set.has(p.dataset.to);
+    p.classList.toggle("hl", on);
+    if (set) p.classList.toggle("faded", !on); else p.classList.toggle("faded", activeTheme && p.dataset.lane !== activeTheme);
+  });
+}
+
+/* ---------- Drawer ---------- */
+function openDrawer(html) {
+  $("#drawer-body").innerHTML = html;
+  $("#drawer").classList.add("open"); $("#overlay").classList.add("open");
+  $("#drawer").setAttribute("aria-hidden", "false"); $("#drawer").scrollTop = 0;
+}
+function closeDrawer() {
+  $("#drawer").classList.remove("open"); $("#overlay").classList.remove("open");
+  $("#drawer").setAttribute("aria-hidden", "true");
+}
+function paperHTML(p) {
+  const leadsTo = PAPERS.filter(q => q.buildsOn.includes(p.id));
+  const blocks = BLOCKS.filter(b => b.papers.includes(p.id));
+  const kindNote = p.kind === "release" ? `<div class="note">Model release with release notes rather than a paper; included for continuity of the thread.</div>`
+                 : p.kind === "external" ? `<div class="note">External paper, not from DeepSeek. Included because V4.1-Flash cites it as the origin of the encoder-decoder split.</div>` : "";
+  return `
+    <div class="eyebrow">${fmt(p.date)}${p.arxiv ? " &middot; arXiv:" + p.arxiv : ""}${p.venue ? " &middot; " + p.venue : ""}</div>
+    <h2>${p.name}</h2>
+    <div class="full">${p.title}</div>
+    <div class="themes">${p.themes.map(t => `<span style="--c:${themeColor(t)}">${themeById[t].name}</span>`).join("")}</div>
+    <div class="links">
+      ${p.summary ? `<a class="primary" href="${p.summary}" target="_blank" rel="noopener">Detailed summary</a>` : ""}
+      ${p.arxiv ? `<a href="https://arxiv.org/abs/${p.arxiv}" target="_blank" rel="noopener">arXiv abstract</a><a href="https://arxiv.org/pdf/${p.arxiv}" target="_blank" rel="noopener">arXiv PDF</a>` : ""}
+      ${p.pdf ? `<a href="${p.pdf}" target="_blank" rel="noopener">Local PDF</a>` : ""}
+    </div>
+    ${p.summary ? "" : `<div class="note">No detailed summary linked yet. Set <code>summary: "summaries/${p.id}.html"</code> in the DATA block and drop the file in the summaries folder.</div>`}
+    ${kindNote}
+    <h3>Summary</h3>
+    <p>${p.abstract}</p>
+    <h3>Key contributions</h3>
+    <ul>${p.points.map(x => `<li>${x}</li>`).join("")}</ul>
+    ${p.buildsOn.length ? `<h3>Builds on</h3><ul class="rel">${p.buildsOn.map(id => `<li><button onclick="openPaper('${id}')">${byId[id].name}</button> <span style="color:var(--muted);font-size:12px">${fmt(byId[id].date)}</span></li>`).join("")}</ul>` : ""}
+    ${leadsTo.length ? `<h3>Leads to</h3><ul class="rel">${leadsTo.map(q => `<li><button onclick="openPaper('${q.id}')">${q.name}</button> <span style="color:var(--muted);font-size:12px">${fmt(q.date)}</span></li>`).join("")}</ul>` : ""}
+    ${blocks.length ? `<h3>Idea blocks in the Themes view</h3><ul class="rel">${blocks.map(b => `<li><button onclick="openBlock('${b.id}')">${b.name}</button> <span style="color:${themeColor(b.lane)};font-size:12px">${themeById[b.lane].name}</span></li>`).join("")}</ul>` : ""}
+  `;
+}
+function openPaper(id) { openDrawer(paperHTML(byId[id])); }
+function openBlock(id) {
+  const b = blockById[id];
+  const papers = b.papers.map(pid => byId[pid]);
+  const next = BLOCKS.filter(x => x.buildsOn.includes(id));
+  openDrawer(`
+    <div class="eyebrow" style="color:${themeColor(b.lane)}"><button onclick="openTheme('${b.lane}')" style="background:none;border:0;color:inherit;font:inherit;cursor:pointer;padding:0">${themeById[b.lane].name} &rarr; theme story</button></div>
+    <h2>${b.name}</h2>
+    <div class="full">${b.tag}</div>
+    ${b.note ? `<h3>What changed here</h3><p class="story">${b.note}</p>` : ""}
+    ${b.evidence ? `<div class="note">${b.evidence}</div>` : ""}
+    <h3>Papers in this block</h3>
+    <ul class="rel">${papers.map(p => `<li><button onclick="openPaper('${p.id}')">${p.name}</button> <span style="color:var(--muted);font-size:12px">${fmt(p.date)}</span></li>`).join("")}</ul>
+    ${b.buildsOn.length ? `<h3>Builds on</h3><ul class="rel">${b.buildsOn.map(x => `<li><button onclick="openBlock('${x}')">${blockById[x].name}</button></li>`).join("")}</ul>` : ""}
+    ${next.length ? `<h3>Leads to</h3><ul class="rel">${next.map(x => `<li><button onclick="openBlock('${x.id}')">${x.name}</button></li>`).join("")}</ul>` : ""}
+    <h3>From the papers</h3>
+    ${papers.map(p => `<p><strong>${p.name}.</strong> ${p.abstract}</p>`).join("")}
+  `);
+}
+
+function openTheme(id) {
+  const t = themeById[id];
+  const blocks = BLOCKS.filter(b => b.lane === id).sort((a, b) => minDate(a).localeCompare(minDate(b)));
+  const papers = [...new Set(blocks.flatMap(b => b.papers))].map(pid => byId[pid]).sort((a, b) => a.date.localeCompare(b.date));
+  openDrawer(`
+    <div class="eyebrow" style="color:${t.color}">Theme</div>
+    <h2>${t.name}</h2>
+    <div class="full">${t.sub}</div>
+    ${t.evolution ? `<h3>How the thread evolved</h3><p class="story">${t.evolution}</p>` : ""}
+    ${t.today ? `<h3>Relevance today</h3><div class="today">${t.today}</div>` : ""}
+    <h3>Blocks, oldest first</h3>
+    <ul class="rel">${blocks.map(b => `<li><button onclick="openBlock('${b.id}')">${b.name}</button> <span style="color:var(--muted);font-size:12px">${fmt(minDate(b)).replace(/^(\w+) \d+, /, "$1 ")}</span></li>`).join("")}</ul>
+    <h3>Papers in this theme</h3>
+    <ul class="rel">${papers.map(p => `<li><button onclick="openPaper('${p.id}')">${p.name}</button> <span style="color:var(--muted);font-size:12px">${fmt(p.date)}</span></li>`).join("")}</ul>
+  `);
+}
+
+/* ---------- View switching ---------- */
+function setView(v) {
+  view = v;
+  $("#btn-timeline").classList.toggle("active", v === "timeline");
+  $("#btn-themes").classList.toggle("active", v === "themes");
+  $("#view-timeline").classList.toggle("active", v === "timeline");
+  $("#view-themes").classList.toggle("active", v === "themes");
+  try { localStorage.setItem("dsmap-view", v); } catch (e) {}
+  document.body.dataset.view = v;
+  if (v === "themes") requestAnimationFrame(drawEdges);
+  applyFilter();
+}
+let notesOn = true;
+try { notesOn = localStorage.getItem("dsmap-notes") !== "off"; } catch (e) {}
+function applyNotes() {
+  $("#view-themes").classList.toggle("compact", !notesOn);
+  $("#btn-notes").textContent = "Notes: " + (notesOn ? "on" : "off");
+  requestAnimationFrame(drawEdges);
+}
+$("#btn-notes").onclick = () => { notesOn = !notesOn; try { localStorage.setItem("dsmap-notes", notesOn ? "on" : "off"); } catch (e) {} applyNotes(); };
+$("#btn-timeline").onclick = () => setView("timeline");
+$("#btn-themes").onclick = () => setView("themes");
+$("#drawer-close").onclick = closeDrawer;
+$("#overlay").onclick = closeDrawer;
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeDrawer(); });
+window.addEventListener("resize", () => { if (view === "themes") drawEdges(); });
+$("#btn-theme-toggle").onclick = () => {
+  const cur = document.documentElement.getAttribute("data-theme");
+  const dark = cur ? cur === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  const next = dark ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", next);
+  try { localStorage.setItem("dsmap-theme", next); } catch (e) {}
+};
+
+/* ---------- Init ---------- */
+try { const t = localStorage.getItem("dsmap-theme"); if (t) document.documentElement.setAttribute("data-theme", t); } catch (e) {}
+renderLegend(); renderTimeline(); renderThemes();
+let initial = "timeline"; try { initial = localStorage.getItem("dsmap-view") || "timeline"; } catch (e) {}
+setView(initial); applyNotes();
+</script>
+</body>
+</html>

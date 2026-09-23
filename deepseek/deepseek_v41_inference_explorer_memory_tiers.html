@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DeepSeek V4.1 Flash — Inference Explorer (Memory-Tier Overlay)</title><style>
+
+:root{--bg:#07111f;--panel:#0d1b30;--panel2:#112640;--text:#edf5ff;--muted:#9bb0c9;--cyan:#44d7f5;--violet:#a78bfa;--green:#56e39f;--amber:#f6c453;--red:#fb7185;--line:#2b4668}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(circle at 15% 0,#15365a 0,#07111f 43%,#050b15 100%);color:var(--text);font:14px/1.42 Inter,ui-sans-serif,system-ui,-apple-system,sans-serif}
+.app{max-width:1500px;margin:auto;padding:22px}
+header{display:flex;align-items:end;justify-content:space-between;gap:16px;margin-bottom:16px}
+h1{font-size:28px;letter-spacing:-.8px;margin:0}
+h1 span{color:var(--cyan)}
+.sub{color:var(--muted);margin-top:5px}
+.metrics{display:flex;gap:8px;flex-wrap:wrap}
+.metric{border:1px solid var(--line);border-radius:9px;background:#0a172a;padding:7px 10px;color:#c9d8ea;font-size:12px}
+.metric b{color:var(--cyan);font-size:15px;margin-left:5px}
+.controls{background:#0b1930d9;border:1px solid #294463;border-radius:14px;padding:13px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:14px}
+.controls label{color:var(--muted);font-size:12px}
+.controls select,.controls input{background:#081426;color:var(--text);border:1px solid #315475;border-radius:7px;padding:7px}
+.controls button{cursor:pointer;border:1px solid #3e6e91;background:#133150;color:#def5ff;padding:8px 12px;border-radius:8px;font-weight:700}
+.controls button:hover{background:#174469}
+.controls .primary{background:#0d708a;border-color:#4ce5ff}
+.layout{display:grid;grid-template-columns:minmax(740px,2.25fr) minmax(300px,1fr);gap:14px}
+.stage{position:relative;min-height:690px;background:linear-gradient(145deg,#09192d,#0a1628 55%,#0b2032);border:1px solid #294b68;border-radius:16px;overflow:hidden}
+.stagehead{padding:14px 16px;border-bottom:1px solid #26455f;display:flex;justify-content:space-between;align-items:center}
+.stagehead strong{font-size:16px}
+.phase{color:var(--cyan);font-size:12px;font-weight:800;letter-spacing:1px}
+.canvas{position:relative;height:1187px;min-width:790px}
+.zone{position:absolute;border:1px dashed #315979;border-radius:13px;background:rgba(11,32,54,.48);padding:9px}
+.zone h3{font-size:12px;margin:0 0 8px;color:#b8d7ef;letter-spacing:.4px}
+.tokens{left:16px;top:20px;width:125px;height:1047px}
+.layers{left:157px;top:20px;width:279px;height:330px}
+.decoder{left:157px;top:366px;width:279px;height:701px}
+.memory{right:16px;top:20px;width:336px;height:1047px}
+.tok{height:30px;border-radius:6px;border:1px solid #3a6182;background:#112e4c;display:flex;align-items:center;padding:0 7px;margin:5px 0;font-size:11px;color:#d3edff;transition:.25s}
+.tok.active{border-color:#71efff;background:#155c76;box-shadow:0 0 16px #2ee7ff7d}
+.tok.faded{opacity:.32}
+.layerrow{display:flex;gap:6px;margin:7px 0}
+.layer{width:56px;height:39px;border:1px solid #355976;border-radius:7px;background:#102b48;display:flex;flex-direction:column;justify-content:center;align-items:center;font-size:10px;color:#c8eaff;transition:.25s}
+.layer small{font-size:8px;color:#8ba5bf}
+.layer.active{background:#1c5f77;border-color:#62f2ff;box-shadow:0 0 14px #36e7ff77}
+.layer.done{border-color:#2e9c72;background:#123d39}
+.conn{position:absolute;height:2px;background:linear-gradient(90deg,transparent,var(--cyan),transparent);transform-origin:left center;opacity:.22}
+.packet{position:absolute;width:14px;height:14px;border-radius:50%;background:var(--cyan);box-shadow:0 0 14px var(--cyan);z-index:5;opacity:0}
+.packet.go{opacity:1;animation:move var(--dur,1s) ease-in-out forwards}
+@keyframes move{from{left:var(--x1);top:var(--y1)}
+to{left:var(--x2);top:var(--y2)}
+}
+.cachebox{border:1px solid #315977;background:#0a192c;border-radius:8px;padding:7px;margin:6px 0;min-height:52px}
+.cachebox h4{margin:0 0 5px;font-size:10px;color:#b7d7ef}
+.cells{display:flex;gap:3px;flex-wrap:wrap}
+.cell{width:18px;height:15px;border-radius:3px;background:#1a4664;border:1px solid #347393;transition:.3s}
+.cell.on{background:#49d7f6;box-shadow:0 0 8px #49d7f6}
+.cell.shared{background:#a78bfa;border-color:#c4b5fd}
+.cell.fp4{background:#e9b647;border-color:#ffd67a}
+.cell.swa{background:#48c789;border-color:#8bf0be}
+.cell.sel{outline:2px solid #fff;transform:scale(1.15)}
+.engram{border-color:#704db7;background:linear-gradient(140deg,#1b1640,#101a37)}
+.tier{border:1px solid #2b4668;border-radius:10px;background:rgba(8,20,36,.55);padding:5px 8px;margin:0 auto 5px;border-left-width:5px}
+.t1{width:72%;border-left-color:#56e39f}
+.t2{width:86%;border-left-color:#44d7f5}
+.t3{width:95%;border-left-color:#f6c453}
+.t4{width:100%;border-left-color:#fb7185}
+.tierhead{display:flex;gap:8px;align-items:baseline;margin-bottom:5px;flex-wrap:wrap}
+.tname{font-size:11px;font-weight:800;letter-spacing:.4px;color:#e8f4ff}
+.lat{font-size:11px;font-weight:800;font-family:ui-monospace,SFMono-Regular,monospace}
+.t1 .lat{color:#56e39f}.t2 .lat{color:#44d7f5}.t3 .lat{color:#f6c453}.t4 .lat{color:#fb7185}
+.cap{font-size:9px;color:#8ba5bf;margin-left:auto;text-align:right}
+.minichip{border:1px solid #315977;background:#0c1e33;border-radius:8px;padding:5px 7px;margin:4px 0;font-size:10px;color:#c8dcf0;line-height:1.3}
+.minichip b{color:#e8f4ff;font-size:10.5px}
+.paid{display:block;font-size:9.5px;color:#93e6c8;margin-top:2px;font-style:italic;line-height:1.3}
+.t3 .paid{color:#ffe4a5}.t4 .paid{color:#ffb3c0}
+.tierlegend{font-size:9.5px;color:#8ba5bf;margin:-2px 0 7px}
+.cachebox .paid{margin-top:5px}
+.engram .cell{background:#5b3fa3;border-color:#9b7cf3}
+.engram .cell.on{background:#c4b5fd;box-shadow:0 0 9px #b59cff}
+.gate{height:8px;background:#152b45;border-radius:10px;overflow:hidden;margin-top:6px}
+.gate i{display:block;background:linear-gradient(90deg,#8b5cf6,#f0abfc);height:100%;width:0;transition:.45s}
+.note{position:absolute;left:16px;bottom:13px;right:16px;background:#071526e8;border:1px solid #2d4d6a;border-radius:10px;padding:10px 13px;color:#b8c9dd}
+.note b{color:#7ee9ff}
+.side{display:flex;flex-direction:column;gap:14px}
+.card{background:#0b1930d9;border:1px solid #294463;border-radius:14px;padding:14px}
+.card h2{font-size:15px;margin:0 0 8px;color:#d9efff}
+.card p{margin:7px 0;color:var(--muted)}
+.step{border-left:3px solid #3f6888;padding:8px 9px;background:#0a1628;margin:7px 0;border-radius:0 7px 7px 0;color:#bcd0e4}
+.step.current{border-color:var(--cyan);background:#0d2c42;color:#effaff}
+.legend{display:flex;flex-wrap:wrap;gap:7px}
+.badge{font-size:11px;border-radius:20px;padding:3px 7px;border:1px solid}
+.bcyan{color:#aaf3ff;border-color:#267e99}
+.bviolet{color:#d5c8ff;border-color:#7054b2}
+.bgreen{color:#b7f7d4;border-color:#347e5d}
+.bamber{color:#ffe4a5;border-color:#9f7630}
+.toggle{display:flex;align-items:center;gap:8px;margin:8px 0;color:#c0d1e5}
+.toggle input{accent-color:#44d7f5}
+@media(max-width:1100px){.layout{grid-template-columns:1fr}
+.stage{overflow:auto}
+.canvas{min-width:790px}
+}
+@media(max-width:650px){header{display:block}
+.app{padding:12px}
+}
+
+</style>
+</head>
+<body>
+<div class="app">
+<header>
+<div>
+<h1><span>DeepSeek V4.1 Flash</span> inference explorer · memory tiers</h1>
+<div class="sub">A deliberately small 5-layer causal encoder + 5-layer decoder schematic. It illustrates dataflow, not exact layer placement or dimensions.</div></div>
+<div class="metrics">
+<div class="metric">Global KV <b id="kvMetric">0</b></div>
+<div class="metric">SWA KV <b id="swaMetric">0</b></div>
+<div class="metric">Engram rows <b id="engMetric">0</b></div></div>
+</header>
+
+<div class="controls">
+<button class="primary" id="btnPrefill" onclick="markActive(this);runPrefill()">▶ Animate prefill</button>
+<button onclick="markActive(this);runDecode()">▶ Generate next token</button>
+<button onclick="markActive(this);runCacheMiss()">▶ SWA cache miss</button>
+<button onclick="markActive(this);runEngram()">▶ Engram lookup</button>
+<button onclick="resetAll()">↺ Reset</button>
+<label>CSA2 policy 
+<select id="policy" onchange="renderPolicy()">
+<option value="mixed">Mixed: Full / Reindex / Reuse</option>
+<option value="full">All Full</option>
+<option value="reuse">Aggressive reuse</option></select></label>
+<label class="toggle">
+<input type="checkbox" id="fp4" checked onchange="renderPolicy()"> FP4 global KV</label></div>
+
+<div class="layout">
+<section class="stage">
+<div class="stagehead"><strong>Token flow and state placement</strong><span class="phase" id="phase">READY</span></div>
+ 
+<div class="canvas" id="canvas">
+<div class="zone tokens">
+<h3>INPUT / OUTPUT TOKENS</h3>
+<div id="tokenList"></div></div>
+<div class="zone layers">
+<h3>CAUSAL ENCODER — runs in prefill</h3>
+<div id="enc"></div>
+<div class="cachebox">
+<h4>Encoder final hidden stream H[t]</h4>
+<div class="cells" id="hidden"></div></div></div>
+<div class="zone decoder">
+<h3>DECODER — skipped in prompt prefill</h3>
+<div id="dec"></div>
+<div class="cachebox">
+<h4>Decoder reads projected global KV</h4>
+<div class="cells" id="selected"></div></div></div>
+<div class="zone memory">
+<h3>MEMORY HIERARCHY — HARDWARE OVERLAY</h3>
+<div class="tierlegend">width ≈ capacity · stripe ≈ latency · five orders of magnitude top to bottom</div>
+<div class="tier t1">
+<div class="tierhead"><span class="tname">GPU SRAM</span><span class="lat">~1–5 ns</span><span class="cap">~50 MB · 20–100 TB/s on-chip</span></div>
+<div class="minichip"><b>Kernel working set</b> — activations, indexer scores, Top-K sort<span class="paid">lives only inside a kernel's lifetime — invisible in the time budget</span></div></div>
+<div class="tier t2">
+<div class="tierhead"><span class="tname">GPU HBM3e</span><span class="lat">~0.4–0.7 µs</span><span class="cap">141–192 GB/GPU · 5–8 TB/s</span></div>
+<div class="minichip"><b>MoE weights — 552B total · 16B active</b><span class="paid">~32 GB/token streamed → ~0.4–0.5 ms floor — ≥95% of every decode step</span></div>
+<div class="cachebox">
+<h4>Global KV — active sessions · FP4 · token-addressable</h4>
+<div class="cells" id="global"></div>
+<div class="gate"><i id="fpbar" style="width:72%"></i></div>
+<small id="fptext" style="color:#9bb0c9">FP4: compact retained scalar values</small>
+<span class="paid">~1 µs/step — Top-512 slice ≈ 450 KB at 8 TB/s</span></div>
+<div class="cachebox">
+<h4>CSA2 sparse index — selected global positions</h4>
+<div class="cells" id="indices"></div>
+<span class="paid">sub-µs — HSI candidate pool caps scoring, independent of context length</span></div>
+<div class="minichip"><b>SWA KV — active window</b><span class="paid">&lt;1 µs — last n_win tokens only; capacity cost ≈ zero</span></div></div>
+<div class="tier t3">
+<div class="tierhead"><span class="tname">Host DRAM (PCIe 5 / CXL)</span><span class="lat">~1–2 µs</span><span class="cap">TBs/host · ~64 GB/s hop</span></div>
+<div class="cachebox">
+<h4>SWA KV — recent-session pool (10% of host DRAM)</h4>
+<div class="cells" id="swa"></div>
+<span class="paid">hit: 1.5–3 µs, hidden by prefetch · miss: bounded replay ≈ 10–100 µs of compute — never SSD</span></div>
+<div class="cachebox engram">
+<h4>Engram — 196B learned weight tables (not activations)</h4>
+<div class="cells" id="engram"></div>
+<div class="gate"><i id="gate"></i></div>
+<small style="color:#cbbcff">Model weights (not activations) · hash current n-grams → sparse rows → learned gate</small>
+<span class="paid">deterministic addresses → RDMA prefetch: ~0 on critical path · ~2 µs if stalled</span></div></div>
+<div class="tier t4">
+<div class="tierhead"><span class="tname">NVMe SSD (Gen5)</span><span class="lat">~50–100 µs</span><span class="cap">tens of TB · ~12–14 GB/s per drive</span></div>
+<div class="minichip"><b>Global KV — persistent prefix cache (≥ 72 h)</b><span class="paid">direct hit ~60–100 µs — so hits are promoted SSD → DRAM → HBM before the turn starts</span></div></div>
+</div>
+<div class="note" id="note"><b>Start here.</b> Prefill streams the prompt through the causal encoder. Click an animation, then inspect the highlighted state.</div></div></section>
+
+<aside class="side">
+<section class="card">
+<h2>What this visual separates</h2>
+<div class="legend"><span class="badge bcyan">Compute path</span><span class="badge bviolet">Shared KV / Engram weights</span><span class="badge bgreen">SWA local state</span><span class="badge bamber">FP4 stored values</span></div><p><b>Causal Encoder Decoder (CED)</b> answers where global KV is authored: per-token from the encoder final stream. <b>CSA2</b> answers which layers own vs share that state. <b>FP4</b> answers its numeric storage cost. <b>SWA</b> gets a separate short-life tier.</p></section>
+<section class="card">
+<h2>Compressed Sparse Attention (CSA2) layer modes</h2>
+<div id="modeText"></div></section>
+<section class="card">
+<h2>Animation ledger</h2>
+<div id="ledger">
+<div class="step current">Ready: choose a path above.</div></div></section>
+<section class="card">
+<h2>Engram: weights, not activations</h2><p>Engram's tables are part of the model's <b>weights</b> — 196B parameters trained offline, just like an MoE expert's matrices. Nothing is written, updated, or invalidated as tokens stream by. The KV caches above are the opposite: <b>activations</b>, request-specific state created by this very request.</p><p>The conditioning works like MoE routing, but with a hash instead of a learned router. An MoE layer computes router logits and fires a few of many experts; Engram deterministically hashes the <b>current 2-, 3-, and 4-token patterns (n-grams)</b> into addresses in multi-head, prime-sized tables and reads only those rows. The condition is the local token pattern itself.</p><p>A learned <b>gate</b> then meters how much of the retrieved vectors enters the residual stream — the analog of MoE's expert weighting. So Engram is best read as a hash-routed, n-gram-conditioned memory: sparse and conditional like MoE, but addressed by content pattern rather than a router network, and read-only at inference.</p></section>
+</aside></div></div>
+<script>
+const toks=['DeepSeek','uses','cached','context','for','agents'];let generated=[];let busy=false;const $=x=>document.getElementById(x);const sleep=x=>new Promise(r=>setTimeout(r,x));
+
+function cells(id,n,cls=''){ $(id).innerHTML=Array.from({length:n},(_,i)=>`<i class="cell ${cls}" data-i="${i}"></i>`).join('') }
+
+function init(){ $('tokenList').innerHTML=[...toks,...generated].map((t,i)=>`<div class="tok" id="tok${i}">${i<6?'t'+(i+1):'new'} · ${t}</div>`).join('');$('enc').innerHTML=Array.from({length:5},(_,i)=>`<div class="layerrow"><div class="layer" id="e${i}">E${i+1}<small>causal</small></div><div class="layer" id="em${i}">MoE<small>route</small></div></div>`).join('');$('dec').innerHTML=Array.from({length:5},(_,i)=>`<div class="layerrow"><div class="layer" id="d${i}">D${i+1}<small>${mode(i)}</small></div><div class="layer" id="dm${i}">MoE<small>route</small></div></div>`).join('');cells('hidden',6);cells('global',12);cells('indices',6);cells('swa',6,'swa');cells('engram',12);cells('selected',6);renderPolicy(); }
+
+function mode(i){let p=$('policy')?.value||'mixed';if(p==='full')return'Full';if(p==='reuse')return i===0?'Full':'Reuse';return ['Full','Reuse','Reuse','Reuse','Reindex'][i]}
+
+function renderPolicy(){ if(!$('dec'))return;for(let i=0;i<5;i++){$('d'+i).querySelector('small').textContent=mode(i)};let p=$('policy').value;let text={mixed:'Decoder Layer 1 (D1) Full creates the reference; D2, D3 and D4 Reuse its global KV and selected positions; D5 Reindex keeps the shared cache but makes its own Top-K sparse selection.',full:'Every decoder layer owns main KV and computes a fresh sparse selection. Most independent; most cache and indexer work.',reuse:'D1 is Full; later layers Reuse its global KV and selected positions. Maximum sharing; least layer-specific routing.'}[p];$('modeText').innerHTML='<p>'+text+'</p>';let fp=$('fp4').checked;$('fptext').textContent=fp?'FP4: compact retained scalar values':'Higher-precision illustration: more bytes per retained value';$('fpbar').style.width=fp?'72%':'100%';$('fpbar').style.background=fp?'linear-gradient(90deg,#d99827,#ffd86c)':'linear-gradient(90deg,#43c8ef,#b5f4ff)'; }
+
+function markActive(btn){document.querySelectorAll('.controls button').forEach(b=>b.classList.remove('primary'));btn.classList.add('primary')}
+function clearActive(){document.querySelectorAll('.active,.done,.on,.sel').forEach(x=>x.classList.remove('active','done','on','sel'))}
+function log(s){$('ledger').innerHTML='<div class="step current">'+s+'</div>'+$('ledger').innerHTML.replace('current','');}
+function note(s){$('note').innerHTML=s}
+function metric(){let g=$('global').querySelectorAll('.on').length;let s=$('swa').querySelectorAll('.on').length;let e=$('engram').querySelectorAll('.on').length;$('kvMetric').textContent=g+' token-slots';$('swaMetric').textContent=s+' recent slots';$('engMetric').textContent=e+' sparse rows'}
+
+async function runPrefill(){if(busy)return;busy=true;clearActive();$('phase').textContent='PREFILL';log('Prefill begins: prompt tokens advance in parallel through the 5-layer causal encoder.');for(let t=0;t<6;t++){$('tok'+t).classList.add('active');$('hidden').children[t].classList.add('on');await sleep(240)}for(let l=0;l<5;l++){['e'+l,'em'+l].forEach(id=>$(id).classList.add('active'));await sleep(600);['e'+l,'em'+l].forEach(id=>{ $(id).classList.remove('active');$(id).classList.add('done')})}note('<b>CED projection:</b> each token’s final encoder hidden state H[t] is mapped by learned projection weights into decoder-readable global KV. It is still per-token, not a single prompt aggregate.');log('CED: project H[t] → global KV[t] for each prompt token; decoder layers were not run during prefill.');for(let i=0;i<6;i++){let c=$('global').children[i];c.classList.add('on');c.classList.toggle('fp4',$('fp4').checked);$('swa').children[i].classList.add('on');await sleep(260)}await runEngram(true);metric();$('phase').textContent='PREFILL COMPLETE';busy=false}
+
+async function runDecode(){if(busy)return;busy=true;clearActive();$('phase').textContent='DECODE';let n=generated.length;let ti=6+n;generated.push(['<next>','token','arrives'][n]||'token');init();$('tok'+ti).classList.add('active');log('Decode: one new token takes the full encoder + decoder path; cached prompt KV is read, not recomputed.');for(let l=0;l<5;l++){['e'+l,'em'+l].forEach(id=>$(id).classList.add('active'));await sleep(440);['e'+l,'em'+l].forEach(id=>{ $(id).classList.remove('active');$(id).classList.add('done')})}for(let l=0;l<5;l++){let m=mode(l);['d'+l,'dm'+l].forEach(id=>$(id).classList.add('active'));if(m==='Full'){ $('indices').children[l].classList.add('on');$('global').children[l].classList.add('on')} else if(m==='Reindex'){ $('indices').children[l].classList.add('on');$('global').children[0].classList.add('shared')}else{$('indices').children[0].classList.add('shared');$('global').children[0].classList.add('shared')}for(let i=0;i<6;i++)if(i%2===l%2)$('selected').children[i].classList.add('sel');await sleep(620);['d'+l,'dm'+l].forEach(id=>{$(id).classList.remove('active');$(id).classList.add('done')});document.querySelectorAll('#selected .sel').forEach(x=>x.classList.remove('sel'))}let idx=Math.min(11,6+n);$('global').children[idx].classList.add('on');$('global').children[idx].classList.toggle('fp4',$('fp4').checked);$('swa').children[(5+n)%6].classList.add('on');await runEngram(true);metric();note('<b>Decode output:</b> every decoder layer ran its MoE feed-forward (the dominant per-token cost); only the attention cache/index work varied by CSA2 mode. The token used encoder-projected global KV, CSA2 sparse selection, and a local SWA window, then appended new request KV state.');$('phase').textContent='TOKEN GENERATED';busy=false}
+
+async function runEngram(silent=false){if(busy&&!silent)return;if(!silent)busy=true;$('phase').textContent='ENGRAM LOOKUP';document.querySelectorAll('#engram .on').forEach(x=>x.classList.remove('on'));log('Engram read: hash local 2-, 3-, 4-token patterns to a few learned weight-table rows — read-only, like MoE expert selection by hash.');for(let i of [1,4,7,10]){$('engram').children[i].classList.add('on');await sleep(320)}$('gate').style.width='72%';note('<b>Engram read path:</b> these rows are trained weights, not activations. The current 2-, 3-, and 4-token patterns are hashed — deterministically, like MoE routing without a router — to a few table rows; a learned gate meters their contribution into the residual stream. Nothing is written at inference.');metric();if(!silent){$('phase').textContent='ENGRAM READ COMPLETE';busy=false}}
+
+async function runCacheMiss(){if(busy)return;busy=true;clearActive();$('phase').textContent='SWA CACHE MISS';document.querySelectorAll('#swa .on').forEach(x=>x.classList.remove('on'));log('SWA miss: local state is absent from its short-lived host-DRAM tier; do bounded replay, not full-history reconstruction.');note('<b>Bounded replay:</b> reprocess only the most recent local window to rebuild Sliding-Window Attention KV. Long-lived global KV remains available and is not replayed.');for(let t=3;t<6;t++){$('tok'+t).classList.add('active');await sleep(380);$('swa').children[t].classList.add('on')}metric();$('phase').textContent='SWA REBUILT';busy=false}
+
+function resetAll(){busy=false;generated=[];markActive($('btnPrefill'));$('gate').style.width='0';$('phase').textContent='READY';init();metric();note('<b>Start here.</b> Prefill streams the prompt through the causal encoder. Click an animation, then inspect the highlighted state.');$('ledger').innerHTML='<div class="step current">Ready: choose a path above.</div>'}init();metric();
+</script>
+</body>
+</html>
+

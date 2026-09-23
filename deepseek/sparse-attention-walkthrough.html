@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sliding Window & Sparse Attention — an interactive reference (SWA, NSA, DSA, CSA, CSA2, HCA)</title>
+<style>
+  :root{
+    --paper:#EEF1EC; --panel:#FFFFFF; --ink:#14201E; --ink-2:#4A5754; --rule:#C9D0C7;
+    --dense:#1D5DD8; --window:#157A61; --global:#6B3FA0; --strided:#3B7DD8; --random:#8C6AC8;
+    --block:#2E86AB; --compressed:#E3C98C; --selected:#B23A48; --masked:#DCE0D8; --sink:#D07A1B;
+    --serif:"Charter","Bitstream Charter","Iowan Old Style","Source Serif Pro",Georgia,serif;
+    --sans:"Avenir Next","Segoe UI","Helvetica Neue",Arial,sans-serif;
+    --mono:"JetBrains Mono","SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto} *{transition:none!important;animation:none!important}}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--serif);font-size:17px;line-height:1.6}
+  a{color:var(--dense)} a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--sink);outline-offset:2px}
+  h1,h2,h3,h4{font-family:var(--sans);line-height:1.15;letter-spacing:-0.01em;margin:0 0 .5em}
+  h1{font-size:clamp(2rem,4.5vw,3.4rem);font-weight:700;max-width:22ch}
+  h2{font-size:1.75rem;font-weight:700;margin-top:2.6em;padding-top:.6em;border-top:2px solid var(--ink)}
+  h3{font-size:1.2rem;font-weight:600;margin-top:1.8em}
+  p,li{max-width:72ch}
+  code,kbd{font-family:var(--mono);font-size:.88em;background:#E2E7DF;padding:.05em .3em;border-radius:3px}
+  pre{font-family:var(--mono);font-size:.85rem;background:#1E2A28;color:#E8EEE9;padding:1rem 1.2rem;border-radius:6px;overflow:auto;max-width:72ch;line-height:1.5}
+  pre code{background:none;padding:0;color:inherit}
+  .math{font-family:var(--mono);font-size:.95em}
+  .layout{display:grid;grid-template-columns:230px minmax(0,1fr);gap:3rem;max-width:1240px;margin:0 auto;padding:0 1.5rem 6rem}
+  nav.toc{position:sticky;top:1.5rem;align-self:start;font-family:var(--sans);font-size:.86rem;padding-top:2.2rem}
+  nav.toc ol{list-style:none;padding:0;margin:0;border-left:2px solid var(--rule)}
+  nav.toc li a{display:block;color:var(--ink-2);text-decoration:none;padding:.28rem .8rem;border-left:2px solid transparent;margin-left:-2px}
+  nav.toc li a:hover,nav.toc li a.active{color:var(--ink);border-left-color:var(--selected)}
+  main{min-width:0}
+  header.hero{padding:3rem 0 1rem}
+  header.hero p.lede{font-size:1.15rem;max-width:62ch;color:var(--ink-2)}
+  .panel{background:var(--panel);border:1px solid var(--rule);border-radius:8px;padding:1.2rem 1.4rem;margin:1.4rem 0;font-family:var(--sans);font-size:.92rem}
+  .panel h3{margin-top:0}
+  .controls{display:flex;flex-wrap:wrap;gap:.9rem 1.4rem;align-items:end;margin:.6rem 0 1rem}
+  .controls label{display:flex;flex-direction:column;gap:.25rem;font-size:.8rem;color:var(--ink-2)}
+  .controls label b{font-weight:600;color:var(--ink)}
+  .controls input[type=range]{width:150px;accent-color:var(--selected)}
+  .controls select,.controls input[type=number]{font:inherit;font-size:.9rem;padding:.3rem .45rem;border:1px solid var(--rule);border-radius:4px;background:#fff}
+  .explorer{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:1.4rem;align-items:start}
+  @media(max-width:900px){.layout{grid-template-columns:1fr}nav.toc{display:none}.explorer{grid-template-columns:1fr}}
+  canvas{display:block;width:100%;height:auto;border:1px solid var(--rule);background:#fff;image-rendering:pixelated}
+  .legend{display:flex;flex-wrap:wrap;gap:.4rem .9rem;font-size:.78rem;margin-top:.6rem}
+  .legend span{display:inline-flex;align-items:center;gap:.35rem}
+  .legend i{width:12px;height:12px;border:1px solid rgba(0,0,0,.15);display:inline-block}
+  .stats{font-size:.9rem;line-height:1.45}
+  .stats .big{font-size:2.2rem;font-weight:700;font-family:var(--sans);letter-spacing:-.02em;display:block;line-height:1}
+  .stats dl{display:grid;grid-template-columns:auto 1fr;gap:.25rem .8rem;margin:.6rem 0 0}
+  .stats dt{color:var(--ink-2)} .stats dd{margin:0;font-family:var(--mono);font-size:.85rem}
+  .hoverline{min-height:2.6em;color:var(--ink-2);font-size:.82rem;margin-top:.7rem}
+  table{border-collapse:collapse;font-family:var(--sans);font-size:.88rem;width:100%;max-width:900px;margin:1rem 0}
+  th,td{text-align:left;padding:.5rem .6rem;border-bottom:1px solid var(--rule);vertical-align:top}
+  th{background:#E2E7DF;font-weight:600}
+  td.m{font-family:var(--mono);font-size:.82rem;white-space:nowrap}
+  .bars{display:grid;gap:.5rem;margin-top:.8rem}
+  .bar{display:grid;grid-template-columns:150px 1fr 120px;gap:.6rem;align-items:center;font-size:.82rem}
+  .bar .track{height:14px;background:#E2E7DF;border-radius:3px;overflow:hidden}
+  .bar .fill{height:100%;background:var(--dense);border-radius:3px}
+  .bar .v{font-family:var(--mono);text-align:right}
+  .steps{display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:.8rem}
+  button.step,button.small{font:inherit;font-family:var(--sans);font-size:.82rem;padding:.35rem .7rem;border:1px solid var(--rule);background:#fff;border-radius:4px;cursor:pointer}
+  button.step[aria-pressed=true]{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .stepcap{font-size:.9rem;min-height:4.5em}
+  .layers{display:grid;grid-template-columns:repeat(20,1fr);gap:3px;margin:.6rem 0}
+  .layers button{aspect-ratio:1;border:1px solid var(--rule);border-radius:3px;cursor:pointer;font:inherit;font-size:.62rem;font-family:var(--mono);padding:0;color:#fff}
+  .layers button.F{background:var(--selected)} .layers button.R{background:var(--block)} .layers button.U{background:#9AA59F}
+  .lgroup{font-size:.78rem;color:var(--ink-2);display:flex;justify-content:space-between;font-family:var(--sans)}
+  .callout{border-left:4px solid var(--sink);background:#FBF4E8;padding:.8rem 1rem;margin:1.2rem 0;max-width:72ch}
+  .callout.blue{border-color:var(--dense);background:#E8EEFB}
+  dl.gloss{max-width:80ch} dl.gloss dt{font-family:var(--sans);font-weight:600;margin-top:.9rem} dl.gloss dd{margin:.15rem 0 0 0;color:var(--ink)}
+  ol.refs li{margin:.5rem 0;max-width:85ch;font-size:.95rem} ol.refs a{word-break:break-all}
+  sup a{text-decoration:none;font-family:var(--sans);font-size:.7em}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:1.2rem}
+  @media(max-width:700px){.grid2{grid-template-columns:1fr}}
+  .note{font-size:.82rem;color:var(--ink-2)}
+  figure{margin:1.2rem 0} figcaption{font-family:var(--sans);font-size:.8rem;color:var(--ink-2);margin-top:.4rem;max-width:72ch}
+</style>
+</head>
+<body>
+<div class="layout">
+<nav class="toc" aria-label="Contents">
+  <ol>
+    <li><a href="#explorer">Mask explorer</a></li>
+    <li><a href="#why">Why attention is expensive</a></li>
+    <li><a href="#swa">Sliding window attention</a></li>
+    <li><a href="#taxonomy">Sparse attention: a map</a></li>
+    <li><a href="#fixed">Fixed patterns</a></li>
+    <li><a href="#dynamic">Dynamic / native sparsity</a></li>
+    <li><a href="#csa">CSA in depth</a></li>
+    <li><a href="#csa2">CSA2 in depth</a></li>
+    <li><a href="#cost">Cost calculator</a></li>
+    <li><a href="#when">When to use what</a></li>
+    <li><a href="#glossary">Glossary</a></li>
+    <li><a href="#refs">References</a></li>
+  </ol>
+</nav>
+
+<main>
+<header class="hero">
+  <h1>Sliding Window and Sparse Attention, from Longformer to CSA2</h1>
+  <p class="lede">An interactive reference on how modern language models avoid paying the full quadratic price of attention: what each pattern computes, why it was designed that way, and what it saves in GPU floating-point operations and memory. Every acronym is expanded on first use and collected in the <a href="#glossary">glossary</a>; claims about specific models point to the <a href="#refs">references</a>.</p>
+  <p class="note">Notation used throughout: <span class="math">n</span> = sequence length (tokens), <span class="math">d</span> = head dimension, <span class="math">H</span> = number of key/value heads, <span class="math">L</span> = number of layers, <span class="math">w</span> = window size, <span class="math">k</span> = number of selected entries, <span class="math">m</span> = compression ratio (tokens per compressed entry).</p>
+</header>
+
+<!-- ================= EXPLORER ================= -->
+<section id="explorer" class="panel">
+  <h3>Attention mask explorer</h3>
+  <p style="font-family:var(--serif);font-size:1rem">Rows are queries (the token being produced), columns are keys (the tokens it may look at). A cell is painted when the model actually computes a score for that pair. Everything above the diagonal is masked by causality. Hover a row to see what a single query reads.</p>
+  <div class="controls">
+    <label><b>Pattern</b>
+      <select id="pattern">
+        <option value="dense">Dense causal (baseline)</option>
+        <option value="window" selected>Sliding window (SWA)</option>
+        <option value="dilated">Dilated sliding window</option>
+        <option value="strided">Strided (Sparse Transformer)</option>
+        <option value="longformer">Window + global tokens (Longformer)</option>
+        <option value="bigbird">Window + global + random (BigBird)</option>
+        <option value="sink">Window + attention sinks (StreamingLLM)</option>
+        <option value="moba">Block-sparse top-k blocks (MoBA)</option>
+        <option value="dsa">Token top-k via indexer (DSA)</option>
+        <option value="csa">Compressed + selected + window (NSA / CSA)</option>
+        <option value="hca">Heavily compressed, dense (HCA)</option>
+      </select></label>
+    <label><b>Sequence n</b> <select id="n"><option>16</option><option selected>32</option><option>48</option><option>64</option></select></label>
+    <label><b>Window w</b> <span id="wv">8</span><input type="range" id="w" min="1" max="32" value="8"></label>
+    <label><b>Block / group m</b> <span id="mv">4</span><input type="range" id="m" min="2" max="16" value="4"></label>
+    <label><b>Top-k</b> <span id="kv">3</span><input type="range" id="k" min="1" max="12" value="3"></label>
+    <label><b>Global / sink tokens g</b> <span id="gv">2</span><input type="range" id="g" min="0" max="6" value="2"></label>
+  </div>
+  <div class="explorer">
+    <div>
+      <canvas id="mask" width="640" height="640" role="img" aria-label="Attention mask grid"></canvas>
+      <div class="legend" id="legend"></div>
+      <div class="hoverline" id="hover">Hover a row.</div>
+    </div>
+    <div class="stats">
+      <span class="big" id="pct">—</span>
+      <span>of the dense causal score matrix is computed</span>
+      <dl>
+        <dt>Scores computed</dt><dd id="s-comp">—</dd>
+        <dt>Dense causal</dt><dd id="s-dense">—</dd>
+        <dt>Entries read per query (avg)</dt><dd id="s-avg">—</dd>
+        <dt>Asymptotic cost</dt><dd id="s-asym">—</dd>
+        <dt>KV entries stored</dt><dd id="s-store">—</dd>
+      </dl>
+      <p id="pdesc" style="font-family:var(--serif);font-size:.92rem;margin-top:.9rem"></p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= WHY ================= -->
+<h2 id="why">1. Why attention is expensive</h2>
+<p>Scaled dot-product attention<sup><a href="#r-vaswani">[1]</a></sup> computes, for every query <span class="math">q<sub>i</sub></span>, a score against every key <span class="math">k<sub>j</sub></span>, normalises the scores with a softmax, and takes the weighted sum of values <span class="math">v<sub>j</sub></span>:</p>
+<pre><code>Attention(Q, K, V) = softmax( Q Kᵀ / √d ) V</code></pre>
+<p>For a causal language model, query <span class="math">i</span> may only see keys <span class="math">j ≤ i</span>, so there are about <span class="math">n²/2</span> query–key pairs. Two matrix products touch all of them (<span class="math">QKᵀ</span> and <span class="math">PV</span>), each costing roughly <span class="math">2·d</span> floating-point operations per pair. Per head and per layer:</p>
+<pre><code>FLOPs(dense, prefill)  ≈ 4 · n² · d        (full n×n, or ≈ 2·n²·d causal-only)
+FLOPs(dense, one decode step) ≈ 4 · n · d   (one query against n keys)
+KV cache (bytes)       = 2 · L · H · d · bytes_per_element · n</code></pre>
+<p>Three separate costs grow with <span class="math">n</span>, and they hurt in different phases:</p>
+<ul>
+  <li><b>Prefill compute</b> (reading the prompt) is quadratic in <span class="math">n</span>. At one million tokens, dense attention is ~10¹² pair scores per head per layer.</li>
+  <li><b>Decode bandwidth</b> (writing the answer) is linear in <span class="math">n</span> per generated token, but it is <em>memory-bound</em>: every step has to stream the whole KV cache from high-bandwidth memory (HBM) through the GPU, and HBM bandwidth (a few TB/s) — not FLOPs — sets the speed.</li>
+  <li><b>KV cache memory</b> is linear in <span class="math">n</span> and multiplies by batch size. It decides how many concurrent requests fit on a GPU and whether a 1M-token context fits at all.</li>
+</ul>
+<div class="callout">Sparse attention attacks all three, but by different mechanisms. Restricting <em>which</em> keys a query reads reduces compute and bytes-read. Reducing <em>how many</em> keys are stored (windows, compression) reduces memory. The best designs, as we'll see with CSA, do both.</div>
+<p>Kernel work such as FlashAttention<sup><a href="#r-flash">[2]</a></sup> does not change the arithmetic count; it removes the <span class="math">n×n</span> score matrix from memory by computing attention in tiles that stay in on-chip SRAM. That is why the patterns below are almost always implemented as <em>block</em> sparsity: a GPU computes attention in tiles (typically 64–128 keys wide), so skipping a tile saves real time while skipping a single key inside a tile saves nothing.</p>
+
+<!-- ================= SWA ================= -->
+<h2 id="swa">2. Sliding window attention (SWA)</h2>
+<p><b>Definition.</b> Each query attends only to the most recent <span class="math">w</span> keys (positions <span class="math">i−w+1 … i</span>). The score matrix becomes a diagonal band of width <span class="math">w</span>. Also called <em>local attention</em> or <em>banded attention</em>; introduced for transformers by Longformer<sup><a href="#r-longformer">[3]</a></sup> and popularised for decoders by Mistral 7B<sup><a href="#r-mistral">[4]</a></sup>.</p>
+<pre><code>FLOPs(SWA, prefill) ≈ 4 · n · w · d           linear in n
+KV cache (SWA)      = 2 · L · H · d · bytes · min(n, w)   bounded, not growing</code></pre>
+<p><b>Rationale.</b> Most of the attention mass in trained models falls on nearby tokens; the window keeps that exactly. The cache can be a <em>rolling buffer</em> of size <span class="math">w</span>: position <span class="math">i</span> overwrites slot <span class="math">i mod w</span>, so memory is constant however long the conversation runs.</p>
+<p><b>Why it still sees far away: stacked receptive fields.</b> Information hops one window per layer. After <span class="math">L</span> layers a token can (in principle) be influenced by <span class="math">L·w</span> earlier tokens. Mistral 7B used <span class="math">w = 4096</span> over 32 layers, a theoretical reach of ~131k tokens. In practice the signal attenuates with each hop, which is why pure SWA models do poorly on precise long-range recall (find-the-needle tasks).</p>
+
+<div class="panel">
+  <h3>Receptive field of stacked windows</h3>
+  <div class="controls">
+    <label><b>Window w</b> <span id="rf-wv">4096</span><input type="range" id="rf-w" min="128" max="8192" step="128" value="4096"></label>
+    <label><b>Layers L</b> <span id="rf-lv">32</span><input type="range" id="rf-l" min="1" max="96" value="32"></label>
+    <label><b>Context n</b> <span id="rf-nv">131072</span><input type="range" id="rf-n" min="1024" max="1048576" step="1024" value="131072"></label>
+  </div>
+  <div class="bars" id="rf-bars"></div>
+  <p class="note" id="rf-note"></p>
+</div>
+
+<h3>Variants that fix SWA's blind spots</h3>
+<ul>
+  <li><b>Attention sinks (StreamingLLM)</b><sup><a href="#r-streaming">[5]</a></sup>. Trained models dump surplus attention mass onto the first few tokens. If a rolling window evicts them the softmax distribution collapses and perplexity explodes. Keeping <span class="math">g ≈ 4</span> initial tokens permanently in the cache ("sinks") restores stable streaming generation at zero training cost. (Try the <em>Window + attention sinks</em> pattern above.)</li>
+  <li><b>Interleaved local / global layers.</b> Gemma 2<sup><a href="#r-gemma2">[6]</a></sup> alternates one full-attention layer with one 4096-token local layer; Gemma 3<sup><a href="#r-gemma3">[7]</a></sup> uses a 5:1 ratio of local (1024-token) to global layers. The global layers provide exact long-range recall; the local layers cut KV memory by roughly the local fraction. This "hybrid" is now the mainstream way to ship SWA.</li>
+  <li><b>Dilated windows.</b> Attend to every <span class="math">r</span>-th key in a wider band (Longformer). Same cost as a window of <span class="math">w</span>, receptive field grows <span class="math">r×</span>, at the price of skipping neighbours. Rarely used in decoder LLMs today.</li>
+  <li><b>SWA Bounded Replay</b> (DeepSeek-V4.1-Flash)<sup><a href="#r-v41">[13]</a></sup>. When a long conversation is paged out and back in, the window KV is not persisted; the model recomputes it by replaying only the last <span class="math">w</span> tokens, so the persistent cache holds only the compressed global part.</li>
+</ul>
+
+<!-- ================= TAXONOMY ================= -->
+<h2 id="taxonomy">3. Sparse attention: a map of the design space</h2>
+<p>"Sparse attention" means any scheme where each query scores only a subset of the keys. The subset can be chosen three ways, and the choice drives both quality and hardware efficiency:</p>
+<table>
+  <tr><th>Family</th><th>How the subset is chosen</th><th>Examples</th><th>GPU friendliness</th></tr>
+  <tr><td><b>Fixed / structural</b></td><td>A static pattern defined by position only (band, stride, global columns, random blocks). Known before seeing the data.</td><td>Sparse Transformer, Longformer, BigBird, SWA, sinks</td><td>Excellent: mask is static, block layout is precomputed once.</td></tr>
+  <tr><td><b>Content-based, training-free</b></td><td>Cluster or hash queries and keys at runtime; or estimate which cached blocks matter for the current query.</td><td>Reformer (LSH), Routing Transformer, Quest, H2O</td><td>Mixed: irregular gathers; often applied only at inference on a dense-trained model.</td></tr>
+  <tr><td><b>Dynamic, trained natively</b></td><td>A small learned scorer picks top-k keys or blocks per query; the model is pretrained with the sparsity so it learns to live inside it.</td><td>NSA, MoBA, DSA, CSA, CSA2</td><td>Good when selection is per block and the kernel fuses selection + attention (FlashAttention-style tiling, FlexAttention, Attention Gym).</td></tr>
+</table>
+
+<!-- ================= FIXED ================= -->
+<h2 id="fixed">4. Fixed patterns (2019–2020)</h2>
+<h3>Sparse Transformer (Child et al., 2019)<sup><a href="#r-sparsetf">[8]</a></sup></h3>
+<p>Two heads alternate: a <em>local</em> head attending to the previous <span class="math">s</span> positions and a <em>strided</em> head attending to every position <span class="math">j</span> where <span class="math">(i − j) mod s = 0</span> (a column pattern). With <span class="math">s ≈ √n</span> every token reaches every other in two hops and cost drops to <span class="math">O(n√n)</span>. Designed for images and audio where the stride matches a row length; on text the columns are arbitrary.</p>
+<h3>Longformer (Beltagy et al., 2020)<sup><a href="#r-longformer">[3]</a></sup></h3>
+<p>Sliding window (optionally dilated) plus a handful of <em>global</em> tokens that attend to and are attended by everything — the [CLS] token, or question tokens in QA. Cost <span class="math">O(n·(w + g))</span>. Introduced the custom CUDA banded kernel that later kernels generalised.</p>
+<h3>BigBird (Zaheer et al., 2020)<sup><a href="#r-bigbird">[9]</a></sup></h3>
+<p>Window + global + <span class="math">r</span> random blocks per query. The random edges make the attention graph an expander, which is what lets the authors prove the sparse model is still a universal approximator and Turing complete. Random blocks are ugly on hardware (scattered reads) and disappeared from later decoder designs, but the theoretical result is why "window plus a few long-range edges" is a sound recipe.</p>
+<h3>Block-sparse attention (as a kernel primitive)</h3>
+<p>Any of the above can be expressed as a boolean grid over <span class="math">B×B</span> tiles. OpenAI's blocksparse library, Triton block-sparse kernels, and PyTorch's FlexAttention<sup><a href="#r-flex">[10]</a></sup> take such a grid (plus an optional score-modifying function) and skip empty tiles. This is the implementation substrate for everything in the next section. One caveat, visible in the DeepSeek-V4 torchtitan port<sup><a href="#r-gym">[19]</a></sup>: FlexAttention rebuilds its block mask whenever the mask changes, which is every forward pass for data-dependent selection, so purpose-built kernels (Attention Gym's fused <code>selected_attention</code>) ran 3–11× faster on CSA.</p>
+
+<!-- ================= DYNAMIC ================= -->
+<h2 id="dynamic">5. Dynamic, natively trained sparsity (2025–2026)</h2>
+<p>The recent generation shares a template: keep an exact sliding window for recent tokens, summarise or index the distant past cheaply, then let each query <em>select</em> a top-k slice of that past for exact attention. The differences are in what is indexed (tokens vs. blocks vs. compressed entries), how the scorer is trained, and how much is shared across layers.</p>
+
+<h3>NSA — Native Sparse Attention (DeepSeek, Feb 2025)<sup><a href="#r-nsa">[11]</a></sup></h3>
+<p>Three parallel branches, combined by a learned per-head gate:</p>
+<ol>
+  <li><b>Compression.</b> Keys/values in each block of <span class="math">l</span> tokens are pooled by a small MLP into one compressed entry. Coarse global view at <span class="math">n/l</span> cost.</li>
+  <li><b>Selection.</b> Attention scores against the compressed entries rank the blocks; the top-<span class="math">k</span> blocks are expanded back to their <em>original</em> token-level KV and attended exactly.</li>
+  <li><b>Sliding window.</b> The last <span class="math">w</span> tokens, exact.</li>
+</ol>
+<p>Selection is per block so reads are contiguous; the whole scheme is trained from scratch ("native") with a custom Triton kernel. Reported 9× forward and 6× backward speed-ups at 64k context vs. FlashAttention-2, with quality matching dense.</p>
+
+<h3>MoBA — Mixture of Block Attention (Moonshot AI, Feb 2025)<sup><a href="#r-moba">[12]</a></sup></h3>
+<p>Treats attention like a mixture-of-experts router: the context is split into blocks, each block is summarised by its mean key, and a query is routed to the top-<span class="math">k</span> blocks by query·mean-key score (its own block always included). No gate, no compression branch — just block routing on the real KV, which makes it easy to switch between sparse and full attention in the same model. Used in Kimi models.</p>
+
+<h3>DSA — DeepSeek Sparse Attention (DeepSeek-V3.2, Sep 2025)<sup><a href="#r-v32">[14]</a></sup></h3>
+<p>Two parts. A <b>lightning indexer</b> — a small, separate attention head set (FP8, few heads, small head dimension) — computes a cheap relevance score between the current query and <em>every</em> cached token. Then a <b>fine-grained token selector</b> keeps the top-<span class="math">k</span> tokens (<span class="math">k = 2048</span> in V3.2) and runs full Multi-head Latent Attention (MLA) only over them. Indexing is still <span class="math">O(n)</span> per query but with a tiny constant; the expensive MLA becomes <span class="math">O(k)</span>. Trained by first distilling the indexer to imitate dense attention scores, then continuing pre-training with the sparse mask. Reported ~50% lower long-context API cost.</p>
+
+<h3>CSA — Compressed Sparse Attention (DeepSeek-V4, 2026)<sup><a href="#r-v4">[15]</a></sup></h3>
+<p>DSA still stored one KV entry per token, so memory stayed linear. CSA first <em>compresses the sequence axis</em> — every <span class="math">m</span> tokens become one KV entry — and then applies DSA-style indexing and top-k over the compressed entries. Detailed in <a href="#csa">§6</a>.</p>
+
+<h3>HCA — Heavily Compressed Attention (DeepSeek-V4)<sup><a href="#r-v4">[15]</a></sup></h3>
+<p>The same compression idea pushed to <span class="math">m = 128</span>. The compressed history is now so short (a 1M context becomes ~8k entries) that the layer attends to <em>all</em> of it densely; no indexer needed. V4 interleaves CSA and HCA layers so the network has both a fine-grained sparse path and a coarse dense path over the same history. Both keep a 128-token uncompressed window.</p>
+
+<h3>CSA2 — Compressed Sparse Attention 2 (DeepSeek-V4.1-Flash, Sep 2026)<sup><a href="#r-v41">[13]</a></sup></h3>
+<p>Keeps CSA's per-layer mechanics but shares the expensive artefacts (compressed KV, indexer keys, selected indices) across groups of layers. Detailed in <a href="#csa2">§7</a>.</p>
+
+<!-- ================= CSA ================= -->
+<h2 id="csa">6. CSA in depth</h2>
+<p>CSA is best understood as three stages applied to the hidden states <span class="math">H ∈ ℝ<sup>n×d_model</sup></span> of a layer.</p>
+
+<h3>Stage 1 — Compress the KV cache along the sequence</h3>
+<p>Each token produces a candidate KV vector and a <em>compression weight</em> vector via linear projections. Following the V4 report, there are two such pairs (branches <span class="math">a</span> and <span class="math">b</span>) with separate weights:</p>
+<pre><code>Cᵃ = H·W^{aKV}    Cᵇ = H·W^{bKV}      candidate compressed KV   (n × c)
+Zᵃ = H·W^{aZ}     Zᵇ = H·W^{bZ}       compression logits       (n × c)</code></pre>
+<p>Within each aligned block of <span class="math">m</span> tokens (stride <span class="math">m</span>, so blocks do not overlap), the logits are softmax-normalised per channel and used to pool the <span class="math">m</span> candidates into a single entry. Two branches give two entries per block, so with <span class="math">m = 4</span> the cache holds <span class="math">n/4 × 2 = n/2</span> latent entries — a 2× reduction in stored entries on top of MLA's already-compressed per-entry width. The pooling is learned, so the model decides which of the four tokens dominates each channel of the summary.</p>
+<div class="callout blue"><b>Contrast with MLA.</b> Multi-head Latent Attention (DeepSeek-V2/V3) shrinks the <em>width</em> of what is stored per token (one low-rank latent instead of full K and V for every head). CSA/HCA shrink the <em>length</em>: fewer positions are stored. The two compose, which is why V4's cache is described as "MLA-style CSA/HCA"<sup><a href="#r-raschka">[16]</a></sup>.</div>
+
+<h3>Stage 2 — Index and select</h3>
+<p>A lightning indexer (as in DSA) scores the query against every compressed entry. Because there are only <span class="math">n/m</span> of them, indexing is <span class="math">m×</span> cheaper than in DSA for the same context. The top-<span class="math">k</span> compressed entries per query are selected. Public reference implementations materialise a <span class="math">[batch, n, H_I, n/m]</span> FP32 score tensor before the top-k, which at 1M context is hundreds of GB; StreamIndex<sup><a href="#r-streamindex">[17]</a></sup> shows a chunked partition-merge top-k that never forms it (6.2 GB peak at 1M tokens on one H200).</p>
+
+<h3>Stage 3 — Attend</h3>
+<p>The query attends, in one fused softmax, over the union of: the <span class="math">k</span> selected compressed entries, the last 128 uncompressed tokens (sliding window), and a learned per-head <em>attention sink</em> logit that absorbs mass when nothing is relevant. The reference kernel returns the log-sum-exp so the branches can be normalised jointly<sup><a href="#r-gym">[19]</a></sup>.</p>
+
+<div class="panel">
+  <h3>CSA pipeline, step by step</h3>
+  <div class="steps" id="csa-steps"></div>
+  <canvas id="csa-canvas" width="900" height="260" role="img" aria-label="CSA pipeline diagram"></canvas>
+  <p class="stepcap" id="csa-cap"></p>
+</div>
+
+<h3>What CSA saves</h3>
+<p>For one decode step in one layer with context <span class="math">n</span>, window <span class="math">w</span>, top-<span class="math">k</span>, compression <span class="math">m</span>, indexer with <span class="math">H_I</span> heads of dimension <span class="math">d_I</span>:</p>
+<table>
+  <tr><th>Quantity</th><th>Dense</th><th>SWA</th><th>DSA</th><th>CSA</th></tr>
+  <tr><td>KV entries stored / layer</td><td class="m">n</td><td class="m">w</td><td class="m">n</td><td class="m">n/m + w</td></tr>
+  <tr><td>KV entries read / query</td><td class="m">n</td><td class="m">w</td><td class="m">k + w</td><td class="m">k + w</td></tr>
+  <tr><td>Attention FLOPs / query</td><td class="m">4·n·H·d</td><td class="m">4·w·H·d</td><td class="m">4·(k+w)·H·d</td><td class="m">4·(k+w)·H·d</td></tr>
+  <tr><td>Indexer FLOPs / query</td><td class="m">0</td><td class="m">0</td><td class="m">2·n·H_I·d_I</td><td class="m">2·(n/m)·H_I·d_I</td></tr>
+  <tr><td>Prefill attention FLOPs</td><td class="m">O(n²)</td><td class="m">O(n·w)</td><td class="m">O(n·k) + O(n²) index</td><td class="m">O(n·k) + O(n²/m) index</td></tr>
+  <tr><td>Long-range recall</td><td>exact</td><td>none beyond L·w</td><td>exact on selected tokens</td><td>selected, at m-token granularity</td></tr>
+</table>
+<p>The V4 report's whole-model numbers at 1M context, relative to V3.2 (which already had DSA): V4-Pro runs at 27% of the single-token inference FLOPs and 10% of the KV cache; V4-Flash at 10% and 7%<sup><a href="#r-raschka">[16]</a></sup>. Those figures also include MoE, precision and system changes, so they upper-bound the attention contribution.</p>
+
+<!-- ================= CSA2 ================= -->
+<h2 id="csa2">7. CSA2 in depth</h2>
+<p>CSA's remaining waste is <em>per-layer duplication</em>: 40 layers each building their own compressed cache, their own indexer keys, and their own top-k pick over largely the same information. CSA2 removes it with three ideas<sup><a href="#r-v41">[13]</a></sup>.</p>
+<h3>Idea 1 — Static per-layer modes: Full, Reindex, Reuse</h3>
+<ul>
+  <li><b>Full.</b> The layer builds its own compressed main KV and indexer keys, runs the indexer, and selects its own top-k. It publishes all three for later layers.</li>
+  <li><b>Reindex.</b> The layer borrows the compressed KV and indexer <em>keys</em> from the most recent Full layer, but runs its own indexer <em>queries</em> and makes a fresh top-k selection. New attention pattern, no new cache.</li>
+  <li><b>Reuse.</b> The layer borrows everything, including the selected indices. It only computes attention over the already-chosen entries plus its own sliding window.</li>
+</ul>
+<p>Modes are fixed at architecture time (static), so kernels and cache layout are known in advance. Because only Full layers own a global cache, the persistent KV footprint scales with the number of Full layers rather than with <span class="math">L</span>. This is the same instinct as cross-layer KV sharing (as in Gemma 3n or YOCO-style designs) applied to the compressed sparse cache and to the selection itself.</p>
+<h3>Idea 2 — Hierarchical Sparse Indexer</h3>
+<p>In the decoder, the first Full-mode layer builds a <em>candidate pool</em> from the full context. Later indexing layers search only inside that pool, so their cost is bounded by the pool size and no longer grows with context length. A third-party explainer describes V4.1-Flash as reading 512 selected entries plus a 128-token window per query<sup><a href="#r-kgp">[18]</a></sup>.</p>
+<h3>Idea 3 — FP4 main KV cache</h3>
+<p>Compressed KV and indexer keys are stored in 4-bit floating point (E2M1 values with one E4M3 scale per 16 channels); the window KV stays FP8. With modes and FP4 together, the global cache is 890 bytes per token — about a quarter of V4-Flash and, per the model card, 437× smaller than the original DeepSeek-V1 per token<sup><a href="#r-v41">[13]</a></sup>. Surrounding architecture: a Causal Encoder-Decoder of 20 + 20 layers where the decoder's global KV is projected from the final encoder states, activating ~8B parameters per token in prefill and ~16B in decode out of a 552B mixture-of-experts backbone.</p>
+
+<div class="panel">
+  <h3>CSA2 layer-mode simulator</h3>
+  <p style="font-family:var(--serif);font-size:.95rem">Click a layer to cycle its mode (Full → Reindex → Reuse). The default assignment below is <em>illustrative</em>, not DeepSeek's published layout; the point is to see how the cost lines respond.</p>
+  <div class="lgroup"><span>Encoder, layers 1–20</span><span>Decoder, layers 21–40</span></div>
+  <div class="layers" id="layers" role="group" aria-label="Layer modes"></div>
+  <div class="legend"><span><i style="background:var(--selected)"></i>Full (own KV + own index + own pick)</span><span><i style="background:var(--block)"></i>Reindex (shared KV, own pick)</span><span><i style="background:#9AA59F"></i>Reuse (shared KV + shared pick)</span></div>
+  <div class="controls" style="margin-top:.8rem">
+    <label><b>Context n</b> <span id="l-nv">1,000,000</span><input type="range" id="l-n" min="16384" max="1048576" step="16384" value="1048576"></label>
+    <label><b>Compression m</b> <span id="l-mv">4</span><input type="range" id="l-m" min="1" max="8" value="4"></label>
+    <label><b>Top-k</b> <span id="l-kv">512</span><input type="range" id="l-k" min="128" max="4096" step="128" value="512"></label>
+    <button class="small" id="l-allfull">All Full (= plain CSA)</button>
+  </div>
+  <div class="bars" id="l-bars"></div>
+  <p class="note">Indexer cost model: one indexer pass = scoring the query against <span class="math">n/m</span> compressed keys (Full and Reindex layers). Cache lines assume a 128-token FP8 window in every layer and FP4 compressed entries only in Full layers; per-entry byte widths are stand-in values for illustration, not the V4.1 head dimensions.</p>
+</div>
+
+<!-- ================= COST ================= -->
+<h2 id="cost">8. GPU cost calculator: FLOPs and bytes per decode step</h2>
+<p>Set a model shape and context and compare mechanisms. Decode is the phase that matters for chat and agent workloads: each new token re-reads the cache, so "bytes read" is the number to watch; on an H100-class GPU at ~3 TB/s, 30 GB read per step caps you at ~100 tokens/s for a batch of one.</p>
+<div class="panel">
+  <div class="controls">
+    <label><b>Context n</b> <span id="c-nv">262,144</span><input type="range" id="c-n" min="4096" max="1048576" step="4096" value="262144"></label>
+    <label><b>Layers L</b> <input type="number" id="c-L" value="60" min="1" max="200"></label>
+    <label><b>KV heads H</b> <input type="number" id="c-H" value="8" min="1" max="128"></label>
+    <label><b>Head dim d</b> <input type="number" id="c-d" value="128" min="16" max="1024" step="16"></label>
+    <label><b>KV bytes/elem</b> <select id="c-b"><option value="2">2 (BF16)</option><option value="1" selected>1 (FP8)</option><option value="0.5">0.5 (FP4)</option></select></label>
+    <label><b>Window w</b> <input type="number" id="c-w" value="4096" min="64" step="64"></label>
+    <label><b>Top-k</b> <input type="number" id="c-k" value="2048" min="64" step="64"></label>
+    <label><b>Compression m</b> <input type="number" id="c-m" value="4" min="1" max="256"></label>
+    <label><b>Indexer heads × dim</b> <input type="number" id="c-hi" value="64" min="1"> </label>
+    <label><b>&nbsp;</b><input type="number" id="c-di" value="128" min="8"></label>
+    <label><b>Local:global ratio</b> <input type="number" id="c-ratio" value="5" min="1" max="20"></label>
+  </div>
+  <div class="grid2">
+    <div><h4 style="margin:.4rem 0">KV cache stored (GB, all layers)</h4><div class="bars" id="c-store"></div></div>
+    <div><h4 style="margin:.4rem 0">Bytes read per decode step (GB)</h4><div class="bars" id="c-read"></div></div>
+    <div><h4 style="margin:.4rem 0">Attention + indexer FLOPs per decode step (GFLOP)</h4><div class="bars" id="c-flops"></div></div>
+    <div><h4 style="margin:.4rem 0">Prefill attention FLOPs for the whole context (PFLOP)</h4><div class="bars" id="c-prefill"></div></div>
+  </div>
+  <p class="note">Formulas: stored = 2·L·H·d·bytes·entries; read = same over entries actually touched; attention FLOPs = 4·entries·H·d per layer; indexer FLOPs = 2·candidates·H_I·d_I per layer (FP8 in practice, counted as FLOPs here); prefill = Σ over queries. Interleaved = one dense layer per <em>ratio</em> local layers (Gemma-3 style). CSA reads k+w entries and indexes n/m candidates; DSA reads k+w and indexes n; HCA stores and reads n/128 + w.</p>
+</div>
+
+<!-- ================= WHEN ================= -->
+<h2 id="when">9. When to use what</h2>
+<table>
+  <tr><th>Situation</th><th>Reasonable choice</th><th>Why</th></tr>
+  <tr><td>Chat / short-context serving; you want simplicity and memory headroom</td><td>Interleaved SWA + global (5:1 or 1:1)</td><td>Exact recall from global layers, ~5× KV reduction on the local ones, mature kernels everywhere.</td></tr>
+  <tr><td>Streaming generation far beyond the trained length (live transcripts, long agent loops)</td><td>SWA with attention sinks</td><td>Constant memory; sinks prevent the collapse that plain windows suffer once early tokens are evicted.</td></tr>
+  <tr><td>Long documents where a few tokens must be globally visible (questions, instructions, [CLS])</td><td>Window + global tokens (Longformer style)</td><td>Cheap, static, targeted long-range edges.</td></tr>
+  <tr><td>You are <em>pretraining</em> a model for 128k–1M contexts and control the kernels</td><td>NSA / MoBA / DSA-style native sparsity</td><td>Trained-in selection matches dense quality; block-level selection stays GPU-efficient.</td></tr>
+  <tr><td>Same, and KV memory (not just compute) is the binding constraint</td><td>CSA (+ HCA layers)</td><td>Sequence compression shrinks stored entries by m; indexing over compressed entries shrinks the selector cost too.</td></tr>
+  <tr><td>Serving cost per token at million-token contexts dominates; many layers</td><td>CSA2 (Full/Reindex/Reuse + FP4 cache)</td><td>Cache and indexer costs scale with the number of Full layers, not L; FP4 halves bytes again.</td></tr>
+  <tr><td>Adding sparsity to an already-trained dense model at inference only</td><td>Quest / H2O-style KV selection or eviction</td><td>Training-free; quality cost is real but often acceptable for retrieval-light tasks.</td></tr>
+  <tr><td>Short sequences (≤ 8k) or tasks needing exact all-pairs recall</td><td>Dense + FlashAttention</td><td>Sparsity overhead (indexer, gathers) is not paid back below a few thousand tokens.</td></tr>
+</table>
+<h3>Failure modes to watch</h3>
+<ul>
+  <li><b>Needle-in-a-haystack recall</b> degrades with pure windows and with aggressive compression (HCA's 128-token summaries cannot recover a single number).</li>
+  <li><b>Indexer mismatch.</b> A top-k selector trained to imitate dense attention is only as good as that imitation; distribution shift (new languages, code) can silently drop the right tokens.</li>
+  <li><b>Materialised score tensors.</b> Naive top-k implementations allocate <span class="math">n × n/m</span> scores per indexer head and OOM long before the model does<sup><a href="#r-streamindex">[17]</a></sup>.</li>
+  <li><b>Block masks that change every step.</b> Generic block-sparse frameworks assume a static mask; data-dependent selection needs a fused kernel or you lose most of the win<sup><a href="#r-gym">[19]</a></sup>.</li>
+  <li><b>Batching.</b> Different sequences select different blocks, so per-request gathers must be vectorised; naive loops serialise the batch.</li>
+</ul>
+
+<!-- ================= GLOSSARY ================= -->
+<h2 id="glossary">10. Glossary</h2>
+<dl class="gloss">
+  <dt>Attention sink</dt><dd>A token (usually the first one, or a learned pseudo-token) that absorbs attention mass when a query has nothing relevant to look at. Keeping sinks resident makes windowed attention numerically stable.</dd>
+  <dt>Block sparsity</dt><dd>Restricting attention at the granularity of tiles (e.g., 64×64 query–key blocks) instead of individual pairs, matching how GPU kernels stage data into shared memory.</dd>
+  <dt>BigBird</dt><dd>Google's 2020 sparse encoder: window + global + random blocks, with universal-approximation proofs.</dd>
+  <dt>Causal mask</dt><dd>The rule that token i may attend only to tokens j ≤ i in a decoder.</dd>
+  <dt>CED — Causal Encoder-Decoder</dt><dd>DeepSeek-V4.1-Flash's layout: 20 causal encoder layers whose final states supply the decoder's global KV cache.</dd>
+  <dt>CSA — Compressed Sparse Attention</dt><dd>DeepSeek-V4's mechanism: learned pooling of every m tokens into one KV entry, a lightning indexer over the compressed entries, top-k selection, plus a 128-token exact window and a per-head sink.</dd>
+  <dt>CSA2 — Compressed Sparse Attention 2</dt><dd>DeepSeek-V4.1-Flash's version: CSA with static per-layer Full / Reindex / Reuse modes that share compressed KV, indexer keys and top-k indices across layers, a hierarchical indexer, and an FP4 cache.</dd>
+  <dt>Decode</dt><dd>The generation phase: one new query per step attending over the cached context. Memory-bandwidth-bound.</dd>
+  <dt>Dilated attention</dt><dd>A window that attends to every r-th key, widening reach for the same cost.</dd>
+  <dt>DSA — DeepSeek Sparse Attention</dt><dd>DeepSeek-V3.2's mechanism: a lightning indexer scores all cached tokens; only the top-k (2048) get full MLA attention.</dd>
+  <dt>E2M1 / E4M3</dt><dd>Floating-point layouts: 1 sign, 2 exponent, 1 mantissa bit (FP4); 1 sign, 4 exponent, 3 mantissa bits (FP8). FP4 values are stored with a shared FP8 scale per group of channels.</dd>
+  <dt>FlashAttention</dt><dd>An exact attention kernel that tiles the computation so the n×n score matrix never touches HBM; IO-aware, not approximate.</dd>
+  <dt>FlexAttention</dt><dd>PyTorch's compiler-driven API for attention variants defined by a mask and a score-modification function; generates block-sparse kernels.</dd>
+  <dt>FLOP</dt><dd>Floating-point operation. A multiply-add counts as 2.</dd>
+  <dt>Global token</dt><dd>A token that attends to, and is attended by, all positions regardless of the sparse pattern.</dd>
+  <dt>GQA — Grouped-Query Attention</dt><dd>Several query heads share one key/value head, shrinking the KV cache by the group size.</dd>
+  <dt>HBM — High-Bandwidth Memory</dt><dd>The GPU's main memory (80–288 GB on current data-centre parts, ~3–8 TB/s). The KV cache lives here.</dd>
+  <dt>HCA — Heavily Compressed Attention</dt><dd>DeepSeek-V4 layers that compress 128 tokens per entry and attend densely over the resulting short cache.</dd>
+  <dt>Hierarchical Sparse Indexer</dt><dd>CSA2's decoder trick: the first Full layer produces a candidate pool; later layers search only that pool, so indexing cost stops scaling with context.</dd>
+  <dt>KV cache</dt><dd>Stored keys and values for all past tokens in every layer, so decode does not recompute them.</dd>
+  <dt>Lightning indexer</dt><dd>A small, low-precision attention-like scorer (few heads, small dimension) used only to rank candidates for selection.</dd>
+  <dt>Local attention</dt><dd>Synonym for sliding window attention.</dd>
+  <dt>LSE — log-sum-exp</dt><dd>The softmax normaliser; kernels return it so partial results over different key subsets can be merged exactly.</dd>
+  <dt>MLA — Multi-head Latent Attention</dt><dd>DeepSeek-V2/V3 attention that caches one low-rank latent per token from which all heads' K and V are reconstructed.</dd>
+  <dt>MoBA — Mixture of Block Attention</dt><dd>Moonshot's block routing: each query attends to the top-k context blocks ranked by similarity to the block's mean key.</dd>
+  <dt>MoE — Mixture of Experts</dt><dd>Feed-forward layers split into experts, only a few of which are active per token. Orthogonal to attention sparsity.</dd>
+  <dt>NSA — Native Sparse Attention</dt><dd>DeepSeek's Feb-2025 three-branch (compress / select / window) gated attention, trained from scratch.</dd>
+  <dt>Prefill</dt><dd>Processing the prompt in parallel before generation begins. Compute-bound; quadratic for dense attention.</dd>
+  <dt>Receptive field</dt><dd>The set of input positions that can influence a given output; for stacked windows it grows by w per layer.</dd>
+  <dt>Rolling buffer cache</dt><dd>A fixed-size KV cache of w slots written cyclically; the memory form of sliding window attention.</dd>
+  <dt>SWA — Sliding Window Attention</dt><dd>Each query attends to the previous w tokens only.</dd>
+  <dt>SWA Bounded Replay</dt><dd>Recomputing window KV by re-running the last w tokens instead of persisting it; keeps the persistent cache to the compressed global part.</dd>
+  <dt>Top-k selection</dt><dd>Keeping the k highest-scoring candidates. A hard (non-differentiable) operation; gradients flow through the scores of the selected items only.</dd>
+</dl>
+
+<!-- ================= REFS ================= -->
+<h2 id="refs">11. References</h2>
+<ol class="refs">
+  <li id="r-vaswani">Vaswani et al., <em>Attention Is All You Need</em>, 2017. <a href="https://arxiv.org/abs/1706.03762">arXiv:1706.03762</a></li>
+  <li id="r-flash">Dao et al., <em>FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness</em>, 2022. <a href="https://arxiv.org/abs/2205.14135">arXiv:2205.14135</a>; FlashAttention-2, <a href="https://arxiv.org/abs/2307.08691">arXiv:2307.08691</a></li>
+  <li id="r-longformer">Beltagy, Peters, Cohan, <em>Longformer: The Long-Document Transformer</em>, 2020. <a href="https://arxiv.org/abs/2004.05150">arXiv:2004.05150</a></li>
+  <li id="r-mistral">Jiang et al., <em>Mistral 7B</em>, 2023 (sliding window 4096, rolling buffer cache). <a href="https://arxiv.org/abs/2310.06825">arXiv:2310.06825</a></li>
+  <li id="r-streaming">Xiao et al., <em>Efficient Streaming Language Models with Attention Sinks</em>, 2023. <a href="https://arxiv.org/abs/2309.17453">arXiv:2309.17453</a></li>
+  <li id="r-gemma2">Gemma Team, <em>Gemma 2: Improving Open Language Models at a Practical Size</em>, 2024. <a href="https://arxiv.org/abs/2408.00118">arXiv:2408.00118</a></li>
+  <li id="r-gemma3">Gemma Team, <em>Gemma 3 Technical Report</em>, 2025. <a href="https://arxiv.org/abs/2503.19786">arXiv:2503.19786</a></li>
+  <li id="r-sparsetf">Child, Gray, Radford, Sutskever, <em>Generating Long Sequences with Sparse Transformers</em>, 2019. <a href="https://arxiv.org/abs/1904.10509">arXiv:1904.10509</a></li>
+  <li id="r-bigbird">Zaheer et al., <em>Big Bird: Transformers for Longer Sequences</em>, 2020. <a href="https://arxiv.org/abs/2007.14062">arXiv:2007.14062</a></li>
+  <li id="r-flex">Dong et al., <em>FlexAttention: A Programming Model for Generating Optimized Attention Kernels</em>, 2024. <a href="https://arxiv.org/abs/2412.05496">arXiv:2412.05496</a></li>
+  <li id="r-nsa">Yuan et al. (DeepSeek), <em>Native Sparse Attention: Hardware-Aligned and Natively Trainable Sparse Attention</em>, 2025. <a href="https://arxiv.org/abs/2502.11089">arXiv:2502.11089</a></li>
+  <li id="r-moba">Lu et al. (Moonshot AI), <em>MoBA: Mixture of Block Attention for Long-Context LLMs</em>, 2025. <a href="https://arxiv.org/abs/2502.13189">arXiv:2502.13189</a></li>
+  <li id="r-v41">DeepSeek-AI, <em>DeepSeek-V4.1-Flash: Pushing the Limits of KV Cache Compression</em>, model card, Sep 2026. <a href="https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash">huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash</a></li>
+  <li id="r-v32">DeepSeek-AI, <em>DeepSeek-V3.2-Exp: Boosting Long-Context Efficiency with DeepSeek Sparse Attention</em>, Sep 2025. <a href="https://github.com/deepseek-ai/DeepSeek-V3.2-Exp">github.com/deepseek-ai/DeepSeek-V3.2-Exp</a></li>
+  <li id="r-v4">DeepSeek-AI, <em>DeepSeek-V4: Towards Highly Efficient Million-Token Context Intelligence</em>, 2026. <a href="https://arxiv.org/abs/2606.19348">arXiv:2606.19348</a></li>
+  <li id="r-raschka">Raschka, <em>CSA and HCA</em> (LLM Architecture Gallery) and <em>Recent Developments in LLM Architectures: KV Sharing, mHC, and Compressed Attention</em>, 2026. <a href="https://sebastianraschka.com/llm-architecture-gallery/csa-hca/">sebastianraschka.com/llm-architecture-gallery/csa-hca</a></li>
+  <li id="r-streamindex">Jaber & Jaber, <em>StreamIndex: Memory-Bounded Compressed Sparse Attention via Streaming Top-k</em>, 2026. <a href="https://arxiv.org/abs/2605.02568">arXiv:2605.02568</a></li>
+  <li id="r-kgp">Tiwari, <em>DeepSeek V4.1 Sparse Attention Explained with Pictures</em>, KGP Talkie, Sep 2026 (third-party explainer). <a href="https://kgptalkie.com/tutorials/llm-benchmarking/deepseek-sparse-attention-explained">kgptalkie.com</a></li>
+  <li id="r-gym">torchtitan PR #4452, <em>Refactor DeepSeek v4 to use Attention Gym's Compressed Sparse Attention</em>, 2026. <a href="https://github.com/pytorch/torchtitan/pull/4452">github.com/pytorch/torchtitan/pull/4452</a></li>
+  <li>DeepSeek-AI, <em>DeepSeek-V2</em> (Multi-head Latent Attention), 2024. <a href="https://arxiv.org/abs/2405.04434">arXiv:2405.04434</a></li>
+  <li>Ainslie et al., <em>GQA: Training Generalized Multi-Query Transformer Models</em>, 2023. <a href="https://arxiv.org/abs/2305.13245">arXiv:2305.13245</a></li>
+  <li>Kitaev, Kaiser, Levskaya, <em>Reformer: The Efficient Transformer</em>, 2020. <a href="https://arxiv.org/abs/2001.04451">arXiv:2001.04451</a></li>
+  <li>Roy et al., <em>Efficient Content-Based Sparse Attention with Routing Transformers</em>, 2020. <a href="https://arxiv.org/abs/2003.05997">arXiv:2003.05997</a></li>
+  <li>Tang et al., <em>Quest: Query-Aware Sparsity for Efficient Long-Context LLM Inference</em>, 2024. <a href="https://arxiv.org/abs/2406.10774">arXiv:2406.10774</a></li>
+  <li>Zhang et al., <em>H2O: Heavy-Hitter Oracle for Efficient Generative Inference</em>, 2023. <a href="https://arxiv.org/abs/2306.14048">arXiv:2306.14048</a></li>
+  <li>Tay et al., <em>Efficient Transformers: A Survey</em>, 2020. <a href="https://arxiv.org/abs/2009.06732">arXiv:2009.06732</a></li>
+</ol>
+<p class="note">Figures quoted for DeepSeek models are as reported by the cited sources; whole-model efficiency ratios include changes beyond attention. Compiled September 2026.</p>
+</main>
+</div>
+
+<script>
+(function(){
+'use strict';
+const $=id=>document.getElementById(id);
+const fmt=x=>x.toLocaleString('en-US');
+const fmtSI=(x,u='')=>{if(x>=1e15)return (x/1e15).toFixed(2)+' P'+u;if(x>=1e12)return (x/1e12).toFixed(2)+' T'+u;if(x>=1e9)return (x/1e9).toFixed(2)+' G'+u;if(x>=1e6)return (x/1e6).toFixed(2)+' M'+u;if(x>=1e3)return (x/1e3).toFixed(1)+' k'+u;return x.toFixed(1)+' '+u;};
+const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const COL={dense:css('--dense'),window:css('--window'),global:css('--global'),strided:css('--strided'),random:css('--random'),block:css('--block'),compressed:css('--compressed'),selected:css('--selected'),masked:css('--masked'),sink:css('--sink')};
+const LABEL={dense:'dense score',window:'sliding window (exact)',global:'global token',strided:'strided column',random:'random block',block:'selected block',compressed:'compressed entry (stored, not read)',selected:'selected compressed entry (read)',sink:'attention sink',masked:'not computed'};
+// deterministic pseudo-random
+function hash(a,b){let h=(a*73856093)^(b*19349663);h=(h^(h>>>13))*1274126177;return ((h^(h>>>16))>>>0)/4294967296;}
+
+/* ---------- MASK EXPLORER ---------- */
+const DESC={
+ dense:'Every query scores every earlier key. Cost O(n²) prefill, O(n) per decode step, cache grows with n. This is the baseline every other pattern is measured against.',
+ window:'Each query reads only the last w keys. Cost O(n·w); the KV cache is a rolling buffer of w entries. Distant information arrives only by hopping layer to layer (reach ≈ L·w).',
+ dilated:'A window of the same cost but attending to every 2nd key, doubling the reach per layer at the price of skipping neighbours. Longformer used dilation on some heads.',
+ strided:'Sparse Transformer: a local band of width w plus columns every m positions. Any key is reachable in two hops. Cost O(n·(w + n/m)).',
+ longformer:'Longformer: window plus g global tokens that everyone reads and that read everyone. Cost O(n·(w+g)). Static, kernel-friendly.',
+ bigbird:'BigBird: window + global + k random keys per query. The random edges make the attention graph an expander (short paths between any two tokens), which underwrites the universal-approximation proof.',
+ sink:'StreamingLLM: window plus the first g tokens kept forever as attention sinks. Prevents the perplexity blow-up that a plain rolling window suffers once early tokens are evicted.',
+ moba:'MoBA: keys are grouped into blocks of m; each query attends to its own block plus the top-k prior blocks chosen by similarity to each block\'s mean key. Contiguous reads, no compression.',
+ dsa:'DSA (DeepSeek-V3.2): a lightning indexer scores all n cached tokens cheaply, then full attention runs over only the top-k tokens. Cache still stores n entries; reads drop to k.',
+ csa:'CSA / NSA: every m tokens are pooled into one compressed entry (pale cells are stored but not read). An indexer ranks the compressed entries and the top-k are read (red), plus an exact window of w recent tokens (green). Stored entries ≈ n/m + w.',
+ hca:'HCA: compress much harder (here every m tokens; V4 uses 128) and attend densely to every compressed entry, plus the window. No indexer. Coarse but cheap global coverage.'
+};
+function buildMask(p,n,w,m,k,g){
+  // returns 2D array of type strings; also count of entries read per row and stored entries
+  const M=Array.from({length:n},()=>new Array(n).fill('masked'));
+  let stored=n, readPerRow=new Array(n).fill(0);
+  for(let i=0;i<n;i++){
+    const rowRead=new Set();
+    if(p==='dense'){for(let j=0;j<=i;j++)M[i][j]='dense';readPerRow[i]=i+1;continue;}
+    if(p==='window'){for(let j=Math.max(0,i-w+1);j<=i;j++)M[i][j]='window';readPerRow[i]=Math.min(w,i+1);continue;}
+    if(p==='dilated'){let c=0;for(let j=i;j>=0&&c<w;j-=2){M[i][j]='window';c++;}readPerRow[i]=c;continue;}
+    if(p==='strided'){let c=0;for(let j=0;j<=i;j++){if(i-j<w){M[i][j]='window';c++;}else if((i-j)%m===0){M[i][j]='strided';c++;}}readPerRow[i]=c;continue;}
+    if(p==='longformer'||p==='bigbird'||p==='sink'){
+      let c=0;
+      for(let j=0;j<=i;j++){
+        if(j<g||(i<g&&p!=='sink')){M[i][j]=p==='sink'?'sink':'global';c++;}
+        else if(i-j<w){M[i][j]='window';c++;}
+      }
+      if(p==='bigbird'){let added=0,tries=0;while(added<k&&tries<200){tries++;const j=Math.floor(hash(i,tries)*(i+1));if(M[i][j]==='masked'){M[i][j]='random';added++;c++;}}}
+      readPerRow[i]=c;continue;
+    }
+    if(p==='moba'){
+      const myB=Math.floor(i/m);let c=0;
+      for(let j=myB*m;j<=i;j++){M[i][j]='window';c++;}
+      const prior=[];for(let b=0;b<myB;b++)prior.push([hash(i,b),b]);prior.sort((a,b)=>b[0]-a[0]);
+      prior.slice(0,k).forEach(([,b])=>{for(let j=b*m;j<b*m+m;j++){M[i][j]='block';c++;}});
+      readPerRow[i]=c;continue;
+    }
+    if(p==='dsa'){
+      let c=0;for(let j=Math.max(0,i-w+1);j<=i;j++){M[i][j]='window';c++;}
+      const cand=[];for(let j=0;j<=i-w;j++)cand.push([hash(i,j)+(j<2?0.5:0),j]);cand.sort((a,b)=>b[0]-a[0]);
+      cand.slice(0,k).forEach(([,j])=>{M[i][j]='selected';c++;});
+      readPerRow[i]=c;continue;
+    }
+    if(p==='csa'||p==='hca'){
+      let c=0;for(let j=Math.max(0,i-w+1);j<=i;j++){M[i][j]='window';c++;}
+      const lastFull=Math.floor((i-w+1)/m); // groups fully before window
+      const groups=[];for(let b=0;b<lastFull;b++)groups.push([hash(i,b)+(b===0?0.4:0),b]);
+      const chosen=new Set(p==='hca'?groups.map(x=>x[1]):groups.sort((a,b)=>b[0]-a[0]).slice(0,k).map(x=>x[1]));
+      for(let b=0;b<lastFull;b++){const t=chosen.has(b)?(p==='hca'?'block':'selected'):'compressed';for(let j=b*m;j<b*m+m;j++)if(M[i][j]==='masked')M[i][j]=t;}
+      c+=chosen.size; readPerRow[i]=c; continue;
+    }
+  }
+  if(p==='window'||p==='dilated')stored=Math.min(n,w);
+  if(p==='sink'||p==='longformer'||p==='bigbird')stored=Math.min(n,w+g);
+  if(p==='csa'||p==='hca')stored=Math.ceil(n/m)+w;
+  return {M,readPerRow,stored};
+}
+const ASYM={dense:'O(n²) prefill · O(n) decode',window:'O(n·w) · O(w)',dilated:'O(n·w) · O(w)',strided:'O(n·(w+n/m))',longformer:'O(n·(w+g))',bigbird:'O(n·(w+g+k))',sink:'O(n·(w+g))',moba:'O(n·k·m) + O(n·n/m) routing',dsa:'O(n·(k+w)) + O(n²) indexer',csa:'O(n·(k+w)) + O(n²/m) indexer',hca:'O(n·(n/m+w))'};
+let hoverRow=-1, last=null;
+function drawMask(){
+  const p=$('pattern').value,n=+$('n').value,w=+$('w').value,m=+$('m').value,k=+$('k').value,g=+$('g').value;
+  $('wv').textContent=w;$('mv').textContent=m;$('kv').textContent=k;$('gv').textContent=g;
+  const r=buildMask(p,n,w,m,k,g);last=r;
+  const cv=$('mask'),S=640,cell=S/n,ctx=cv.getContext('2d');
+  ctx.clearRect(0,0,S,S);
+  for(let i=0;i<n;i++)for(let j=0;j<n;j++){
+    const t=j>i?null:r.M[i][j];
+    ctx.fillStyle=t?COL[t]:'#F7F8F5';
+    if(hoverRow>=0&&i!==hoverRow&&t)ctx.globalAlpha=.35;else ctx.globalAlpha=1;
+    ctx.fillRect(j*cell,i*cell,cell,cell);
+  }
+  ctx.globalAlpha=1;ctx.strokeStyle='rgba(0,0,0,.08)';ctx.lineWidth=1;
+  for(let i=0;i<=n;i++){ctx.beginPath();ctx.moveTo(0,i*cell);ctx.lineTo(S,i*cell);ctx.moveTo(i*cell,0);ctx.lineTo(i*cell,S);ctx.stroke();}
+  if(hoverRow>=0){ctx.strokeStyle=COL.selected;ctx.lineWidth=2;ctx.strokeRect(0,hoverRow*cell,S,cell);}
+  const denseN=n*(n+1)/2;const comp=r.readPerRow.reduce((a,b)=>a+b,0);
+  $('pct').textContent=(100*comp/denseN).toFixed(1)+'%';
+  $('s-comp').textContent=fmt(comp);$('s-dense').textContent=fmt(denseN);
+  $('s-avg').textContent=(comp/n).toFixed(1)+' entries';$('s-asym').textContent=ASYM[p];
+  $('s-store').textContent=fmt(r.stored)+' of '+n+(p==='csa'||p==='hca'?' (n/m + w)':'');
+  $('pdesc').textContent=DESC[p];
+  const types=new Set();r.M.forEach(row=>row.forEach(t=>{if(t!=='masked')types.add(t)}));
+  $('legend').innerHTML=[...types].map(t=>`<span><i style="background:${COL[t]}"></i>${LABEL[t]}</span>`).join('')+`<span><i style="background:#F7F8F5"></i>not computed</span>`;
+}
+['pattern','n','w','m','k','g'].forEach(id=>$(id).addEventListener('input',()=>{hoverRow=-1;drawMask();}));
+$('mask').addEventListener('mousemove',e=>{const n=+$('n').value;const rect=e.target.getBoundingClientRect();const row=Math.floor((e.clientY-rect.top)/rect.height*n);if(row!==hoverRow){hoverRow=row;drawMask();const cnt=last.readPerRow[row];$('hover').textContent=`Query ${row} reads ${cnt} entr${cnt===1?'y':'ies'} out of ${row+1} causally visible keys (${(100*cnt/(row+1)).toFixed(0)}%).`;}});
+$('mask').addEventListener('mouseleave',()=>{hoverRow=-1;drawMask();$('hover').textContent='Hover a row.';});
+drawMask();
+
+/* ---------- RECEPTIVE FIELD ---------- */
+function bar(container,rows,unitFmt,color){
+  const max=Math.max(...rows.map(r=>r[1]));
+  container.innerHTML=rows.map(([name,v,c])=>`<div class="bar"><span>${name}</span><div class="track"><div class="fill" style="width:${(100*v/max).toFixed(2)}%;background:${c||color||COL.dense}"></div></div><span class="v">${unitFmt(v)}</span></div>`).join('');
+}
+function drawRF(){
+  const w=+$('rf-w').value,L=+$('rf-l').value,n=+$('rf-n').value;
+  $('rf-wv').textContent=fmt(w);$('rf-lv').textContent=L;$('rf-nv').textContent=fmt(n);
+  bar($('rf-bars'),[['Context n',n,'#9AA59F'],['Window w (one layer)',w,COL.window],['Theoretical reach L·w',L*w,COL.dense]],fmt);
+  const cov=Math.min(1,L*w/n);
+  $('rf-note').textContent=cov>=1?`In principle a token at the end can be influenced by the whole ${fmt(n)}-token context after ${L} layers, but each hop dilutes the signal; exact recall of a specific early token is not guaranteed.`:`Stacked windows only reach ${fmt(L*w)} tokens back (${(100*cov).toFixed(0)}% of the context). Tokens earlier than that are invisible to the final layer. Add global layers, sinks, or a sparse global branch.`;
+}
+['rf-w','rf-l','rf-n'].forEach(id=>$(id).addEventListener('input',drawRF));drawRF();
+
+/* ---------- CSA PIPELINE STEPPER ---------- */
+const CSTEPS=[
+ ['1 · Tokens','The layer receives n hidden states. Here n = 24, drawn as one square per token; the newest token (rightmost) is the current query.'],
+ ['2 · Project','Each token is projected to a candidate compressed KV vector C and a compression-weight vector Z (two branches, a and b, with separate weights). Nothing is pooled yet.'],
+ ['3 · Compress','Within each non-overlapping block of m = 4 tokens the Z logits are softmaxed per channel and used to pool the four C vectors into one entry. The cache now holds n/4 entries per branch instead of n.'],
+ ['4 · Index','A lightning indexer (few FP8 heads, small dimension) scores the query against every compressed entry. Cost ∝ n/m, not n. Bars show the scores.'],
+ ['5 · Select','The top-k compressed entries are kept (k = 3 here). Everything else stays in the cache but is not read this step.'],
+ ['6 · Attend','One fused softmax over: the k selected entries, the last w = 4 uncompressed tokens (exact window), and a learned per-head sink logit. Output goes to the residual stream.']
+];
+let cstep=0;
+function drawCSA(){
+  const cv=$('csa-canvas'),ctx=cv.getContext('2d'),W=cv.width,Hh=cv.height;ctx.clearRect(0,0,W,Hh);
+  const n=24,m=4,w=4,k=3,x0=40,y0=40,cw=26,gap=6;
+  ctx.font='12px '+css('--sans');ctx.textAlign='center';
+  // tokens row
+  for(let i=0;i<n;i++){const x=x0+i*(cw+gap);let col='#C9D0C7';
+    if(cstep>=5&&i>=n-w)col=COL.window;
+    if(i===n-1)col=COL.selected;
+    ctx.fillStyle=col;ctx.fillRect(x,y0,cw,cw);
+    if(cstep>=1&&i<n-w){ctx.fillStyle='rgba(0,0,0,.25)';ctx.fillRect(x,y0+cw+4,cw,6);ctx.fillRect(x,y0+cw+12,cw,6);}
+  }
+  ctx.fillStyle=css('--ink-2');ctx.textAlign='left';ctx.fillText('tokens (newest = query, red)',x0,y0-12);
+  if(cstep>=1){ctx.fillText('C, Z projections per token',x0,y0+cw+30);}
+  // compressed row
+  if(cstep>=2){
+    const y1=y0+95,nb=(n-w)/m;
+    ctx.fillStyle=css('--ink-2');ctx.textAlign='left';ctx.fillText('compressed entries (one per block of m = 4) — window tokens stay uncompressed',x0,y1-12);
+    const scores=[.35,.9,.2,.6,.8];
+    let sel=[];if(cstep>=4){sel=scores.map((s,i)=>[s,i]).sort((a,b)=>b[0]-a[0]).slice(0,k).map(x=>x[1]);}
+    for(let b=0;b<nb;b++){
+      const x=x0+b*m*(cw+gap),bw=m*(cw+gap)-gap;
+      ctx.fillStyle=cstep>=4?(sel.includes(b)?COL.selected:COL.compressed):COL.compressed;
+      ctx.fillRect(x,y1,bw,cw);
+      ctx.strokeStyle='rgba(0,0,0,.2)';ctx.strokeRect(x,y1,bw,cw);
+      // funnel lines
+      ctx.strokeStyle='rgba(0,0,0,.15)';
+      for(let t=0;t<m;t++){const tx=x0+(b*m+t)*(cw+gap)+cw/2;ctx.beginPath();ctx.moveTo(tx,y0+cw+20);ctx.lineTo(x+bw/2,y1);ctx.stroke();}
+      if(cstep>=3){const h=scores[b]*40;ctx.fillStyle=COL.dense;ctx.fillRect(x+bw/2-8,y1+cw+50-h,16,h);ctx.fillStyle=css('--ink-2');ctx.textAlign='center';ctx.fillText(scores[b].toFixed(2),x+bw/2,y1+cw+64);}
+    }
+    if(cstep>=3){ctx.fillStyle=css('--ink-2');ctx.textAlign='left';ctx.fillText('indexer scores',x0,y1+cw+20);}
+    if(cstep>=5){
+      const ya=y1+cw+90;ctx.fillStyle=css('--ink');ctx.textAlign='left';
+      ctx.fillText(`attention set for the query: ${k} selected entries + ${w} window tokens + 1 sink = ${k+w+1} reads, instead of ${n} for dense`,x0,ya);
+    }
+  }
+}
+CSTEPS.forEach((s,i)=>{const b=document.createElement('button');b.className='step';b.textContent=s[0];b.setAttribute('aria-pressed',i===0);b.addEventListener('click',()=>{cstep=i;document.querySelectorAll('#csa-steps button').forEach((x,j)=>x.setAttribute('aria-pressed',j===i));$('csa-cap').textContent=CSTEPS[i][1];drawCSA();});$('csa-steps').appendChild(b);});
+$('csa-cap').textContent=CSTEPS[0][1];drawCSA();
+
+/* ---------- CSA2 LAYER SIMULATOR ---------- */
+const modes=new Array(40).fill('U');
+[0,5,10,15,20,25,30,35].forEach(i=>modes[i]='F');[2,7,12,17,22,27,32,37].forEach(i=>modes[i]='R');
+const MODE_NAME={F:'Full',R:'Reindex',U:'Reuse'};
+function renderLayers(){
+  const c=$('layers');c.innerHTML='';
+  modes.forEach((mo,i)=>{const b=document.createElement('button');b.className=mo;b.textContent=i+1;b.title=`Layer ${i+1}: ${MODE_NAME[mo]} (click to change)`;b.setAttribute('aria-label',b.title);b.addEventListener('click',()=>{modes[i]=mo==='F'?'R':mo==='R'?'U':'F';renderLayers();});c.appendChild(b);});
+  drawLayerCost();
+}
+function drawLayerCost(){
+  const n=+$('l-n').value,m=+$('l-m').value,k=+$('l-k').value;
+  $('l-nv').textContent=fmt(n);$('l-mv').textContent=m;$('l-kv').textContent=k;
+  const nF=modes.filter(x=>x==='F').length,nR=modes.filter(x=>x==='R').length,L=40,w=128;
+  const entryBytes=512*0.5+16;   // illustrative FP4 compressed entry + scales
+  const winBytes=512*1;          // illustrative FP8 window entry
+  const cacheAll=(L*(n/m)*entryBytes+L*w*winBytes)/1e9;
+  const cacheSh=(nF*(n/m)*entryBytes+L*w*winBytes)/1e9;
+  const idxAll=L*(n/m),idxSh=(nF+nR)*(n/m);
+  const readAll=L*(k*entryBytes+w*winBytes)/1e9,readSh=readAll; // reads unchanged: every layer still attends
+  bar($('l-bars'),[
+    ['Global cache, all Full (GB)',cacheAll,'#9AA59F'],['Global cache, this layout (GB)',cacheSh,COL.selected],
+    ['Indexer candidate scores/step, all Full',idxAll,'#9AA59F'],['Indexer candidate scores/step, this layout',idxSh,COL.block],
+    ['Bytes read/step (GB), either',readAll,COL.window]
+  ],v=>v>1e6?fmtSI(v):v.toFixed(3));
+  const bars=$('l-bars').querySelectorAll('.bar');bars[2].querySelector('.v').textContent=fmtSI(idxAll);bars[3].querySelector('.v').textContent=fmtSI(idxSh);bars[4].querySelector('.v').textContent=readAll.toFixed(3);
+}
+['l-n','l-m','l-k'].forEach(id=>$(id).addEventListener('input',drawLayerCost));
+$('l-allfull').addEventListener('click',()=>{modes.fill('F');renderLayers();});
+renderLayers();
+
+/* ---------- COST CALCULATOR ---------- */
+function calc(){
+  const n=+$('c-n').value,L=+$('c-L').value,H=+$('c-H').value,d=+$('c-d').value,b=+$('c-b').value,w=+$('c-w').value,k=+$('c-k').value,m=+$('c-m').value,HI=+$('c-hi').value,dI=+$('c-di').value,ratio=+$('c-ratio').value;
+  $('c-nv').textContent=fmt(n);
+  const per=2*H*d*b; // bytes per KV entry per layer
+  const mech=[
+   {name:'Dense',c:'#9AA59F',store:n,read:n,idx:0,pre:2*n*n},
+   {name:'SWA (all layers)',c:COL.window,store:Math.min(n,w),read:Math.min(n,w),idx:0,pre:4*n*Math.min(n,w)},
+   {name:`Interleaved 1:${ratio}`,c:COL.global,store:(n+ratio*Math.min(n,w))/(ratio+1),read:(n+ratio*Math.min(n,w))/(ratio+1),idx:0,pre:(2*n*n+ratio*4*n*Math.min(n,w))/(ratio+1)},
+   {name:'DSA (token top-k)',c:COL.strided,store:n,read:Math.min(n,k+w),idx:n,pre:4*n*Math.min(n,k+w)+n*n*HI*dI*2/(4*H*d)},
+   {name:`CSA (m=${m})`,c:COL.selected,store:n/m+w,read:Math.min(n/m+w,k+w),idx:n/m,pre:4*n*Math.min(n/m+w,k+w)+(n*n/m)*HI*dI*2/(4*H*d)},
+   {name:'HCA (m=128)',c:COL.sink,store:n/128+w,read:n/128+w,idx:0,pre:4*n*(n/128+w)}
+  ];
+  bar($('c-store'),mech.map(x=>[x.name,x.store*per*L/1e9,x.c]),v=>v.toFixed(2)+' GB');
+  bar($('c-read'),mech.map(x=>[x.name,x.read*per*L/1e9,x.c]),v=>v.toFixed(3)+' GB');
+  bar($('c-flops'),mech.map(x=>[x.name,(4*x.read*H*d+2*x.idx*HI*dI)*L/1e9,x.c]),v=>v.toFixed(2)+' GF');
+  bar($('c-prefill'),mech.map(x=>[x.name,x.pre*H*d*L/1e15,x.c]),v=>v.toFixed(2)+' PF');
+}
+['c-n','c-L','c-H','c-d','c-b','c-w','c-k','c-m','c-hi','c-di','c-ratio'].forEach(id=>$(id).addEventListener('input',calc));calc();
+
+/* ---------- TOC highlight ---------- */
+const links=[...document.querySelectorAll('nav.toc a')];
+const obs=new IntersectionObserver(es=>{es.forEach(e=>{if(e.isIntersecting){links.forEach(l=>l.classList.toggle('active',l.getAttribute('href')==='#'+e.target.id));}});},{rootMargin:'-20% 0px -70% 0px'});
+links.forEach(l=>{const t=document.querySelector(l.getAttribute('href'));if(t)obs.observe(t);});
+})();
+</script>
+</body>
+</html>
