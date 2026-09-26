@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DeepSeek-V4.1-Flash — Data &amp; Training Pipeline Anatomy v2 (§4–§5)</title>
+<style>
+  :root {
+    --paper: #faf9f5; --ink: #22262e; --muted: #7a7f8a; --line: #ddd8cd;
+    --data: #00897b;  --data-f: #d9efec;     /* §4 data pipeline  */
+    --train: #2653d4; --train-f: #e2eafc;    /* training run      */
+    --fact: #7b3fbf;  --fact-f: #efe6fb;     /* §5 task factory   */
+    --rl: #c05621;    --rl-f: #fbe8dc;       /* async RL loop     */
+    --dsec: #c62828;  --dsec-f: #fbe0e0;     /* DSec substrate    */
+    --ctl: #a97e0a;   --ctl-f: #f9f0d2;      /* effort/OPD/merge  */
+    --src: #546e7a;   --src-f: #e4ebee;      /* raw sources       */
+    --mm: #b03a7e;    --mm-f: #f7e1ef;       /* multimodal proc   */
+    --integ: #2e7d32; --integ-f: #e2f2e3;    /* integration       */
+    --mono: "SF Mono", ui-monospace, Menlo, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Segoe UI", sans-serif; background: #efede7; color: var(--ink);
+         display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+  #hdr { background: #1d2130; color: #eceff6; padding: 10px 18px; display: flex; align-items: center;
+         gap: 14px; flex-wrap: wrap; flex-shrink: 0; }
+  #hdr h1 { font-size: 15px; font-weight: 700; }
+  #hdr .sub { font-size: 11.5px; color: #9aa3b5; }
+  .phase-btns { display: flex; gap: 6px; margin-left: auto; }
+  .pbtn { background: #2c3247; color: #cdd5e4; border: 1px solid #3d4459; border-radius: 7px;
+          padding: 6px 13px; font-size: 12.5px; cursor: pointer; }
+  .pbtn:hover { background: #394059; }
+  .pbtn.on { background: #4e9af1; border-color: #4e9af1; color: #fff; font-weight: 600; }
+  .viewlbl { font-size: 10.5px; color: #8a93a8; line-height: 1.25; text-align: right; align-self: center; }
+  #stats { width: 100%; font-size: 12px; color: #b9c2d4; background: #262b3d; border-radius: 6px;
+           padding: 6px 12px; line-height: 1.5; }
+  #stats b { color: #fff; }
+  #split { flex: 1; display: flex; overflow: hidden; position: relative; }
+  #mapwrap { flex: 1; overflow: auto; background: var(--paper); }
+  #inspector { width: 380px; min-width: 380px; background: #fff; border-left: 1px solid var(--line);
+               overflow-y: auto; overflow-x: hidden; padding: 18px 20px 40px; font-size: 14px; line-height: 1.58; }
+  #inspector.collapsed { width: 0 !important; min-width: 0 !important; padding: 0; border: none; }
+  #vdivider { width: 8px; flex-shrink: 0; cursor: col-resize; background: var(--line);
+              display: flex; align-items: center; justify-content: center; transition: background .15s; }
+  #vdivider:hover, #vdivider.dragging { background: #4e9af1; }
+  #vdivider::after { content: ''; height: 42px; width: 3px; border-radius: 2px; background: rgba(0,0,0,.28); }
+  #zoomctl { position: absolute; top: 12px; left: 12px; z-index: 20; display: flex; gap: 6px;
+             align-items: center; background: rgba(29,33,48,.92); padding: 6px 9px; border-radius: 9px; }
+  #zoomctl button { background: #2c3247; color: #cdd5e4; border: 1px solid #3d4459; border-radius: 6px;
+                    padding: 3px 10px; font-size: 13px; cursor: pointer; line-height: 1.3; }
+  #zoomctl button:hover { background: #394059; }
+  #zoomlvl { font-family: var(--mono); font-size: 11px; color: #b9c2d4; min-width: 38px; text-align: center; }
+  #inspector h2 { font-size: 15px; margin-bottom: 2px; }
+  #inspector .ref { color: #2653d4; font-family: var(--mono); font-size: 11px; }
+  #inspector h3 { font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted);
+                  margin: 14px 0 4px; border-bottom: 1px solid #eee; padding-bottom: 2px; }
+  #inspector p { margin-bottom: 7px; }
+  .plink { color: #2653d4; font-weight: 700; text-decoration: none; }
+  .plink:hover { text-decoration: underline; }
+  #inspector .frm { font-family: var(--mono); font-size: 12px; background: #f2f4f8; border-radius: 5px;
+                    padding: 8px 10px; margin: 6px 0; overflow-x: auto; white-space: pre; line-height: 1.6; }
+  svg text { font-family: -apple-system, "Segoe UI", sans-serif; }
+  .hot { cursor: pointer; }
+  .hot:hover rect { stroke-width: 2.4 !important; }
+  .hot.sel > rect:first-of-type { stroke: #1d2130 !important; stroke-width: 2.6 !important; }
+  .blk rect { transition: opacity .25s; }
+  .boardlabel { font-size: 16.5px; font-weight: 800; fill: #333; }
+  .boardsub { font-size: 12px; fill: #6b6355; }
+  .btitle { font-size: 13px; font-weight: 700; fill: var(--ink); pointer-events: none; }
+  .bsub { font-size: 11px; fill: #4f5560; pointer-events: none; }
+  .edge { fill: none; stroke: #9a958a; stroke-width: 1.5; }
+  .edgelbl { font-size: 11.5px; fill: #453f31; font-weight: 600; }
+  .cost { font-size: 11px; font-weight: 800; fill: #b26a00; }
+  .tick { font-size: 11px; fill: #56607a; font-family: var(--mono); }
+  .evt { font-size: 11px; fill: #2653d4; font-weight: 600; }
+  body.phase-dataflow .b2, body.phase-dataflow .xedge { opacity: .18; }
+  body.phase-rlloop .b1, body.phase-rlloop .xedge { opacity: .18; }
+  body.phase-interrupt .b1 { opacity: .18; }
+  body.phase-interrupt .b2 .blk:not(.ir):not(.rlcore) { opacity: .35; }
+  body.phase-dataflow .d4 { stroke: var(--data); stroke-width: 2.6; stroke-dasharray: 8 5;
+                            animation: dash 1.1s linear infinite; }
+  body.phase-rlloop .rl { stroke: var(--rl); stroke-width: 2.8; stroke-dasharray: 8 5;
+                          animation: dash 1.1s linear infinite; }
+  body.phase-interrupt .ire { stroke: #2653d4; stroke-width: 3; stroke-dasharray: 8 5;
+                              animation: dash .9s linear infinite; }
+  body.phase-interrupt .ir > rect:first-of-type { stroke: #2653d4 !important; stroke-width: 2.6 !important; }
+  @keyframes dash { to { stroke-dashoffset: -26; } }
+</style>
+</head>
+<body>
+
+<div id="hdr">
+  <div>
+    <h1>DeepSeek-V4.1-Flash — Data &amp; Training Pipeline Anatomy</h1>
+    <div class="sub">TOP board: §4 pre-training — data pipeline → 45T-token run → base model &nbsp;·&nbsp; BOTTOM board: §5 post-training — task factory → async RL loop on DSec &nbsp;·&nbsp; the Views buttons animate one story at a time; every box is clickable &nbsp;(Tech Report §4–§5)</div>
+  </div>
+  <div class="phase-btns">
+    <span class="viewlbl">Views<br>(in reading order):</span>
+    <button class="pbtn on" data-phase="none" title="both boards at rest — click any box for details">&#9312; Full structure · §4 + §5</button>
+    <button class="pbtn" data-phase="dataflow" title="animates the top board; bottom board dims">&#9313; Pre-training: data flow · §4</button>
+    <button class="pbtn" data-phase="rlloop" title="animates the bottom board's cycle; top board dims">&#9314; Post-training: async RL loop · §5</button>
+    <button class="pbtn" data-phase="interrupt" title="isolates the checkpoint-switch path inside the RL loop">&#9315; Post-training: interrupt &amp; resume · §5.2.3</button>
+  </div>
+  <div id="stats"></div>
+</div>
+
+<div id="split">
+  <div id="zoomctl">
+    <button id="zout" title="zoom out">−</button>
+    <span id="zoomlvl">100%</span>
+    <button id="zin" title="zoom in">+</button>
+    <button id="zfit" title="fit width">fit</button>
+    <button id="z100" title="reset zoom">1:1</button>
+    <button id="zpanel" title="show/hide the detail panel">◀▶ panel</button>
+  </div>
+  <div id="mapwrap"><div id="map"></div></div>
+  <div id="vdivider" title="drag to resize · double-click to collapse"></div>
+  <div id="inspector"></div>
+</div>
+
+<script>
+"use strict";
+const W = 1640, H = 1700;
+const S = [];
+const add = s => S.push(s);
+const esc = t => t.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+
+function blk(id, x, y, w, h, title, sub, ckey, extra) {
+  const c = `var(--${ckey})`, f = `var(--${ckey}-f)`;
+  const cls = "hot blk " + (extra || "");
+  add(`<g class="${cls}" data-id="${id}">`);
+  add(`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="9" fill="#ffffff" stroke="${c}" stroke-width="1.4"/>`);
+  add(`<rect x="${x}" y="${y}" width="6" height="${h}" rx="3" fill="${c}"/>`);
+  const cy = sub ? y + h/2 - 8 : y + h/2 + 4;
+  add(`<text class="btitle" x="${x+16}" y="${cy}">${esc(title)}</text>`);
+  if (sub) add(`<text class="bsub" x="${x+16}" y="${y+h/2+11}">${esc(sub)}</text>`);
+  add(`</g>`);
+}
+function arrow(d, cls, lbl, lx, ly, anchor) {
+  add(`<path class="edge ${cls||''}" d="${d}" marker-end="url(#arr)"/>`);
+  if (lbl) add(`<text class="edgelbl" x="${lx}" y="${ly}"${anchor?` text-anchor="${anchor}"`:''}>${esc(lbl)}</text>`);
+}
+
+add(`<svg id="svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">`);
+add(`<defs><marker id="arr" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="9" refX="10" refY="4.5" orient="auto"><polygon points="0 0,11 4.5,0 9" fill="#9a958a"/></marker></defs>`);
+
+/* ═══════════ COLOR KEY ═══════════ */
+add(`<g class="hot blk" data-id="legend">`);
+add(`<text x="40" y="75" font-size="12.5" font-weight="800" fill="#3a3f35" letter-spacing=".8">COLOR KEY</text>`);
+const KEY = [["src","raw sources & crawling"],["data","text curation"],["mm","multimodal processing"],["integ","integration & packing"],["train","model training"],["fact","task factory"],["rl","async RL loop"],["ctl","serving controls"],["dsec","DSec substrate"]];
+let kx = 138;
+KEY.forEach(([c,l])=>{
+  add(`<rect x="${kx}" y="62" width="15" height="15" rx="4" fill="var(--${c}-f)" stroke="var(--${c})" stroke-width="1.6"/>`);
+  add(`<text x="${kx+21}" y="74" font-size="11.5" fill="#3a3f35">${esc(l)}</text>`);
+  kx += 21 + l.length*6.1 + 24;
+});
+add(`</g>`);
+
+/* ═══════════ BOARD 1 — §4 PRE-TRAINING ═══════════ */
+add(`<g class="b1">`);
+add(`<rect x="30" y="96" width="1580" height="646" rx="14" fill="#f4f2ea" stroke="#ddd6c6"/>`);
+add(`<text class="boardlabel" x="52" y="128">§4 PRE-TRAINING — a linear pipeline into a 45T-token timeline</text>`);
+add(`<text class="boardsub" x="52" y="144">data flows left → right; every stage exists so no host ever stalls the GPUs</text>`);
+
+/* sources */
+blk("src1", 50, 162, 205, 50, "Web crawl", "re-bootstrapped from Common Crawl", "src");
+blk("src2", 50, 220, 205, 50, "Curated text + fresh code", "new repos · commits · frameworks", "src");
+blk("src3", 50, 278, 205, 50, "Webpages + PDFs", "interleaved image-text", "src");
+blk("src4", 50, 336, 205, 50, "Domain data", "OCR · grounding · computer-use", "src");
+
+/* text pipeline */
+blk("t1", 300, 162, 250, 56, "Implicit-duplication filter", "drop low-info model-generated text", "data");
+blk("t2", 585, 162, 260, 56, "Quality dims + scaling ladder", "expert dimensions · guided runs", "data");
+arrow("M 255 190 H 300", "d4");
+arrow("M 550 190 H 585", "d4");
+arrow("M 845 190 H 1320", "d4", "text corpus", 1050, 182);
+
+/* multimodal staged chain (progressively more expensive) */
+const mm = [
+  ["m1","Heuristic + stat filters","cheap first pass","$"],
+  ["m2","Dedup + quality models","survivors only","$$"],
+  ["m3","Image retrieval","fetch the pixels","$$$"],
+  ["m4","Image-aware filter+dedup","semantic image dedup","$$$$"],
+  ["m5","SmolVLM strict scoring","final quality gate","$$$$$"],
+];
+mm.forEach((m, i) => {
+  const x = 300 + i*200;
+  blk(m[0], x, 268, 190, 62, m[1], m[2], "mm");
+  add(`<text class="cost" x="${x+182}" y="${268+14}" text-anchor="end">${m[3]}</text>`);
+  if (i) arrow(`M ${x-10} 299 H ${x}`, "d4");
+});
+arrow("M 255 302 H 300", "d4");
+arrow("M 1290 299 H 1320", "d4");
+add(`<text class="boardsub" x="300" y="258">interleaved-data construction — organized into progressively more expensive stages (§4.1)</text>`);
+
+/* recycle */
+blk("recycle", 700, 362, 290, 44, "Rejects recycled → image-text pairs", "screening + recombination", "mm");
+arrow("M 1191 330 V 348 H 990 V 362", "d4");
+arrow("M 700 384 H 640 V 440 H 1300 V 396 H 1320", "d4", "recycled pairs rejoin the corpus", 900, 434);
+
+/* integration hub */
+add(`<g class="hot blk" data-id="integ">`);
+add(`<rect x="1320" y="162" width="270" height="268" rx="10" fill="#ffffff" stroke="var(--integ)" stroke-width="1.8"/>`);
+add(`<text class="btitle" x="1338" y="188">Corpus integration</text>`);
+add(`<text class="bsub" x="1338" y="204">union — multimodal wins overlaps</text>`);
+const integLines = ["7 : 1 text : multimodal tokens", "joint prefetch + assignment", "deterministic pre-split of", "  ultra-long documents", "best-fit packing:", "  padding ≤ 1e-4"];
+integLines.forEach((l,i)=>add(`<text class="bsub" x="1338" y="${228+i*20}" font-family="var(--mono)">${esc(l)}</text>`));
+add(`<text class="bsub" x="1338" y="370" fill="#2e7d32" font-weight="700">no shard ever straggles;</text>`);
+add(`<text class="bsub" x="1338" y="386" fill="#2e7d32" font-weight="700">~zero pad FLOPs across 45T</text>`);
+add(`</g>`);
+
+/* ViT branch */
+add(`<text class="boardsub" x="300" y="466">DeepSeek-ViT — trained separately, resolution spent only where it pays (§4.2.2)</text>`);
+blk("v1", 300, 476, 310, 56, "ViT training — Contrastive (SigLIP)", "input: 47B alt-text image-text pairs · 224 px", "train");
+blk("v2", 640, 476, 340, 56, "AR fine-tune + throwaway 4B MoE", "236B tok · 544–1344 px · charts/OCR", "train");
+blk("v3", 1010, 476, 230, 56, "Discard LLM · keep encoder", "joins backbone frozen", "train");
+arrow("M 610 504 H 640", "d4");
+arrow("M 980 504 H 1010", "d4");
+
+/* training timeline */
+add(`<g class="hot blk" data-id="timeline">`);
+add(`<rect x="290" y="560" width="960" height="150" rx="10" fill="#ffffff" stroke="var(--train)" stroke-width="1.6"/>`);
+add(`<text class="btitle" x="308" y="584">The run — 45T multimodal tokens, batch fixed at 100.6M, "no instability"</text>`);
+add(`<rect x="308" y="598" width="577" height="34" fill="#c9d7f8"/>`);
+add(`<rect x="885" y="598" width="124" height="34" fill="#93b0f2"/>`);
+add(`<rect x="1009" y="598" width="123" height="34" fill="#5e86e8"/>`);
+add(`<rect x="1132" y="598" width="100" height="34" fill="#3a63cf"/>`);
+add(`<text class="tick" x="308" y="648">0</text><text class="tick" x="885" y="648" text-anchor="middle">28T</text><text class="tick" x="1009" y="648" text-anchor="middle">34T</text><text class="tick" x="1132" y="648" text-anchor="middle">40T</text><text class="tick" x="1232" y="648" text-anchor="end">45T</text>`);
+add(`<text class="evt" x="316" y="668">warmup 2000 steps → LR 2.6e-4 · ViT frozen · ctx 64K, sparse from step 0</text>`);
+add(`<text class="evt" x="885" y="686" text-anchor="middle">cosine decay begins · ViT unfreezes</text>`);
+add(`<text class="evt" x="1060" y="668">ctx → 1M</text>`);
+add(`<text class="evt" x="1232" y="686" text-anchor="end">hold 2.6e-5</text>`);
+add(`</g>`);
+arrow("M 1455 430 V 546 H 1200 V 560", "d4", "streams 45T tokens", 1268, 540);
+arrow("M 1125 532 V 560", "d4");
+
+/* base model */
+blk("base", 1320, 585, 270, 84, "DeepSeek-V4.1-Flash-Base", "8B/16B active ≈ parity with 49B-active Pro", "train");
+arrow("M 1250 627 H 1320", "d4");
+add(`</g>`);  /* end b1 */
+
+/* doctrine ribbon */
+add(`<g class="hot blk" data-id="doctrine">`);
+add(`<rect x="300" y="750" width="1040" height="66" rx="12" fill="#fdf0e2" stroke="#e8762d" stroke-width="1.4"/>`);
+add(`<text x="820" y="771" text-anchor="middle" font-size="13.5" font-weight="800" fill="#b34700" letter-spacing=".5">PRINCIPLE: ENGINEER THE DATA, NOT THE ALGORITHM</text>`);
+add(`<text x="820" y="790" text-anchor="middle" font-size="12" font-weight="600" fill="#4a4438">§4 curates what the base model reads — sources, duplication filters, quality models, and the 7 : 1 mixture.</text>`);
+add(`<text x="820" y="808" text-anchor="middle" font-size="12" font-weight="600" fill="#4a4438">§5 synthesizes what the agent practices — verified tasks, procedural environments, and reward design.</text>`);
+add(`</g>`);
+
+
+/* cross-board edges */
+arrow("M 1455 669 V 832 H 1060 V 885", "xedge", "policy init (SFT →)", 1120, 852);
+arrow("M 50 245 H 40 V 1000 H 50", "xedge");
+add(`<text class="edgelbl" x="48" y="786">fresh GitHub code (§4.1)</text>`);
+add(`<text class="edgelbl" x="48" y="803">↓ seeds coding envs (§5.1.1)</text>`);
+
+/* ═══════════ BOARD 2 — §5 POST-TRAINING ═══════════ */
+add(`<g class="b2">`);
+add(`<rect x="30" y="820" width="1580" height="830" rx="14" fill="#f4f2ea" stroke="#ddd6c6"/>`);
+add(`<text class="boardlabel" x="52" y="852">§5 POST-TRAINING — a cyclic system on the DSec substrate</text>`);
+add(`<text class="boardsub" x="52" y="868">standard SFT → RL → OPD; all novelty is in the task factory, the async loop, and the datacenter under them</text>`);
+
+/* task factory */
+add(`<rect x="50" y="884" width="410" height="560" rx="11" fill="#faf7f2" stroke="#c9b0e0" stroke-width="1.3"/>`);
+add(`<g class="hot blk" data-id="factory"><rect x="58" y="890" width="394" height="26" rx="7" fill="transparent"/><text class="btitle" x="70" y="908" fill="var(--fact)">TASK FACTORY — §5.1.1</text></g>`);
+blk("triplet", 70, 924, 370, 48, "Task = (problem, environment, verification)", "quality = difficulty × correctness", "fact");
+blk("general", 70, 984, 370, 60, "General agents", "mocked SaaS/enterprise tools · failure replay", "fact");
+add(`<text class="boardsub" x="70" y="1072">coding-agent assembly line (agents build the environments):</text>`);
+const line = [
+  ["a1","Builder agent","pick commit · design eval points"],
+  ["a2","Setup agent","isolated image · de-leak solutions"],
+  ["a3","Solver agents ×N","attempt the task"],
+  ["a4","Inspector agent","audits env, evals, hackability"],
+  ["a5","Repair agent","fix + recalibrate difficulty"],
+];
+line.forEach((a,i)=>{
+  blk(a[0], 70, 1082 + i*52, 200, 44, a[1], a[2], "fact");
+  if (i) arrow(`M 170 ${1082+i*52-8} V ${1082+i*52}`, "rl");
+});
+arrow("M 270 1312 H 288 V 1104 H 270", "rl", "re-verify", 296, 1352);
+blk("taskreward", 310, 1140, 140, 110, "Task rewards", "difficulty × correctness", "fact");
+blk("lifecycle", 70, 1358, 370, 44, "Full-lifecycle re-audit", "every RL run's trajectories re-check task quality", "fact");
+arrow("M 460 1000 H 505 V 933 H 540", "rl");
+
+/* async RL loop */
+blk("pool", 540, 905, 190, 56, "Task pool", "verified · calibrated", "rl", "rlcore");
+blk("rollout", 790, 885, 310, 92, "Rollout fleet — on DSec", "sandbox + worker · schema · outside GPU pool", "rl", "rlcore ir");
+blk("dispatcher", 810, 1120, 270, 72, "Sample-level dispatcher", "dispatch when completions ≥ next group size", "rl", "rlcore");
+blk("ckpt", 540, 1120, 210, 72, "New checkpoint", "token-level interrupt", "rl", "rlcore ir");
+blk("trainer", 540, 1290, 300, 92, "Trainer — GRPO", "colocated with rollout · time-shared GPUs", "rl", "rlcore ir");
+arrow("M 730 933 H 790", "rl");
+arrow("M 945 977 V 1120", "rl", "completed samples", 955, 1050);
+arrow("M 945 1192 V 1336 H 840", "rl");
+arrow("M 690 1290 V 1192", "rl");
+arrow("M 645 1120 V 955 H 790", "rl ire", "resume — no re-prefill (KV + routing persisted)", 656, 995);
+/* async side chips */
+blk("chip_len", 990, 1230, 250, 42, "Length-bias control", "per-dataset caps · drop early shorts", "rl", "ir");
+blk("chip_stale", 990, 1280, 250, 42, "Staleness mask", "stale tokens excluded from the loss", "rl", "ir");
+blk("chip_route", 990, 1330, 250, 42, "Concatenated routing-replay", "expert routing persisted per segment", "rl", "ir");
+
+/* right column */
+add(`<g class="hot blk" data-id="effort">`);
+add(`<rect x="1330" y="885" width="280" height="150" rx="10" fill="#ffffff" stroke="var(--ctl)" stroke-width="1.6"/>`);
+add(`<text class="btitle" x="1348" y="910">Reasoning effort b — §5.1.4</text>`);
+add(`<text class="bsub" x="1348" y="926">output tokens = the third serving-cost axis</text>`);
+add(`<line x1="1350" y1="960" x2="1590" y2="960" stroke="#c8b46a" stroke-width="4" stroke-linecap="round"/>`);
+[["low",50],["high",75],["max",100]].forEach(([t,b])=>{
+  const x = 1350 + (b-1)/99*240;
+  add(`<circle cx="${x}" cy="960" r="6" fill="var(--ctl)"/>`);
+  add(`<text class="tick" x="${b===100?x+6:x}" y="982" text-anchor="${b===100?'end':'middle'}">${t}·${b}</text>`);
+});
+add(`<text class="bsub" x="1348" y="1010" font-family="var(--mono)">k(b) = k0 · exp(−(b−bmin)/tau)</text>`);
+add(`<text class="bsub" x="1348" y="1026">one checkpoint = a cost–quality frontier</text>`);
+add(`</g>`);
+blk("opd", 1330, 1075, 280, 84, "On-policy distillation", "40+ heterogeneous teachers · live reconfig", "ctl");
+blk("merge", 1330, 1195, 280, 76, "Model merging", "re-init successive RL runs (Fig. 7–8)", "ctl");
+blk("final", 1330, 1310, 280, 84, "DeepSeek-V4.1-Flash", "effort-tiered API · agentic frontier-class", "ctl");
+arrow("M 1080 1156 H 1330", "rl", "same async machinery", 1150, 1148);
+arrow("M 690 1382 V 1445 H 1470 V 1394", "rl");
+arrow("M 1470 1159 V 1195", "rl");
+arrow("M 1470 1271 V 1310", "rl");
+arrow("M 1470 1035 V 1075", "");
+
+/* DSec strip */
+add(`<g class="hot blk" data-id="dsec"><rect x="50" y="1470" width="1540" height="160" rx="11" fill="#fdf3f3" stroke="var(--dsec)" stroke-width="1.6"/>`);
+add(`<text class="btitle" x="70" y="1496" fill="var(--dsec)">DSEC — DEEPSEEK ELASTIC COMPUTE (§5.1.3): millions of concurrent sandboxes · the substrate everything above runs on</text>`);
+add(`</g>`);
+const ds = [
+  ["ds1","Scale units","shards · blast radius"],
+  ["ds2","Placement replicas","eventual consistency, no K8s"],
+  ["ds3","Node-local admission","hard local thresholds"],
+  ["ds4","Sub-NUMA VMs","2,500+ containers / node"],
+  ["ds5","SCHED_IDLE + core sched","latency-class isolation"],
+  ["ds6","AppArmor + eBPF","per-sandbox containment"],
+  ["ds7","Repercussion signal","crash → RL penalty"],
+];
+ds.forEach((d,i)=>blk(d[0], 70 + i*217, 1510, 205, 74, d[1], d[2], "dsec"));
+arrow("M 945 1380 V 1470", "", "runs on", 955, 1432);
+arrow("M 255 1444 V 1470", "");
+add(`</g>`);  /* end b2 */
+add(`</svg>`);
+document.getElementById("map").innerHTML = S.join("\n");
+
+/* ═══════════ INSPECTOR CONTENT ═══════════ */
+const D = {
+overview: `<h2>How to read this diagram</h2><p class="ref">DeepSeek-V4.1-Flash Tech Report §4 (Pre-Training) · §5 (Post-Training) &nbsp;·&nbsp; <a class="plink" href="DeepSeek_V41_Tech_Report.pdf#page=22" target="_blank" rel="noopener">open in paper ↗</a></p>
+<p><b>Two boards, one doctrine.</b> The top board is §4: a <b>linear pipeline</b> — sources through
+staged filters into corpus integration, streaming into a 45-trillion-token training timeline. The
+bottom board is §5: a <b>cyclic system</b> — a task factory feeding an asynchronous rollout↔training
+loop, all standing on the DSec datacenter substrate. The orange principle banner between them is the report's
+own thesis: the marginal return of engineering data and environments exceeds that of algorithmic
+novelty.</p>
+<p>Click any block for its mechanism and § reference. The phase buttons animate:
+<b>Data flow</b> traces §4 left-to-right; <b>Async RL loop</b> runs the §5 cycle;
+<b>Interrupt &amp; resume</b> isolates the token-granularity persistence path (§5.2.3).</p>
+<h3>Cross-board edges</h3>
+<p>Three connections justify one page instead of two: the base model (§4 output) initializes the RL
+policy (§5 input); §4.1's freshly crawled GitHub code seeds §5.1.1's coding environments (left
+margin edge); and both boards apply the same doctrine — spend effort on what the model consumes.</p>`,
+src1: `<h2>Web crawl — re-bootstrapped</h2><p class="ref">§4.1 &nbsp;·&nbsp; <a class="plink" href="DeepSeek_V41_Tech_Report.pdf#page=20" target="_blank" rel="noopener">open in paper ↗</a></p><p>The original crawling system was found to be biased toward text-centric web content, so it was <b>re-bootstrapped from Common Crawl</b> to improve coverage of multimodal sources. Sources here feed both the text pipeline (top) and the staged multimodal pipeline (below).</p>`,
+src2: `<h2>Curated text + fresh code</h2><p class="ref">§4.1 &nbsp;·&nbsp; <a class="plink" href="DeepSeek_V41_Tech_Report.pdf#page=20" target="_blank" rel="noopener">open in paper ↗</a></p><p>The new corpus deliberately incorporates <b>recent code</b> — newly released open-source repositories, commits, libraries, and emerging frameworks — to reflect contemporary real-world software engineering. Note the left-margin edge: this same fresh code seeds the coding-agent environments of §5.1.1, one of the three cross-board connections.</p>`,
+src3: `<h2>Webpages + PDFs (interleaved)</h2><p class="ref">§4.1 &nbsp;·&nbsp; <a class="plink" href="DeepSeek_V41_Tech_Report.pdf#page=20" target="_blank" rel="noopener">open in paper ↗</a></p><p>Interleaved image-text data is built predominantly from webpages and PDFs, on the premise that raw web data in its native form provides the most direct and scalable visual knowledge compression — the team explicitly <b>refrained from large-scale data synthesis</b> for pre-training.</p>`,
+src4: `<h2>Domain-specific data</h2><p class="ref">§4.1 &nbsp;·&nbsp; <a class="plink" href="DeepSeek_V41_Tech_Report.pdf#page=20" target="_blank" rel="noopener">open in paper ↗</a></p><p>Web data has inherent gaps, so dedicated datasets boost fine-grained visual perception (grounding, pointing), OCR, and long-tail knowledge. <b>Image-code pairs and computer-use trajectories</b> are collected specifically for multimodal agentic understanding — pre-training already anticipates the agent workloads of §5.</p>`,
+t1: `<h2>Implicit-duplication filter</h2><p class="ref">§4.1 &nbsp;·&nbsp; <a class="plink" href="DeepSeek_V41_Tech_Report.pdf#page=20" target="_blank" rel="noopener">open in paper ↗</a></p><p>Model-generated content with limited information gain — outputs of less capable models, low-quality machine translation — is treated as <b>implicit duplication</b>: it largely reformulates existing information and "may become detrimental over long training horizons." A quality decision framed in systems terms: duplicated information wastes the 45T-token budget.</p>`,
+t2: `<h2>Quality dimensions + scaling ladder</h2><p class="ref">§4.1 &nbsp;·&nbsp; <a class="plink" href="DeepSeek_V41_Tech_Report.pdf#page=20" target="_blank" rel="noopener">open in paper ↗</a></p><p>Beyond sample-level quality, the pipeline evaluates <b>holistic interactions among corpora</b>. Domain experts define fine-grained quality dimensions, and a <b>scaling ladder</b> over model parameters and data guides the large-scale runs — small proxy models de-risking the big one. Model-in-the-loop data iteration is explored as groundwork for future synthetic data.</p>`,
+m1: `<h2>Stage 1 — heuristic + statistical filters</h2><p class="ref">§4.1 &nbsp;·&nbsp; <a class="plink" href="DeepSeek_V41_Tech_Report.pdf#page=20" target="_blank" rel="noopener">open in paper ↗</a></p><p>The multimodal pipeline's organizing principle: processing multimodal corpora costs far more CPU and disk than text, so construction is organized into <b>progressively more expensive stages</b>. The cheapest filters run first over everything; each later stage sees only survivors. The $-badges track the per-document cost rising left to right.</p><h3>Codesign echo</h3><p>The same shape as the Hierarchical Sparse Indexer (§2.3.2): one cheap broad pass bounds where expensive work happens.</p>`,
+m2: `<h2>Stage 2 — dedup + quality models</h2><p class="ref">§4.1 &nbsp;·&nbsp; <a class="plink" href="DeepSeek_V41_Tech_Report.pdf#page=20" target="_blank" rel="noopener">open in paper ↗</a></p><p>Deduplication and learned quality models select <b>high-value documents</b> before any image is fetched. Only documents that survive this gate incur the I/O and storage cost of image retrieval.</p>`,
+m3: `<h2>Stage 3 — image retrieval</h2><p class="ref">§4.1 &nbsp;·&nbsp; <a class="plink" href="DeepSeek_V41_Tech_Report.pdf#page=20" target="_blank" rel="noopener">open in paper ↗</a></p><p>The expensive step the earlier stages exist to protect: actually fetching images for surviving documents. For image-text pairs, images and alt text are extracted together, filtered by an image-text relevance threshold.</p>`,
+m4: `<h2>Stage 4 — image-aware filtering + dedup</h2><p class="ref">§4.1 &nbsp;·&nbsp; <a class="plink" href="DeepSeek_V41_Tech_Report.pdf#page=20" target="_blank" rel="noopener">open in paper ↗</a></p><p>With pixels in hand, filtering and deduplication run again <b>in an image-aware manner</b> — including dedup by image semantics, not just text. Assembled into interleaved image-text sequences.</p>`,
+m5: `<h2>Stage 5 — SmolVLM strict scoring</h2><p class="ref">§4.1 &nbsp;·&nbsp; <a class="plink" href="DeepSeek_V41_Tech_Report.pdf#page=20" target="_blank" rel="noopener">open in paper ↗</a></p><p>The final and most expensive gate: SmolVLM performs strict quality scoring on the image-text content, extracting the high-quality interleaved subset that reaches the corpus.</p>`,
+recycle: `<h2>Rejects recycled</h2><p class="ref">§4.1 &nbsp;·&nbsp; <a class="plink" href="DeepSeek_V41_Tech_Report.pdf#page=20" target="_blank" rel="noopener">open in paper ↗</a></p><p>Documents filtered out during interleaved construction are not discarded: they are <b>partly recycled into additional image-text pairs</b> via screening and recombination — a second, cheaper product line from the same raw material.</p>`,
+integ: `<h2>Corpus integration</h2><p class="ref">§4.1 &nbsp;·&nbsp; <a class="plink" href="DeepSeek_V41_Tech_Report.pdf#page=20" target="_blank" rel="noopener">open in paper ↗</a></p><p>Text-only and multimodal pipelines are unioned; overlapping samples keep the <b>multimodal version</b> (at the larger epoch count), giving a <b>7:1 text-to-multimodal token ratio</b>. The systems half: joint prefetching and sample assignment minimize overlap; <b>ultra-long documents are deterministically pre-split</b> so tokens distribute uniformly across shards and steps; best-fit packing achieves <b>padding ≤ 10⁻⁴</b> — effectively zero wasted FLOPs across 45T tokens.</p><h3>Codesign echo</h3><p>Same master as §3.1.1's balanced image sharding and ρ &lt; (B_IO/B_GPU)·C: no host may ever stall the cluster.</p>`,
+v1: `<h2>ViT stage 1 — contrastive</h2><p class="ref">§4.2.2 &nbsp;·&nbsp; <a class="plink" href="DeepSeek_V41_Tech_Report.pdf#page=22" target="_blank" rel="noopener">open in paper ↗</a></p><p>SigLIP sigmoid contrastive loss on ~<b>47B image-text pairs, capped at 224×224</b>. Higher resolution helps this stage but contributes little to the final model — the autoregressive stage handles high-resolution extrapolation — so the resolution budget is deliberately withheld here. Its all-gathers hide behind forward/backward passes per §3.1.1.</p>`,
+v2: `<h2>ViT stage 2 — autoregressive fine-tune</h2><p class="ref">§4.2.2 &nbsp;·&nbsp; <a class="plink" href="DeepSeek_V41_Tech_Report.pdf#page=22" target="_blank" rel="noopener">open in paper ↗</a></p><p>The encoder is attached to a <b>throwaway 4B MoE LLM</b> and trained on 236B tokens (captions, alt text, charts, OCR) with next-token prediction, at resolutions constrained to 544–1344 px — this is where fine-grained visual features are learned, and where the resolution budget is spent.</p>`,
+v3: `<h2>Discard the LLM, keep the encoder</h2><p class="ref">§4.2.2 &nbsp;·&nbsp; <a class="plink" href="DeepSeek_V41_Tech_Report.pdf#page=22" target="_blank" rel="noopener">open in paper ↗</a></p><p>After stage 2, the 4B LLM is <b>discarded</b>; only the optimized vision encoder proceeds into backbone pre-training, where it stays <b>frozen until the LR-decay stage</b> (§2.5), then unfreezes at a smaller learning rate. Scaffolding built, used, and thrown away.</p>`,
+timeline: `<h2>The 45T-token run</h2><p class="ref">§4.2.2 &nbsp;·&nbsp; <a class="plink" href="DeepSeek_V41_Tech_Report.pdf#page=22" target="_blank" rel="noopener">open in paper ↗</a></p><div class="frm">batch:  100.6M tokens, fixed
+LR:     warmup 2000 steps → 2.6e-4 until 28T
+        → cosine to 2.6e-5 by 40T → hold to 45T
+ctx:    64K from step 0 (sparse attention) → 1M at 34T</div><p>Two load-bearing facts: CSA2 sparse attention is on from the <b>first step</b> (not retrofitted), and the <b>1M context extension happens inside pre-training</b> — feedable only because of §3.1.1's long-sequence machinery. Optimizers per §2.5: Muon (momentum 0.95, RMS 0.18), AdamW (β 0.9/0.95, ε 1e-20), Sinkhorn K=11; Engram LR ×5. Numerics guards (SwiGLU clamp 10) buy the headline: <b>"no instability."</b></p>`,
+base: `<h2>DeepSeek-V4.1-Flash-Base</h2><p class="ref">§4.3, Table 1 &nbsp;·&nbsp; <a class="plink" href="DeepSeek_V41_Tech_Report.pdf#page=23" target="_blank" rel="noopener">open in paper ↗</a></p><p>The board's output: a base model activating <b>8B/16B parameters that matches V4-Pro-Base's 49B-active</b> (1.6T total) across most benchmarks and beats it on coding (HumanEval 79.4 vs 76.8). Native multimodal validated with no text regression. The cross-board arrow hands it to §5 as the SFT/RL starting policy.</p>`,
+legend: `<h2>Color key — how the groups are colored</h2><p class="ref">visual grouping, not decoration &nbsp;·&nbsp; <a class="plink" href="DeepSeek_V41_Tech_Report.pdf" target="_blank" rel="noopener">open in paper ↗</a></p>
+<p>Every color marks one functional group:</p>
+<p><b style="color:#546e7a">Slate</b> — raw sources &amp; crawling (§4.1): where bytes come from, before any judgment.</p>
+<p><b style="color:#00897b">Teal</b> — text curation (§4.1): duplication filtering and quality/mixture decisions on text.</p>
+<p><b style="color:#b03a7e">Plum</b> — multimodal processing (§4.1): the five cost-graded stages plus recycling.</p>
+<p><b style="color:#2e7d32">Green</b> — integration &amp; packing (§4.1): union, 7:1 mixture, pre-splitting, best-fit packing.</p>
+<p><b style="color:#2653d4">Blue</b> — model training (§4.2): the ViT stages and the 45T-token run.</p>
+<p><b style="color:#7b3fbf">Purple</b> — task factory (§5.1.1) · <b style="color:#c05621">Orange</b> — async RL loop (§5.1.2–5.2) ·
+<b style="color:#a97e0a">Gold</b> — serving controls (effort, OPD, merging) · <b style="color:#c62828">Red</b> — DSec substrate (§5.1.3).</p>`,
+doctrine: `<h2>Principle: engineer the data, not the algorithm</h2><p class="ref">§5.1 (stated) · §4.1 (practiced) &nbsp;·&nbsp; <a class="plink" href="DeepSeek_V41_Tech_Report.pdf#page=25" target="_blank" rel="noopener">open in paper ↗</a></p><p>"We refrain from introducing novel post-training algorithms… the marginal return of engineering the data and environment pipeline <b>substantially exceeds</b> that of algorithmic novelty." §4 is the same doctrine upstream: the scaling ladder, duplication filters, and staged multimodal gates are all bets that <b>what the model consumes</b> matters more than how it is optimized. This shared thesis is why both boards live on one page.</p>`,
+factory: `<h2>Task Factory</h2><p class="ref">§5.1.1 &nbsp;·&nbsp; <a class="plink" href="DeepSeek_V41_Tech_Report.pdf#page=25" target="_blank" rel="noopener">open in paper ↗</a></p><p>Tasks are "the fundamental fuel for agent learning." The factory formalizes each as a triplet and mass-produces them through two lines — general-agent environments reconstructed from real workflows, and coding environments built by an assembly line of specialized agents — under continuous quality monitoring.</p>`,
+triplet: `<h2>Task = (problem, environment, verification)</h2><p class="ref">§5.1.1 &nbsp;·&nbsp; <a class="plink" href="DeepSeek_V41_Tech_Report.pdf#page=25" target="_blank" rel="noopener">open in paper ↗</a></p><p>Quality is judged on two axes: <b>difficulty</b> (non-trivial) and <b>correctness</b> (no critical flaw in any of the three components). Both double as reward signals — see the reward block to the right.</p>`,
+general: `<h2>General-agent environments</h2><p class="ref">§5.1.1 &nbsp;·&nbsp; <a class="plink" href="DeepSeek_V41_Tech_Report.pdf#page=25" target="_blank" rel="noopener">open in paper ↗</a></p><p>Employees and partners voluntarily return interaction data; from the observed interfaces the pipeline builds <b>mocked tools reproducing real SaaS and enterprise systems</b> — input formats, output structures, API schemas, behavioral constraints. Negative feedback and failure cases are replayed as single- and multi-turn RL environments targeting observed weaknesses.</p>`,
+a1: `<h2>Builder agent</h2><p class="ref">§5.1.1 &nbsp;·&nbsp; <a class="plink" href="DeepSeek_V41_Tech_Report.pdf#page=25" target="_blank" rel="noopener">open in paper ↗</a></p><p>Determines whether a project can be built, run, and automatically verified inside a container; picks a turn or commit as the starting point; designs sufficiently complex implementation directions; writes concrete evaluation points — both <b>fail-to-pass and pass-to-pass</b> — fetching external resources from the web as needed.</p>`,
+a2: `<h2>Setup agent</h2><p class="ref">§5.1.1 &nbsp;·&nbsp; <a class="plink" href="DeepSeek_V41_Tech_Report.pdf#page=25" target="_blank" rel="noopener">open in paper ↗</a></p><p>Builds the isolated container: dependencies, initial working directory, test code, task description. Performs self-testing, <b>removes any traces that could leak the solution</b>, and packages the environment as a new image layer.</p>`,
+a3: `<h2>Solver agents ×N</h2><p class="ref">§5.1.1 &nbsp;·&nbsp; <a class="plink" href="DeepSeek_V41_Tech_Report.pdf#page=25" target="_blank" rel="noopener">open in paper ↗</a></p><p>Multiple distinct agents attempt the task. Their trajectories are evidence: how hard is it really, and can it be gamed?</p>`,
+a4: `<h2>Inspector agent</h2><p class="ref">§5.1.1 &nbsp;·&nbsp; <a class="plink" href="DeepSeek_V41_Tech_Report.pdf#page=25" target="_blank" rel="noopener">open in paper ↗</a></p><p>Independently reviews the environment together with the solvers' trajectories — checking for environment issues, factual errors, <b>mismatches between evaluation points and task description, and hackability risks</b>.</p>`,
+a5: `<h2>Repair agent</h2><p class="ref">§5.1.1 &nbsp;·&nbsp; <a class="plink" href="DeepSeek_V41_Tech_Report.pdf#page=25" target="_blank" rel="noopener">open in paper ↗</a></p><p>Fixes all identified errors, adjusts evaluation points that are too easy or too hard, and sends the task back into verification — the loop arrow. Only tasks that survive the full cycle enter the pool.</p>`,
+taskreward: `<h2>Difficulty × correctness as rewards</h2><p class="ref">§5.1.1 &nbsp;·&nbsp; <a class="plink" href="DeepSeek_V41_Tech_Report.pdf#page=25" target="_blank" rel="noopener">open in paper ↗</a></p><p>The two quality axes are themselves used as RL rewards to <b>train the model to construct better tasks</b> — the model is "already beginning to exhibit the ability to construct its own training tasks," and this closes the loop on that ability.</p>`,
+lifecycle: `<h2>Full-lifecycle re-audit</h2><p class="ref">§5.1.1 &nbsp;·&nbsp; <a class="plink" href="DeepSeek_V41_Tech_Report.pdf#page=25" target="_blank" rel="noopener">open in paper ↗</a></p><p>Whenever a task is used in a new RL run, the resulting trajectories provide fresh evidence for <b>quality re-auditing</b>. Task quality is never a one-time certification.</p>`,
+pool: `<h2>Task pool</h2><p class="ref">§5.1.1–5.1.2 &nbsp;·&nbsp; <a class="plink" href="DeepSeek_V41_Tech_Report.pdf#page=25" target="_blank" rel="noopener">open in paper ↗</a></p><p>The factory's output: RL training data that is "correct, discriminative, and controllable in length and difficulty," feeding a unified training system across general and coding scenarios.</p>`,
+rollout: `<h2>Rollout fleet — on DSec</h2><p class="ref">§5.1.2 &nbsp;·&nbsp; <a class="plink" href="DeepSeek_V41_Tech_Report.pdf#page=26" target="_blank" rel="noopener">open in paper ↗</a></p><p>Execution splits into an <b>agent sandbox</b> (scaffold + tools) and a <b>worker</b> — a scaffold-agnostic control layer that orchestrates the rollout, <b>normalizes heterogeneous interactions into a common trajectory schema</b>, and talks to the trainer. Both run on DSec, <b>outside the preemptible GPU pool</b>; on trainer preemption, rollouts suspend and offload with full state. The schema is what makes multi-scaffold RL (Claude Code versions, OpenCode, Pi — Fig. 8) trainable by one system.</p><h3>Codesign echo</h3><p>DSpark (§2.4.3) accelerates exactly these generations; Engram sits GPU-resident during them (§3.1.3).</p>`,
+dispatcher: `<h2>Sample-level dispatcher</h2><p class="ref">§5.2.1 &nbsp;·&nbsp; <a class="plink" href="DeepSeek_V41_Tech_Report.pdf#page=30" target="_blank" rel="noopener">open in paper ↗</a></p><p>The winning arm of a three-way granularity ablation: <b>batch-level</b> dispatch caused severe metric oscillations (too coarse); <b>prompt-level</b> stalled on long-tail samples within a GRPO group; <b>sample-level</b> — dispatch the next prompt once completed samples reach its group size, regardless of which groups completed — holds rollout concurrency steady throughout training.</p>`,
+ckpt: `<h2>Checkpoint switch + token-level interrupt</h2><p class="ref">§5.2.3 &nbsp;·&nbsp; <a class="plink" href="DeepSeek_V41_Tech_Report.pdf#page=31" target="_blank" rel="noopener">open in paper ↗</a></p><p>Once enough samples accumulate, training preempts rollouts. <b>Token-level interruption</b> halts generation at any token boundary, so all in-flight samples stop almost immediately and training starts without delay. The same fast-interrupt machinery answers <b>cluster scheduling preemption</b>, raising whole-cluster utilization.</p>`,
+trainer: `<h2>Trainer — GRPO, colocated</h2><p class="ref">§5.2.1 &nbsp;·&nbsp; <a class="plink" href="DeepSeek_V41_Tech_Report.pdf#page=30" target="_blank" rel="noopener">open in paper ↗</a></p><p>Rollout and training <b>share the same physical devices, time-shared</b> — no manual resource split to tune; each task caps its in-flight samples. Off-policy effects are bounded (max staleness ratio) and stale tokens are loss-masked (§5.2.2).</p>`,
+chip_len: `<h2>Length-bias control</h2><p class="ref">§5.2.2 &nbsp;·&nbsp; <a class="plink" href="DeepSeek_V41_Tech_Report.pdf#page=31" target="_blank" rel="noopener">open in paper ↗</a></p><p>Asynchrony's first side effect: short sequences finish first and dominate early batches. Fixes: <b>per-dataset concurrency limits</b> shape the steady-state mixture, and early-returned short samples can be discarded to avoid overfitting to brevity.</p>`,
+chip_stale: `<h2>Staleness mask</h2><p class="ref">§5.2.2 &nbsp;·&nbsp; <a class="plink" href="DeepSeek_V41_Tech_Report.pdf#page=31" target="_blank" rel="noopener">open in paper ↗</a></p><p>Asynchrony's second side effect: samples partially generated by older checkpoints. The dispatcher bounds the maximum off-policy ratio, and a <b>loss mask eliminates tokens with excessive staleness</b> from gradient updates.</p>`,
+chip_route: `<h2>Concatenated routing-replay</h2><p class="ref">§5.2.1 &nbsp;·&nbsp; <a class="plink" href="DeepSeek_V41_Tech_Report.pdf#page=30" target="_blank" rel="noopener">open in paper ↗</a></p><p>For samples spanning multiple checkpoints, the <b>expert routing produced at each rollout segment is kept and concatenated</b> — never discarded and recomputed under the new checkpoint. MoE routing is treated as part of a sample's persistent state, like its KV.</p>`,
+effort: `<h2>Reasoning effort b</h2><p class="ref">§5.1.4, Table 2 &nbsp;·&nbsp; <a class="plink" href="DeepSeek_V41_Tech_Report.pdf#page=29" target="_blank" rel="noopener">open in paper ↗</a></p><p>The section opens by naming the codesign triangle: output tokens determine serving cost <i>"alongside model architecture and hardware."</i> A scalar b ∈ {1..100} conditions RL; GRPO subgroups per (x, b) each feel an exponentially decaying length penalty:</p><div class="frm">r_len = −min(C_max, k(b)·ℓ/L_norm)
+k(b) = k₀·exp(−(b−b_min)/τ),  τ = λ·Δb</div><p>One checkpoint becomes a <b>cost–quality frontier</b>; the production API exposes max/high/low = b 100/75/50, and intermediate values interpolate (Fig. 9: smooth, monotone).</p>`,
+opd: `<h2>On-policy distillation</h2><p class="ref">§5.2.4 &nbsp;·&nbsp; <a class="plink" href="DeepSeek_V41_Tech_Report.pdf#page=31" target="_blank" rel="noopener">open in paper ↗</a></p><p>The final stage: full-vocabulary OPD from <b>over 40 teacher models</b> — from different development stages, architecturally different from each other and from the student — with effectively unbounded teacher counts and negligible switching cost. The recipe is <b>reconfigured live</b> (mixture, concurrency, active teachers) while samples from different configurations coexist in flight.</p>`,
+merge: `<h2>Model merging</h2><p class="ref">§5.1.2 &nbsp;·&nbsp; <a class="plink" href="DeepSeek_V41_Tech_Report.pdf#page=26" target="_blank" rel="noopener">open in paper ↗</a></p><p>To extend RL compute beyond one run, checkpoints from runs across different scaffolds or configurations are <b>merged to re-initialize the next run</b> — aggregating improvements from parallel optimization paths. The disconnected curve segments in Figures 7–8 are these re-initializations; each merge buys further gains in performance and token efficiency.</p>`,
+final: `<h2>DeepSeek-V4.1-Flash</h2><p class="ref">§5.3 &nbsp;·&nbsp; <a class="plink" href="DeepSeek_V41_Tech_Report.pdf#page=32" target="_blank" rel="noopener">open in paper ↗</a></p><p>The finished model: frontier-class agentic results (Table 3), smooth effort control (Fig. 9), scaffold generality (Table 4), and multi-agent test-time scaling (Fig. 10 — 30.04% vs 20.39% on ProgramBench at 8h deadlines).</p>`,
+dsec: `<h2>DSec — DeepSeek Elastic Compute</h2><p class="ref">§5.1.3 · §5.1.2 &nbsp;·&nbsp; <a class="plink" href="DeepSeek_V41_Tech_Report.pdf#page=27" target="_blank" rel="noopener">open in paper ↗</a></p>
+<p>A <b>production-grade sandbox platform</b> born in the V3→V4 transition, when the number and diversity of agentic training environments started growing rapidly. Its <b>initial design</b> already addressed six concerns: heterogeneous execution environments, scalable image distribution, multiple isolation backends, high-density resource management, command-trajectory logging, and preemption-safe resumption.</p>
+<p><b>V4.1 raised the bar to millions of concurrent sandbox instances</b> spanning diverse harnesses, platforms, code repositories, software dependencies, and task-specific services. At that scale the primary bottlenecks shifted — away from FLOPs, toward <b>datacenter scalability, workload isolation, per-node compute density, and containing misbehavior by increasingly capable agents</b>.</p>
+<p>It hosts both halves of the rollout split (§5.1.2): the <b>agent sandbox</b> (scaffold + tools) and the <b>worker</b> (scaffold-agnostic control layer), running <b>outside the preemptible GPU training pool</b>. On trainer preemption, rollout execution is <b>suspended and offloaded with its full state preserved</b> for later resumption, releasing CPU and GPU resources.</p>
+<h3>The seven chips below</h3>
+<p>Scale-out: scale units for blast radius; replicated placement engines trading strong consistency for scalability; node-local hard admission. Density: sub-NUMA worker VMs (~1,000 → 2,500+ live containers/node); a latency-sensitive class via SCHED_IDLE + core scheduling. Containment: per-sandbox AppArmor + eBPF network policy, and the crash-to-"repercussion" reward signal. Click each chip for its mechanism.</p>`,
+ds1: `<h2>Scale units</h2><p class="ref">§5.1.3 &nbsp;·&nbsp; <a class="plink" href="DeepSeek_V41_Tech_Report.pdf#page=27" target="_blank" rel="noopener">open in paper ↗</a></p><p>Compute nodes are partitioned into shards ("scale units"), isolating workloads from different experiments — <b>blast-radius containment</b>: one memory-intensive task cannot exhaust resources shared by unrelated work.</p>`,
+ds2: `<h2>Placement replicas — eventual consistency</h2><p class="ref">§5.1.3 &nbsp;·&nbsp; <a class="plink" href="DeepSeek_V41_Tech_Report.pdf#page=27" target="_blank" rel="noopener">open in paper ↗</a></p><p>Instead of Kubernetes, a custom placement engine built on one observation: sandbox placement needs only <b>eventual consistency</b> as long as nodes enforce local safety. Multiple independent replicas make "good-enough" placements from recent measurements, with <b>no synchronized coordination</b> — eliminating central coordination as the scaling bottleneck.</p><h3>Codesign echo</h3><p>The scheduling twin of bounded replay (§3.2.2): give up exactness where it doesn't pay, keep a cheap local guarantee.</p>`,
+ds3: `<h2>Node-local hard admission</h2><p class="ref">§5.1.3 &nbsp;·&nbsp; <a class="plink" href="DeepSeek_V41_Tech_Report.pdf#page=27" target="_blank" rel="noopener">open in paper ↗</a></p><p>The compensating guarantee: each node validates final placement decisions and <b>rejects any placement exceeding a local warning threshold</b>. Correctness is enforced at the edge, not the center.</p>`,
+ds4: `<h2>Sub-NUMA VMs — 2,500+ containers/node</h2><p class="ref">§5.1.3 &nbsp;·&nbsp; <a class="plink" href="DeepSeek_V41_Tech_Report.pdf#page=27" target="_blank" rel="noopener">open in paper ↗</a></p><p>Hardware-supported sub-NUMA partitioning binds each worker VM to one NUMA domain; containers inside are confined to that domain's CPU and memory. This balances <b>aggressive memory overcommit against Linux kernel lock contention</b> and localizes failures — raising density from ~1,000 to <b>2,500+ live containers per physical node</b>.</p>`,
+ds5: `<h2>SCHED_IDLE + core scheduling</h2><p class="ref">§5.1.3 &nbsp;·&nbsp; <a class="plink" href="DeepSeek_V41_Tech_Report.pdf#page=27" target="_blank" rel="noopener">open in paper ↗</a></p><p>High density distorts time-sensitive evaluations, so DSec has a <b>latency-sensitive execution class</b>: non-LS tasks run at minimum priority (SCHED_IDLE), and <b>core scheduling</b> ensures only same-priority tasks share sibling hyperthreads — no background noise on the measured core.</p>`,
+ds6: `<h2>AppArmor + eBPF containment</h2><p class="ref">§5.1.3 &nbsp;·&nbsp; <a class="plink" href="DeepSeek_V41_Tech_Report.pdf#page=27" target="_blank" rel="noopener">open in paper ↗</a></p><p>Agents attempt reward hacking and have exploited <b>real disclosed vulnerabilities</b> — XFS driver permission issues, AppArmor illegal memory access, answer leaks from package mirrors — plus deleting binaries and filesystems. Defenses: per-sandbox AppArmor profiles and fine-grained eBPF network policies.</p>`,
+ds7: `<h2>Repercussion signal</h2><p class="ref">§5.1.3 &nbsp;·&nbsp; <a class="plink" href="DeepSeek_V41_Tech_Report.pdf#page=27" target="_blank" rel="noopener">open in paper ↗</a></p><p>If an agent crashes its environment, the crash becomes a <b>failed trajectory plus a "repercussion" signal</b> into the RL reward — misbehavior is trained against, not merely blocked. The same arms race reappears in evaluation hardening (§5.3.1), where the report urges benchmark designers to plan for model gaming.</p>`,
+};
+
+const insp = document.getElementById("inspector");
+insp.innerHTML = D.overview;
+
+/* coverage check */
+(function(){
+  const ids = [...document.querySelectorAll(".hot")].map(g => g.dataset.id);
+  const missing = [...new Set(ids)].filter(id => !D[id]);
+  if (missing.length) console.error("blocks missing inspector entries:", missing);
+  else console.log("verified:", new Set(ids).size, "blocks wired to inspector ✓");
+})();
+
+document.getElementById("map").addEventListener("click", e => {
+  const g = e.target.closest(".hot");
+  document.querySelectorAll(".hot.sel").forEach(n => n.classList.remove("sel"));
+  if (!g) { insp.innerHTML = D.overview; return; }
+  g.classList.add("sel");
+  insp.innerHTML = D[g.dataset.id] || D.overview;
+});
+
+/* phases */
+const STATS = {
+  none: `<b>&#9312; Full structure — the whole system at rest.</b> Top: §4 pre-training — sources → duplication/quality filters and a 5-stage cost-graded multimodal pipeline → corpus integration (7:1, padding ≤ 10⁻⁴) → the 45T-token run → the base model. Bottom: §5 post-training — task factory → async RL loop → effort control, OPD, merging — on the DSec substrate. Click anything.`,
+  dataflow: `<b>&#9313; Pre-training data flow (§4.1–4.2) — follow the tokens left → right:</b> cheap filters run over everything; each later multimodal stage sees only survivors ($ → $$$$$); rejects are recycled as image-text pairs. Integration guarantees determinism — pre-split ultra-long docs, best-fit packing, <b>padding ≤ 10⁻⁴</b> — then streams 45T tokens into a run with a fixed 100.6M-token batch and <b>no instability</b>. Context extends 64K → 1M mid-run at 34T.`,
+  rlloop: `<b>&#9314; Post-training async RL loop (§5.1–5.2) — follow the cycle:</b> verified tasks → rollout fleet (sandbox + worker on DSec, outside the GPU pool) → completed samples → <b>sample-level dispatcher</b> (batch-level oscillated, prompt-level stalled) → colocated GRPO trainer → new checkpoint → token-level interrupt → resume. Model merging chains successive runs; the same machinery feeds 40-teacher OPD.`,
+  interrupt: `<b>&#9315; Post-training interrupt &amp; resume (§5.2.3) — the pause/continue machinery:</b> generation halts at any token boundary; KV cache <b>and expert routing</b> are persisted at token granularity; on resumption with the new checkpoint, states are reused directly — <b>no re-prefill</b>, samples continue mid-token-stream. Sample-grained GC frees state at completion. The same path absorbs cluster preemption. This is §3.2.1's state-continuity doctrine, RL edition.`,
+};
+function setPhase(p) {
+  document.body.className = p === "none" ? "" : "phase-" + p;
+  document.querySelectorAll(".pbtn").forEach(b => b.classList.toggle("on", b.dataset.phase === p));
+  document.getElementById("stats").innerHTML = STATS[p];
+}
+document.querySelectorAll(".pbtn").forEach(b => b.onclick = () => setPhase(b.dataset.phase));
+setPhase("none");
+
+/* ═══════════ ZOOM ═══════════ */
+(function(){
+  const svgEl = document.getElementById("svg");
+  const mapWrap = document.getElementById("mapwrap");
+  const BW = +svgEl.getAttribute("width"), BH = +svgEl.getAttribute("height");
+  let zoom = 1;
+  function setZoom(z){
+    zoom = Math.min(2.5, Math.max(0.3, z));
+    svgEl.style.width = (BW*zoom) + "px";
+    svgEl.style.height = (BH*zoom) + "px";
+    document.getElementById("zoomlvl").textContent = Math.round(zoom*100) + "%";
+  }
+  document.getElementById("zin").onclick  = () => setZoom(zoom * 1.2);
+  document.getElementById("zout").onclick = () => setZoom(zoom / 1.2);
+  document.getElementById("z100").onclick = () => setZoom(1);
+  document.getElementById("zfit").onclick = () => setZoom((mapWrap.clientWidth - 24) / BW);
+  setZoom(1);
+})();
+
+/* ═══════════ MOVABLE / COLLAPSIBLE DIVIDER ═══════════ */
+(function(){
+  const dv = document.getElementById("vdivider");
+  const insp = document.getElementById("inspector");
+  let drag = false, sx, sw, saved = 380;
+  dv.addEventListener("mousedown", e => {
+    drag = true; sx = e.clientX; sw = insp.offsetWidth;
+    insp.classList.remove("collapsed");
+    dv.classList.add("dragging");
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    e.preventDefault();
+  });
+  document.addEventListener("mousemove", e => {
+    if (!drag) return;
+    const w = Math.min(720, Math.max(140, sw - (e.clientX - sx)));
+    insp.style.width = w + "px"; insp.style.minWidth = w + "px";
+  });
+  document.addEventListener("mouseup", () => {
+    if (!drag) return; drag = false;
+    dv.classList.remove("dragging");
+    document.body.style.cursor = ""; document.body.style.userSelect = "";
+  });
+  function togglePanel(){
+    if (insp.classList.contains("collapsed")) {
+      insp.classList.remove("collapsed");
+      insp.style.width = saved + "px"; insp.style.minWidth = saved + "px";
+    } else {
+      saved = insp.offsetWidth || saved;
+      insp.classList.add("collapsed");
+    }
+  }
+  dv.addEventListener("dblclick", togglePanel);
+  document.getElementById("zpanel").onclick = togglePanel;
+})();
+</script>
+</body>
+</html>

@@ -150,6 +150,27 @@
   <a class="open" href="deepseek_v41_inference_explorer_memory_tiers.html">Open explorer</a>
 </div>
 
+<div class="entry">
+  <h3><a href="training-pipeline-anatomy.html">Data and Training Pipeline Anatomy</a></h3>
+  <p class="kind">Interactive diagram &middot; Tech Report &sect;4 to &sect;5 &middot; every box clickable</p>
+  <p>
+    Two boards on one canvas. The top board is &sect;4 pre-training: raw sources (a re-bootstrapped
+    web crawl, curated text and fresh code, interleaved webpages and PDFs, domain-specific data)
+    flowing left to right through the implicit-duplication filter, dedup and quality models, the
+    five-stage multimodal pipeline, and corpus integration into the 45-trillion-token run that
+    produces the base model. The bottom board is &sect;5 post-training: the task factory feeding
+    the asynchronous RL loop on the DSec substrate. Four views animate one story at a time:
+  </p>
+  <ul>
+    <li>Full structure, both boards at once.</li>
+    <li>Pre-training data flow, following tokens from source to trainer.</li>
+    <li>Post-training async RL loop, from task generation to policy update.</li>
+    <li>Post-training interrupt and resume, the checkpointing story of &sect;5.2.3.</li>
+  </ul>
+  <p>Click any box for its explanation. Zoom controls and a resizable panel are in the toolbar.</p>
+  <a class="open" href="training-pipeline-anatomy.html">Open pipeline</a>
+</div>
+
 <footer>
   <p>
     The <code>pdfs/</code> folder holds the source arXiv papers that the map links to.
