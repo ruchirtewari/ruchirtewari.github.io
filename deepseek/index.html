@@ -1,6 +1,6 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
+<html lang="en"><head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>DeepSeek Notes</title>
@@ -56,8 +56,8 @@
 
 <header>
   <h1>DeepSeek Notes</h1>
-  <p class="sub">Interactive references and an annotated tech report &mdash; from DeepSeek LLM to V4.1-Flash</p>
-  <p class="author">Ruchir Tewari &middot; <a href="mailto:ruchirtewari@gmail.com">ruchirtewari@gmail.com</a></p>
+  <p class="sub">Interactive references and an annotated tech report — from DeepSeek LLM to V4.1-Flash</p>
+  <p class="author">Ruchir Tewari · <a href="mailto:ruchirtewari@gmail.com">ruchirtewari@gmail.com</a></p>
 </header>
 
 <main>
@@ -72,22 +72,22 @@
 <h2 class="section">Primary source</h2>
 
 <div class="entry">
-  <h3><a href="DeepSeek_V41_Tech_Report_commented.pdf">DeepSeek-V4.1-Flash Tech Report, commented</a></h3>
-  <p class="kind">PDF &middot; 2.3 MB &middot; annotated copy</p>
+  <h3><a href="https://ruchirtewari.github.io/deepseek/DeepSeek_V41_Tech_Report_commented.pdf">DeepSeek-V4.1-Flash Tech Report, commented</a></h3>
+  <p class="kind">PDF · 2.3 MB · annotated copy</p>
   <p>
     The V4.1-Flash technical report, <em>Pushing the Limits of KV Cache Compression</em>,
     with my margin notes and highlights. The comments call out what each design choice buys,
     where the numbers come from, and which sections the interactive pages below are built
-    from (mainly &sect;2 Architecture and &sect;3 Infrastructures, Figures 3 to 5).
+    from (mainly §2 Architecture and §3 Infrastructures, Figures 3 to 5).
   </p>
-  <a class="open" href="DeepSeek_V41_Tech_Report_commented.pdf">Open PDF</a>
+  <a class="open" href="https://ruchirtewari.github.io/deepseek/DeepSeek_V41_Tech_Report_commented.pdf">Open PDF</a>
 </div>
 
 <h2 class="section">Overview</h2>
 
 <div class="entry">
-  <h3><a href="deepseek_papers.html">DeepSeek Papers Map</a></h3>
-  <p class="kind">Interactive &middot; 2024 to 2026 &middot; 16 papers and releases</p>
+  <h3><a href="https://ruchirtewari.github.io/deepseek/deepseek_papers.html">DeepSeek Papers Map</a></h3>
+  <p class="kind">Interactive · 2024 to 2026 · 16 papers and releases</p>
   <p>
     A clickable timeline of the DeepSeek line of work, from the original DeepSeek LLM scaling
     paper through DeepSeekMoE, V2, V3, R1, V3.2, mHC, Engram, V4 and V4.1-Flash, plus the
@@ -96,14 +96,14 @@
     cache, reasoning via RL, long context and memory, residual topology, and domains and
     modality. Click any block for a short summary and a link to the paper.
   </p>
-  <a class="open" href="deepseek_papers.html">Open map</a>
+  <a class="open" href="https://ruchirtewari.github.io/deepseek/deepseek_papers.html">Open map</a>
 </div>
 
 <h2 class="section">Interactive references on V4.1-Flash</h2>
 
 <div class="entry">
-  <h3><a href="sparse-attention-walkthrough.html">Sliding Window and Sparse Attention, from Longformer to CSA2</a></h3>
-  <p class="kind">Interactive reference &middot; SWA, NSA, DSA, CSA, CSA2, HCA</p>
+  <h3><a href="https://ruchirtewari.github.io/deepseek/sparse-attention-walkthrough.html">Sliding Window and Sparse Attention, from Longformer to CSA2</a></h3>
+  <p class="kind">Interactive reference · SWA, NSA, DSA, CSA, CSA2, HCA</p>
   <p>
     Why attention is expensive, and every trick used to avoid paying the full quadratic price.
     Starts with sliding window attention, lays out a taxonomy of sparse patterns (fixed,
@@ -112,12 +112,12 @@
     reads. Ends with a GPU cost calculator that gives floating-point operations and bytes moved
     per decode step for each scheme.
   </p>
-  <a class="open" href="sparse-attention-walkthrough.html">Open walkthrough</a>
+  <a class="open" href="https://ruchirtewari.github.io/deepseek/sparse-attention-walkthrough.html">Open walkthrough</a>
 </div>
 
 <div class="entry">
-  <h3><a href="layer-anatomy-animated.html">Layer Anatomy, animated</a></h3>
-  <p class="kind">Animated diagram &middot; all 40 layers unrolled</p>
+  <h3><a href="https://ruchirtewari.github.io/deepseek/layer-anatomy-animated.html">Layer Anatomy, animated</a></h3>
+  <p class="kind">Animated diagram · all 40 layers unrolled</p>
   <p>
     The full V4.1-Flash stack drawn layer by layer: the 20-layer causal encoder, the 20-layer
     decoder, which layers compute their own KV and which reuse another layer's, where the
@@ -132,12 +132,12 @@
     <li>Engram prefetch and gate: how n-gram hashes fetch rows ahead of time.</li>
   </ul>
   <p>Click any layer for its own panel. The scrubber is authoritative, so you can drag to any frame.</p>
-  <a class="open" href="layer-anatomy-animated.html">Open anatomy</a>
+  <a class="open" href="https://ruchirtewari.github.io/deepseek/layer-anatomy-animated.html">Open anatomy</a>
 </div>
 
 <div class="entry">
-  <h3><a href="deepseek_v41_inference_explorer_memory_tiers.html">Inference Explorer with Memory-Tier Overlay</a></h3>
-  <p class="kind">Interactive schematic &middot; dataflow across the hardware hierarchy</p>
+  <h3><a href="https://ruchirtewari.github.io/deepseek/deepseek_v41_inference_explorer_memory_tiers.html">Inference Explorer with Memory-Tier Overlay</a></h3>
+  <p class="kind">Interactive schematic · dataflow across the hardware hierarchy</p>
   <p>
     A deliberately small 5-plus-5 layer schematic of encoder and decoder, placed on top of the
     memory hierarchy it runs on: GPU SRAM, HBM, host DRAM, and NVMe SSD, with width for
@@ -147,37 +147,72 @@
     an SWA cache miss, or an Engram lookup, and toggle CSA2 layer policies (Full, Reindex,
     Reuse) and FP4 global KV to see what moves and what it costs.
   </p>
-  <a class="open" href="deepseek_v41_inference_explorer_memory_tiers.html">Open explorer</a>
+  <a class="open" href="https://ruchirtewari.github.io/deepseek/deepseek_v41_inference_explorer_memory_tiers.html">Open explorer</a>
 </div>
 
 <div class="entry">
-  <h3><a href="training-pipeline-anatomy.html">Data and Training Pipeline Anatomy</a></h3>
-  <p class="kind">Interactive diagram &middot; Tech Report &sect;4 to &sect;5 &middot; every box clickable</p>
+  <h3><a href="https://ruchirtewari.github.io/deepseek/training-pipeline-anatomy.html">Data and Training Pipeline Anatomy</a></h3>
+  <p class="kind">Interactive diagram · Tech Report §4 to §5 · every box clickable</p>
   <p>
-    Two boards on one canvas. The top board is &sect;4 pre-training: raw sources (a re-bootstrapped
-    web crawl, curated text and fresh code, interleaved webpages and PDFs, domain-specific data)
-    flowing left to right through the implicit-duplication filter, dedup and quality models, the
+    Pre-training: raw sources (a re-bootstrapped web crawl, curated text and fresh code, interleaved webpages and PDFs, domain-specific data)
+    flowing through the implicit-duplication filter, dedup and quality models, the
     five-stage multimodal pipeline, and corpus integration into the 45-trillion-token run that
-    produces the base model. The bottom board is &sect;5 post-training: the task factory feeding
-    the asynchronous RL loop on the DSec substrate. Four views animate one story at a time:
+    produces the base model. 
+  </p><p>
+    Post-training: Reinforcement learning loop. A task factory feeds the asynchronous RL loop on the DSec substrate. Four animated flows.
   </p>
   <ul>
     <li>Full structure, both boards at once.</li>
     <li>Pre-training data flow, following tokens from source to trainer.</li>
     <li>Post-training async RL loop, from task generation to policy update.</li>
-    <li>Post-training interrupt and resume, the checkpointing story of &sect;5.2.3.</li>
+    <li>Post-training interrupt and resume, the checkpointing story of §5.2.3.</li>
   </ul>
   <p>Click any box for its explanation. Zoom controls and a resizable panel are in the toolbar.</p>
-  <a class="open" href="training-pipeline-anatomy.html">Open pipeline</a>
+  <a class="open" href="https://ruchirtewari.github.io/deepseek/training-pipeline-anatomy.html">Open pipeline</a>
+</div>
+
+<h2 class="section">DSec: the sandbox platform behind post-training</h2>
+
+<div class="entry">
+  <h3><a href="pdfs/2609.22978_dsec_commented.pdf">DSec: DeepSeek Elastic Compute, commented</a></h3>
+  <p class="kind">PDF &middot; arXiv 2609.22978 &middot; annotated copy</p>
+  <p>
+    The paper describing DSec, the elastic sandbox platform that runs the environments and
+    rollouts for V4.1-Flash post-training. It covers the stateless control plane, the four
+    isolation backends, the 3FS storage layer, and the mechanisms for bursting rollouts,
+    loading environments on demand, and preempting and resuming work. My margin notes tie the
+    section numbers to the boxes in the animated diagram below.
+  </p>
+  <a class="open" href="pdfs/2609.22978_dsec_commented.pdf">Open PDF</a>
+</div>
+
+<div class="entry">
+  <h3><a href="dsec/dsec-flows.html">DSec Platform Anatomy, animated</a></h3>
+  <p class="kind">Interactive diagram &middot; paper Figure 1 redrawn &middot; every box clickable</p>
+  <p>
+    The DSec architecture on one canvas. Clients on the left (trainer, RL framework, the
+    libdsec SDK and pack_diff environments), stateless cluster services and a single worker
+    node in the middle (IAM, API server, placement engine, watcher), the &sect;5 mechanisms on
+    the right, and 3FS storage along the bottom. Four views animate one story at a time:
+  </p>
+  <ul>
+    <li>Full structure, the whole platform at rest.</li>
+    <li>Rollout burst, how thousands of sandboxes come up for one RL step (&sect;4.1).</li>
+    <li>On-demand load, fetching an environment image only when a rollout needs it (&sect;5.3).</li>
+    <li>Preempt and resume, what happens when the training pool reclaims nodes (&sect;6.2 to 6.3).</li>
+  </ul>
+  <p>Each box cites the paper section it comes from and links into the annotated PDF.</p>
+  <a class="open" href="dsec/dsec-flows.html">Open anatomy</a>
 </div>
 
 <footer>
   <p>
     The <code>pdfs/</code> folder holds the source arXiv papers that the map links to.
-    Back to the <a href="../index.html">site home</a>.
+    Back to the <a href="https://ruchirtewari.github.io/index.html">site home</a>.
   </p>
 </footer>
 
 </main>
-</body>
-</html>
+
+
+</body></html>
