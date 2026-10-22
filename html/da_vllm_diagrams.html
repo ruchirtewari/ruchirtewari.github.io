@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DA × vLLM — Interactive Diagrams</title>
+<style>
+:root{
+  --bg:#0d1117; --card:#161b22; --card2:#1c2330; --border:#30363d;
+  --txt:#e6edf3; --dim:#9da7b3; --blue:#58a6ff; --green:#3fb950;
+  --purple:#bc8cff; --orange:#f0883e; --red:#f85149; --grey:#3d444d;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--txt);font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:0;padding:24px;line-height:1.45}
+h1{font-size:22px;margin:0 0 4px}
+h2{font-size:17px;margin:0 0 6px}
+h3{font-size:13px;margin:0 0 8px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em}
+.sub{color:var(--dim);font-size:13px;max-width:900px}
+section{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:18px;margin:22px auto;max-width:1200px}
+code,.mono{font-family:var(--mono);font-size:12px}
+.tag{color:var(--orange)}
+button{background:#21262d;border:1px solid var(--border);color:var(--txt);border-radius:6px;padding:5px 12px;font-size:12px;cursor:pointer;font-family:var(--mono)}
+button:hover{border-color:var(--blue)}
+button.sel{background:#1f6feb33;border-color:var(--blue);color:var(--blue)}
+button:disabled{opacity:.4;cursor:default}
+.row{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start}
+.col{display:flex;flex-direction:column;gap:8px}
+.pill{border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-family:var(--mono);font-size:11px;background:var(--card2);white-space:nowrap}
+.pill.b{border-color:var(--blue);color:var(--blue)}
+.pill.g{border-color:var(--green);color:var(--green)}
+.pill.p{border-color:var(--purple);color:var(--purple)}
+.pill.o{border-color:var(--orange);color:var(--orange)}
+.glossary{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+.gloss{background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:12px;max-width:280px}
+.gloss b{color:var(--blue);font-family:var(--mono);font-size:11px;display:block;margin-bottom:2px}
+/* ---------- Diagram 1 : network stack ---------- */
+.stack-wrap{display:flex;gap:24px}
+.stack{position:relative;display:flex;flex-direction:column-reverse;gap:6px;width:340px;padding:8px;border:1px dashed var(--border);border-radius:10px}
+.stack-lbl{text-align:center;color:var(--dim);font-size:11px;font-family:var(--mono)}
+.layer-card{background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:6px 8px;display:flex;flex-direction:column;gap:4px;position:relative}
+.layer-card .ltag{position:absolute;top:6px;right:8px;font-family:var(--mono);font-size:10px;padding:1px 6px;border-radius:4px}
+.ltag.swa{background:#3fb95022;color:var(--green);border:1px solid var(--green)}
+.ltag.glob{background:#58a6ff22;color:var(--blue);border:1px solid var(--blue)}
+.lrow{display:flex;gap:6px;align-items:center}
+.slot{flex:1;border:1px dashed var(--grey);border-radius:5px;padding:2px 6px;font-family:var(--mono);font-size:10.5px;color:var(--dim);background:#0d1117}
+.slot b{color:var(--txt);font-weight:600}
+.ellipsis{text-align:center;color:var(--dim);font-size:16px;letter-spacing:3px}
+.tokendot{position:absolute;left:-14px;width:8px;height:8px;border-radius:50%;background:var(--orange);box-shadow:0 0 8px var(--orange);animation:rise 6s linear infinite;z-index:5}
+@keyframes rise{0%{bottom:0;opacity:0}8%{opacity:1}92%{opacity:1}100%{bottom:calc(100% - 8px);opacity:0}}
+.plugin-panel{flex:1;min-width:300px;display:flex;flex-direction:column;gap:12px}
+.registry{background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:10px}
+.registry .btns{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.registry .note{font-size:11px;color:var(--dim);margin-top:6px}
+/* ---------- Diagram 2 : blocks ---------- */
+.zone{border:1px dashed var(--border);border-radius:10px;padding:10px;position:relative}
+.zone .zlbl{position:absolute;top:-9px;left:10px;background:var(--card);padding:0 6px;font-family:var(--mono);font-size:10px;color:var(--dim)}
+.tokcell{display:inline-flex;width:26px;height:26px;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:4px;font-family:var(--mono);font-size:10px;margin:1px;background:var(--card2)}
+.tokcell.new{background:#1f6feb55;border-color:var(--blue)}
+.blkbracket{display:inline-block;border-left:2px solid var(--green);border-right:2px solid var(--green);border-radius:3px;padding:1px 3px;margin:0 2px}
+.btcell{display:inline-flex;flex-direction:column;width:70px;border:1px solid var(--green);border-radius:5px;font-family:var(--mono);font-size:10px;padding:3px 4px;margin:1px;background:#0d1117}
+.btcell .l{color:var(--dim)} .btcell .p{color:var(--green)}
+.btcell.flash{animation:flash 1s} @keyframes flash{0%{background:#3fb95066}100%{background:#0d1117}}
+.physgrid{display:grid;grid-template-columns:repeat(8,1fr);gap:3px;max-width:420px}
+.pcell{aspect-ratio:1.6;border:1px solid var(--border);border-radius:4px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:9px;color:var(--grey);background:#0d1117}
+.pcell.used{border-color:var(--purple);color:var(--purple);background:#bc8cff18}
+.pcell.fresh{animation:pflash 1.2s} @keyframes pflash{0%{background:#bc8cff88}100%{background:#bc8cff18}}
+.commitline{font-family:var(--mono);font-size:11px;color:var(--dim);text-align:center;padding:4px}
+.commitline.go{color:var(--orange);animation:cflash 1s} @keyframes cflash{0%{background:#f0883e33}100%{background:transparent}}
+/* ---------- Diagram 3 : pipeline ---------- */
+.pipe{display:flex;gap:6px;align-items:stretch;flex-wrap:wrap;position:relative;padding-top:14px}
+.node{background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;min-width:120px;font-family:var(--mono);font-size:10.5px;position:relative}
+.node b{display:block;font-size:11px;margin-bottom:2px}
+.node .d{color:var(--dim);font-size:10px}
+.node.pulse{border-color:var(--orange);box-shadow:0 0 10px #f0883e55}
+.arrow{align-self:center;color:var(--dim);font-size:14px}
+.middleman{border:1.5px dashed var(--orange);border-radius:12px;padding:16px 10px 8px;position:relative;display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}
+.middleman .mlbl{position:absolute;top:-10px;left:14px;background:var(--card);padding:0 8px;font-family:var(--mono);font-size:11px;color:var(--orange)}
+/* ---------- Diagram 4 : DA hook ---------- */
+.band{border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:12px}
+.band.mid{border:1.5px solid var(--orange);background:#f0883e0d}
+.band .bt{font-family:var(--mono);font-size:10px;color:var(--dim)}
+.badge{display:inline-block;background:var(--orange);color:#0d1117;font-family:var(--mono);font-size:10px;font-weight:700;border-radius:4px;padding:1px 6px}
+.stream{background:#0d1117;border:1px solid var(--border);border-radius:8px;padding:8px;min-height:96px;max-height:150px;overflow-y:auto;font-family:var(--mono);font-size:12px}
+.stok{white-space:pre-wrap}
+.stok.focus{color:var(--orange)} .stok.local{color:var(--purple)} .stok.global{color:var(--txt)}
+.stok.tagp{background:#f0883e33;border-radius:3px}
+.sm{display:flex;gap:8px;align-items:center}
+.smstate{border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-family:var(--mono);font-size:11px;color:var(--dim)}
+.smstate.on-g{border-color:var(--green);color:var(--green);box-shadow:0 0 8px #3fb95044}
+.smstate.on-f{border-color:var(--orange);color:var(--orange);box-shadow:0 0 8px #f0883e44}
+.smstate.on-l{border-color:var(--purple);color:var(--purple);box-shadow:0 0 8px #bc8cff44}
+.tagbuf{font-family:var(--mono);font-size:11px;color:var(--orange);min-height:16px}
+.btrow{display:flex;flex-wrap:wrap;gap:2px;background:#0d1117;border:1px solid var(--border);border-radius:8px;padding:8px}
+.db{width:26px;height:30px;border-radius:4px;border:1px solid;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:8px;transition:all .25s}
+.db.scaf{border-color:var(--blue);background:#58a6ff26;color:var(--blue)}
+.db.ctx{border-color:var(--green);background:#3fb95022;color:var(--green)}
+.db.resp{border-color:var(--purple);background:#bc8cff22;color:var(--purple)}
+.db.mask{border-color:#21262d;background:#11151a;color:#3d444d;text-decoration:line-through}
+.meter{height:14px;background:#21262d;border-radius:7px;overflow:hidden}
+.meter>div{height:100%;background:linear-gradient(90deg,var(--green),var(--orange));transition:width .3s}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:11px;color:var(--dim);font-family:var(--mono)}
+.dotk{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+canvas{background:#0d1117;border:1px solid var(--border);border-radius:8px}
+.controls{display:flex;gap:8px;align-items:center;margin:8px 0}
+input[type=range]{accent-color:var(--orange)}
+.note2{font-size:11.5px;color:var(--dim);margin-top:8px}
+.callout{border-left:3px solid var(--orange);background:#f0883e0d;padding:8px 12px;border-radius:0 8px 8px 0;font-size:12.5px;margin-top:10px}
+</style>
+</head>
+<body>
+<h1>Declarative Attention inside vLLM — 4 interactive diagrams</h1>
+<div class="sub">Strategy patterns → what blocks / the block table / metadata actually are → the "neutral middleman" → why the DA hook is surgical. All diagrams animated; use the buttons.</div>
+
+<!-- ================= DIAGRAM 1 ================= -->
+<section id="d1">
+<h2>1 · The model is a skeleton; vLLM injects the plugins</h2>
+<div class="sub">Layers stack bottom→top. Every grey slot is an interface: the model's <span class="mono">config.json</span> fixes the <i>shape</i> (heads, window, hidden size); vLLM picks the <i>implementation</i> at load time. Try the buttons on the right.</div>
+<div class="stack-wrap" style="margin-top:12px">
+  <div class="stack" id="stack">
+    <div class="tokendot"></div>
+    <div class="stack-lbl">▲ logits · LM head (<span class="mono">ParallelLMHead</span>)</div>
+    <div id="layers"></div>
+    <div class="stack-lbl">▲ token ids + positions → <span class="mono">VocabParallelEmbedding</span></div>
+  </div>
+  <div class="plugin-panel">
+    <div class="registry">
+      <b class="mono" style="font-size:12px">model config</b>
+      <div class="btns">
+        <button id="cfgDense" class="sel">dense 8-layer (all global)</button>
+        <button id="cfgGemma">Gemma-4-31B (hybrid)</button>
+      </div>
+      <div class="note" id="cfgNote">All layers are global attention → one backend everywhere.</div>
+    </div>
+    <div class="registry">
+      <b class="mono" style="font-size:12px">get_attn_backend() → AttentionImpl</b>
+      <div class="btns" id="attnBtns">
+        <button data-a="FlashAttention" class="sel">FLASH_ATTN</button>
+        <button data-a="TritonAttention">TRITON_ATTN</button>
+        <button data-a="FlashInfer">FLASHINFER</button>
+      </div>
+      <div class="note" id="attnNote">Strategy pattern: same Attention interface, kernel swapped by head-size / hardware / window.</div>
+    </div>
+    <div class="registry">
+      <b class="mono" style="font-size:12px">quant_config → LinearMethodBase</b>
+      <div class="btns" id="linBtns">
+        <button data-l="Unquantized" class="sel">none</button>
+        <button data-l="FP8">FP8</button>
+        <button data-l="GPTQ">GPTQ</button>
+        <button data-l="AWQ">AWQ</button>
+      </div>
+      <div class="note">The MLP math (gate_up → act → down) is fixed by the model; the GEMM kernel is injected.</div>
+    </div>
+    <div class="registry">
+      <b class="mono" style="font-size:12px">CustomOp dispatch (norm + residual)</b>
+      <div class="btns" id="normBtns">
+        <button data-n="cuda" class="sel">forward_cuda (fused_add_rms_norm)</button>
+        <button data-n="native">forward_native (reference)</button>
+      </div>
+      <div class="note">Residual adds are fused into RMSNorm by a torch.compile pass — model code never mentions the residual stream.</div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ================= DIAGRAM 2 ================= -->
+<section id="d2">
+<h2>2 · Blocks, the block table, and "which KV exists"</h2>
+<div class="glossary">
+  <div class="gloss"><b>block</b>Fixed-size chunk of KV cache: K+V vectors for 16–32 tokens (4 here for display). The kernel can only read whole blocks.</div>
+  <div class="gloss"><b>block table</b>Per-request array: logical block # → physical block id. The kernel's only map of the request's memory. Blocks not listed are never read.</div>
+  <div class="gloss"><b>physical KV cache</b>GPU HBM carved into fixed slots. A request's blocks live scattered wherever the allocator put them.</div>
+  <div class="gloss"><b>commit (H2D)</b>The row is staged in CPU numpy, then copied Host→Device. Edits are cheap while staged.</div>
+</div>
+<div class="row" style="margin-top:10px">
+  <div class="col" style="flex:1;min-width:340px">
+    <div class="zone"><span class="zlbl">CPU · host — easy to edit</span>
+      <h3>logical tokens</h3>
+      <div id="tokStrip"></div>
+      <h3 style="margin-top:10px">block table row (numpy staging)</h3>
+      <div id="btStrip"></div>
+    </div>
+    <div class="commitline" id="commit">commit() — H2D copy ▼</div>
+    <div class="zone"><span class="zlbl">GPU · HBM — kernel reads here</span>
+      <h3>physical KV cache (64 slots)</h3>
+      <div class="physgrid" id="phys"></div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="controls" style="flex-direction:column;align-items:stretch">
+      <button id="addTok">append 1 token</button>
+      <button id="addBlk">append 4 tokens (1 block)</button>
+      <button id="rst2">reset</button>
+    </div>
+    <div class="note2" style="max-width:260px">When a logical block fills, the allocator grabs a <b>free physical slot anywhere</b> and appends its id to the row (<span class="mono">append_row</span>). Hover a table entry → the matching physical block pulses. The kernel walks <i>only</i> these ids — this list <b>is</b> "which KV exists for this request".</div>
+  </div>
+</div>
+</section>
+
+<!-- ================= DIAGRAM 3 ================= -->
+<section id="d3">
+<h2>3 · The metadata path — the neutral middleman</h2>
+<div class="sub">Every decode step, before the kernel runs, vLLM assembles a metadata bundle and hands it over via a scoped context. The model's forward signature never sees it. The dashed orange region is the only place DA touches.</div>
+<div class="pipe" id="pipe3">
+  <div class="node" data-i="0"><b>SchedulerOutput</b><span class="d">which reqs run,<br>how many tokens</span></div><div class="arrow">→</div>
+  <div class="middleman"><span class="mlbl">vLLM metadata path (middleman) — DA hook lives here</span>
+    <div class="node" data-i="1"><b>BlockTable</b><span class="d">CPU numpy staging<br>append_row()</span></div><div class="arrow">→</div>
+    <div class="node" data-i="2"><b>commit()</b><span class="d">H2D copy to<br>block_table_tensor</span></div><div class="arrow">→</div>
+    <div class="node" data-i="3"><b>MetadataBuilder</b><span class="d">FlashAttentionMetadata<br>{block_table, seq_lens,<br>query_start_loc, slot_mapping}</span></div><div class="arrow">→</div>
+    <div class="node" data-i="4"><b>set_forward_context</b><span class="d">scoped global,<br>not an argument</span></div>
+  </div>
+  <div class="arrow">→</div>
+  <div class="node" data-i="5"><b>Attention layer</b><span class="d">get_attention_context<br>(layer_name)</span></div><div class="arrow">→</div>
+  <div class="node" data-i="6"><b>FlashAttentionImpl</b><span class="d">flash_attn_varlen_func<br>(…, block_table=…)</span></div>
+</div>
+<div class="note2">The packet cycles left→right. Model code (left of the dashed box, and the layer itself) and the kernel (right) are untouched by DA — the hook rewrites the staged row between <span class="mono">append_row()</span> and <span class="mono">commit()</span>.</div>
+</section>
+
+<!-- ================= DIAGRAM 4 ================= -->
+<section id="d4">
+<h2>4 · The DA hook, animated: tags trapped in the middleman</h2>
+<div class="sub">Press play. The model streams tokens; the state machine traps tags at the closing <span class="mono">&gt;</span>; the staged block-table row is rewritten before commit; the kernel simply reads fewer blocks. Prompt = 12 magic chunks (2 blocks each) + scaffold; response grows as it generates.</div>
+
+<div class="row" style="margin-top:10px">
+  <div class="col" style="flex:1.2;min-width:380px">
+    <h3>model response stream (its own words = control plane)</h3>
+    <div class="stream" id="stream"></div>
+    <h3 style="margin-top:10px">DA state machine — tag buffer</h3>
+    <div class="sm">
+      <div class="smstate" id="stG">GLOBAL</div>
+      <div class="smstate" id="stF">FOCUS</div>
+      <div class="smstate" id="stL">LOCAL</div>
+      <div class="tagbuf" id="tagbuf"></div>
+    </div>
+  </div>
+  <div class="col" style="flex:1;min-width:330px">
+    <h3>three bands — where the edit lands</h3>
+    <div class="band"><span class="bt">MODEL CODE</span><br>registry class + weights · <b>untouched</b></div>
+    <div class="band mid"><span class="bt">METADATA PATH</span> <span class="badge">DA HOOK</span><br>block-table row rewritten per step, pre-commit</div>
+    <div class="band"><span class="bt">KERNEL</span><br><span class="mono">flash_attn_varlen_func</span> · <b>untouched</b></div>
+    <h3 style="margin-top:10px">blocks read per step</h3>
+    <div class="meter"><div id="meterFill" style="width:100%"></div></div>
+    <div class="mono" style="font-size:12px" id="meterTxt">—</div>
+    <canvas id="hist" width="330" height="70"></canvas>
+  </div>
+</div>
+
+<h3 style="margin-top:12px">the request's block-table row (what the kernel will be allowed to see)</h3>
+<div class="btrow" id="btrow"></div>
+<div class="legend" style="margin-top:6px">
+  <span><span class="dotk" style="background:#58a6ff"></span>scaffold + sink (always kept)</span>
+  <span><span class="dotk" style="background:#3fb950"></span>magic chunks C1–C12</span>
+  <span><span class="dotk" style="background:#bc8cff"></span>response so far (always kept)</span>
+  <span><span class="dotk" style="background:#11151a;border:1px solid #21262d"></span>masked — not in the row the kernel gets</span>
+</div>
+<div class="controls">
+  <button id="play">▶ play</button>
+  <button id="step">step</button>
+  <button id="rst4">reset</button>
+  <span class="mono" style="font-size:11px;color:var(--dim)">speed</span>
+  <input type="range" id="spd" min="120" max="1200" value="520">
+</div>
+<div class="callout">The surgical part: the model's math and the kernel's algorithm never change. One CPU-side row edit, at the one place where "which KV exists" is decided — that's the entire hook. Watch FOCUS drop the row from 28+ blocks to ~8, and LOCAL to ~6, while the response (purple) and scaffold (blue) stay put.</div>
+</section>
+
+<script>
+/* ============ Diagram 1 ============ */
+const N_VIS=8, gemmaTypes=['S','S','S','S','S','G','S','S'], denseTypes=Array(8).fill('G');
+let cfg='dense', attnImpl='FlashAttention', linImpl='Unquantized', normMode='cuda';
+function renderStack(){
+  const types = cfg==='gemma'?gemmaTypes:denseTypes;
+  const el=document.getElementById('layers'); el.innerHTML='';
+  types.forEach((t,i)=>{
+    const isSwa = cfg==='gemma' && t==='S';
+    const impl = isSwa?'TritonAttention':attnImpl;
+    const card=document.createElement('div'); card.className='layer-card';
+    card.innerHTML=
+      (cfg==='gemma'?`<span class="ltag ${isSwa?'swa':'glob'}">${isSwa?'SWA w=1024':'GLOBAL'}</span>`:'')+
+      `<div class="lrow"><span class="slot">RMSNorm <b class="norm">${normMode==='cuda'?'fused_add_rms_norm':'native'}</b></span></div>`+
+      `<div class="lrow"><span class="slot">Attention → <b class="aimpl">${impl}Impl</b></span></div>`+
+      `<div class="lrow"><span class="slot">RMSNorm <b class="norm">${normMode==='cuda'?'fused_add_rms_norm':'native'}</b></span></div>`+
+      `<div class="lrow"><span class="slot">MLP → <b class="limpl">${linImpl}LinearMethod</b> · act <b>SiLU</b></span></div>`;
+    el.appendChild(card);
+  });
+  const dots=document.createElement('div'); dots.className='ellipsis'; dots.textContent='⋮ '+(cfg==='gemma'?'52 more (60 total: 10 global + 50 SWA)':'…');
+  el.appendChild(dots);
+  document.getElementById('cfgNote').textContent = cfg==='gemma'
+    ? 'Hybrid: config says 50 sliding-window + 10 global layers → vLLM routes each KV-cache group to a different backend. get_attn_backend() buttons below now apply only to the global group.'
+    : 'All layers are global attention → one backend everywhere.';
+  document.querySelectorAll('#attnBtns button').forEach(b=>b.disabled=false);
+}
+document.getElementById('cfgDense').onclick=e=>{cfg='dense';selBtn(e);renderStack()};
+document.getElementById('cfgGemma').onclick=e=>{cfg='gemma';selBtn(e);renderStack()};
+document.querySelectorAll('#attnBtns button').forEach(b=>b.onclick=e=>{attnImpl=b.dataset.a;selBtn(e);renderStack()});
+document.querySelectorAll('#linBtns button').forEach(b=>b.onclick=e=>{linImpl=b.dataset.l;selBtn(e);renderStack()});
+document.querySelectorAll('#normBtns button').forEach(b=>b.onclick=e=>{normMode=b.dataset.n;selBtn(e);renderStack()});
+function selBtn(e){[...e.target.parentNode.children].forEach(c=>c.classList.remove('sel'));e.target.classList.add('sel')}
+renderStack();
+
+/* ============ Diagram 2 ============ */
+const BS=4, PHYSN=64;
+let seq2=[], table2=[], freshPhys=-1;
+const physEl=document.getElementById('phys');
+for(let i=0;i<PHYSN;i++){const c=document.createElement('div');c.className='pcell';c.id='pc'+i;c.textContent=i;physEl.appendChild(c)}
+function allocPhys(){
+  const used=new Set(table2);
+  let free=[...Array(PHYSN).keys()].filter(i=>!used.has(i));
+  const id=free[Math.floor(Math.random()*free.length)];
+  table2.push(id); freshPhys=id;
+  const cl=document.getElementById('commit');
+  cl.classList.remove('go'); void cl.offsetWidth; cl.classList.add('go');
+}
+function render2(){
+  const ts=document.getElementById('tokStrip'); ts.innerHTML='';
+  seq2.forEach((t,i)=>{
+    const c=document.createElement('span');c.className='tokcell'+(i>=seq2.length-1&&arguments[0]?' new':'');
+    c.textContent='t'+i; ts.appendChild(c);
+    if((i+1)%BS===0&&i<seq2.length-1){const b=document.createElement('span');b.className='blkbracket';b.textContent=' ';ts.appendChild(b)}
+  });
+  const bs=document.getElementById('btStrip'); bs.innerHTML='';
+  table2.forEach((p,l)=>{
+    const c=document.createElement('span');c.className='btcell'+(p===freshPhys?' flash':'');
+    c.innerHTML=`<span class="l">L${l}</span><span class="p">→ phys ${p}</span>`;
+    c.onmouseenter=()=>{const pc=document.getElementById('pc'+p);pc.style.boxShadow='0 0 10px #bc8cff'};
+    c.onmouseleave=()=>{const pc=document.getElementById('pc'+p);pc.style.boxShadow=''};
+    bs.appendChild(c);
+  });
+  for(let i=0;i<PHYSN;i++){const c=document.getElementById('pc'+i);
+    c.classList.toggle('used',table2.includes(i));
+    c.classList.toggle('fresh',i===freshPhys);
+    if(i===freshPhys)setTimeout(()=>c.classList.remove('fresh'),1200);}
+}
+document.getElementById('addTok').onclick=()=>{if(seq2.length%BS===0)allocPhys();seq2.push(1);render2(true)};
+document.getElementById('addBlk').onclick=()=>{for(let k=0;k<BS;k++){if(seq2.length%BS===0)allocPhys();seq2.push(1)}render2(true)};
+document.getElementById('rst2').onclick=()=>{seq2=[];table2=[];freshPhys=-1;render2()};
+render2();
+
+/* ============ Diagram 3 ============ */
+const nodes=[...document.querySelectorAll('#pipe3 .node')];let pi=0;
+setInterval(()=>{nodes.forEach(n=>n.classList.remove('pulse'));nodes[pi%nodes.length].classList.add('pulse');pi++},650);
+
+/* ============ Diagram 4 ============ */
+const NCH=12, BPC=2, SCAF=4;
+const SCRIPT=[
+ {t:" I"},{t:" need"},{t:" the"},{t:" SFT"},{t:" corpus"},{t:" size"},{t:"."},
+ {t:"<focus",tag:1},{t:' magic_chunks="1"',tag:1},{t:">",tag:1},
+ {t:" The"},{t:" SFT"},{t:" stage"},{t:" uses"},{t:" 15K"},{t:" math"},{t:" +"},{t:" 1.5K"},{t:" open"},{t:"-domain"},{t:"."},
+ {t:"</focus>",tag:1},
+ {t:"<local>",tag:1},
+ {t:" Total"},{t:" ="},{t:" 15"},{t:"000"},{t:" +"},{t:" 1"},{t:"500"},{t:" ="},{t:" 16"},{t:"500"},{t:"."},
+ {t:"</local>",tag:1},
+ {t:"<answer>",tag:1},{t:"16"},{t:",500"},{t:"</answer>",tag:1}
+];
+let mode='GLOBAL', focusChunk=0, respToks=0, stepIdx=0, playing=false, timer=null, buf='', history=[];
+const streamEl=document.getElementById('stream'), bufEl=document.getElementById('tagbuf'),
+      btrow=document.getElementById('btrow'), mFill=document.getElementById('meterFill'),
+      mTxt=document.getElementById('meterTxt'), histC=document.getElementById('hist').getContext('2d');
+function respBlocks(){return Math.max(1,Math.ceil(respToks/8))}
+function totalBlocks(){return SCAF+NCH*BPC+respBlocks()}
+function keptSet(){
+  const k=new Set();
+  for(let i=0;i<SCAF;i++)k.add(i);
+  if(mode==='GLOBAL')for(let i=0;i<NCH*BPC;i++)k.add(SCAF+i);
+  if(mode==='FOCUS'){const c=focusChunk-1;for(let i=0;i<BPC;i++)k.add(SCAF+c*BPC+i)}
+  for(let i=0;i<respBlocks();i++)k.add(SCAF+NCH*BPC+i);
+  return k;
+}
+function render4(){
+  const k=keptSet(), tot=totalBlocks();
+  btrow.innerHTML='';
+  for(let i=0;i<tot;i++){
+    const d=document.createElement('div');
+    let cls='db ', lbl='';
+    if(i<SCAF){cls+='scaf';lbl='S'}
+    else if(i<SCAF+NCH*BPC){const c=Math.floor((i-SCAF)/BPC)+1;cls+='ctx';lbl='C'+c}
+    else{cls+='resp';lbl='R'}
+    if(!k.has(i))cls+=' mask';
+    d.className=cls;d.textContent=lbl;btrow.appendChild(d);
+  }
+  const kept=k.size;
+  mFill.style.width=(100*kept/tot)+'%';
+  mTxt.textContent=`kernel reads ${kept} / ${tot} blocks this step (${(100*kept/tot).toFixed(0)}%)  ·  mode ${mode}${mode==='FOCUS'?' chunk '+focusChunk:''}`;
+  history.push(kept);
+  drawHist();
+  document.getElementById('stG').className='smstate'+(mode==='GLOBAL'?' on-g':'');
+  document.getElementById('stF').className='smstate'+(mode==='FOCUS'?' on-f':'');
+  document.getElementById('stL').className='smstate'+(mode==='LOCAL'?' on-l':'');
+}
+function drawHist(){
+  const w=histC.canvas.width,h=histC.canvas.height;histC.clearRect(0,0,w,h);
+  const max=Math.max(...history,1);
+  histC.strokeStyle='#f0883e';histC.lineWidth=1.5;histC.beginPath();
+  history.forEach((v,i)=>{const x=i*(w/Math.max(history.length-1,1)),y=h-4-(v/max)*(h-8);
+    i?histC.lineTo(x,y):histC.moveTo(x,y)});
+  histC.stroke();
+}
+function transition(tag){
+  let m;
+  if(m=tag.match(/<focus magic_chunks="(\d+)">/)){mode='FOCUS';focusChunk=+m[1]}
+  else if(tag==='<local>'){mode='LOCAL'}
+  else if(tag==='</focus>'||tag==='</local>'){mode='GLOBAL'}
+}
+function doStep(){
+  if(stepIdx>=SCRIPT.length){pause();return}
+  const it=SCRIPT[stepIdx++];
+  const span=document.createElement('span');
+  const mc = mode==='FOCUS'?'focus':mode==='LOCAL'?'local':'global';
+  span.className='stok '+(it.tag?'tagp':mc);
+  span.textContent=it.t; streamEl.appendChild(span);
+  streamEl.scrollTop=streamEl.scrollHeight;
+  if(it.tag){
+    buf+=it.t; bufEl.textContent='buffer: '+buf;
+    if(buf.endsWith('>')){transition(buf.replace(/\s+/g,' ').replace(/">\s*$/,'">'));buf='';setTimeout(()=>bufEl.textContent='',600)}
+  } else respToks++;
+  render4();
+}
+function play(){playing=true;document.getElementById('play').textContent='⏸ pause';
+  timer=setInterval(doStep,1250-document.getElementById('spd').value)}
+function pause(){playing=false;document.getElementById('play').textContent='▶ play';clearInterval(timer)}
+document.getElementById('play').onclick=()=>playing?pause():play();
+document.getElementById('step').onclick=()=>{pause();doStep()};
+document.getElementById('rst4').onclick=()=>{pause();mode='GLOBAL';focusChunk=0;respToks=0;stepIdx=0;buf='';history=[];streamEl.innerHTML='';bufEl.textContent='';render4()};
+document.getElementById('spd').oninput=()=>{if(playing){pause();play()}};
+render4();
+</script>
+</body>
+</html>
