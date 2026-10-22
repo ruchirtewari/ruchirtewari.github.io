@@ -227,6 +227,11 @@ async function runCacheMiss(){if(busy)return;busy=true;clearActive();$('phase').
 
 function resetAll(){busy=false;generated=[];markActive($('btnPrefill'));$('gate').style.width='0';$('phase').textContent='READY';init();metric();note('<b>Start here.</b> Prefill streams the prompt through the causal encoder. Click an animation, then inspect the highlighted state.');$('ledger').innerHTML='<div class="step current">Ready: choose a path above.</div>'}init();metric();
 </script>
+<footer style="display:block;text-align:center">
+  <p> 
+     Back to the <a href="https://ruchirtewari.github.io/index.html">Interpretability home</a> or to <a href="https://www.securemachinery.com">SecureMachinery home</a>
+  </p>
+</footer>
 </body>
 </html>
 
