@@ -21,7 +21,7 @@
   header p.sub { margin: 0; color: #b9c4d6; font-size: 1.05rem; }
   header p.author { margin: 1.1rem 0 0; font-size: .95rem; }
   header a { color: #cfd9ea; }
-  main { max-width: 46rem; margin: 0 auto; padding: 2rem 1.5rem 3rem; }
+  main { max-width: 80rem; margin: 0 auto; padding: 2rem 1.5rem 3rem; }
   p.lead { font-size: 1.06rem; }
   .parts { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2rem; margin: 2rem 0; }
   @media (max-width: 40rem) { .parts { grid-template-columns: 1fr; } }
@@ -52,18 +52,18 @@
 
 <header>
   <h1>Introduction to Neural Network Interpretability</h1>
-  <p class="sub">A structured, hands-on guide in two parts - from random machines to the inside of trained ones</p>
+  <p class="sub">A structured, hands-on guide in four parts - from random machines to the inside of trained ones</p>
   <p class="author">Ruchir Tewari <a href="mailto:ruchirtewari@gmail.com">ruchirtewari@gmail.com</a></p>
 </header>
 
 <main>
 
 <p class="lead">
-Interpretability research moves fast. But the questions underneath it haven't changed: What kind of mathematical object is a network's internal state ? Can we name its parts and trace the wiring between them? If concepts live as directions in activation space, can we steer them? And when someone offers an explanation, how do we know it describes the machine — rather than a story that merely sounds plausible to us? This book builds the foundations for those questions from first principles, then carries them to approach the research frontier.
-</p>
-
-<p>
-Every chapter ends with takeaways, open research directions scoped for a motivated reader to begin, and runnable code. The full example suite runs on a laptop with Python, PyTorch, and GPT-2-class models. Short "neuroscience parallel" interludes trace which methods the field inherited from systems neuroscience — and which failure modes came along for the ride.
+This book takes a close look at neural networks and their interpretability, with an objective of understanding model mechanics. 
+It goes from mathematical foundations in Part I, to Representation geometry, Circuits, Control in Part II. Then it imposes the framework of Statics and Dynamics
+in Parts III and IV to interpret the internal static representations and dynamic representation changes at inference, closing with an analysis of in-context learning. 
+Each book has a number of figures and detailed references to aid understanding visually and gives neuroscience parallels and pointers for further researh.
+Several experiments are performed on small LLMs and their detailed probes and experiment setups are described in Parts III and IV with annotated figures.
 </p>
 
 <div class="parts">
@@ -71,10 +71,10 @@ Every chapter ends with takeaways, open research directions scoped for a motivat
     <h2>Part I - From Random Machines to Trained Machines</h2>
     <p class="range">Chapters 1-4 . Model foundations</p>
     <ol>
-      <li>Statistical Foundations <span>- Markov, Shannon, and the modern objective</span></li>
-      <li>Geometric Foundations <span>- KL divergence, Fisher information, the Fisher-Rao metric</span></li>
-      <li>Neural Networks as Distribution Machines <span>- the transformer decoder, flows, mixtures of experts</span></li>
-      <li>Training Dynamics <span>- natural gradient, flat minima, training-time levers</span></li>
+      <li>Statistical Foundations <span>- the statistical machine, the Markov property, entropy and cross-entropy as the training objective</span></li>
+      <li>Geometric Foundations <span>- Fisher information and the Cram&eacute;r-Rao bound, Fisher information in trained networks, the Fisher-Rao metric, Shannon and Fisher compared</span></li>
+      <li>Neural Networks as Probability Distribution Machines <span>- transformers as conditional distribution shapers, attention as a directional relation extractor, flows and diffusion, mixtures of experts, instruments for the inside</span></li>
+      <li>Training Dynamics <span>- gradient, stochastic and natural gradient descent, K-FAC, the implicit geometric bias of SGD, training-time levers on interpretability, skip connections and the residual stream</span></li>
     </ol>
     <a class="pdf" href="book1/interp_book1.pdf">Read Part I (PDF)</a>
   </section>
@@ -83,26 +83,73 @@ Every chapter ends with takeaways, open research directions scoped for a motivat
     <h2>Part II - Geometry, Circuits, Control, and Evidence</h2>
     <p class="range">Chapters 5-8 . Interpretability foundations</p>
     <ol start="5">
-      <li>Representation Geometry <span>- the latent space: manifolds, superposition, probes and lenses</span></li>
-      <li>Features and Circuits <span>- sparse autoencoders, induction heads, activation patching</span></li>
-      <li>Control and Steering <span>- steering vectors, conceptors, fine-tuning compared</span></li>
-      <li>Evaluation and Frontiers <span>- faithfulness, grokking, open problems</span></li>
+      <li>Representation Geometry <span>- intrinsic dimension, superposition, the measured activation cloud, probes and lenses, interventions, conceptors</span></li>
+      <li>Features, Circuits, and Causal Verification <span>- sparse autoencoders, induction heads and the IOI circuit, activation patching and causal scrubbing</span></li>
+      <li>Control and Steering <span>- activation addition and the refusal direction, conceptors and affine steering, prompting, fine-tuning and steering compared</span></li>
+      <li>Evaluation and Open Problems <span>- faithfulness, information geometry and training dynamics, open problems and future tools</span></li>
     </ol>
+    <p class="range">Appendix: a timeline of interpretability research, 2019-2026</p>
     <a class="pdf" href="book2/interp_book2.pdf">Read Part II (PDF)</a>
+  </section>
+
+  <section class="part">
+    <h2>Part III - Statics</h2>
+    <p class="range">Chapters 9-12 . What holds a representation in place, measured on GPT-2 small</p>
+    <ol start="9">
+      <li>Forces: Writers, Taps and Equilibrium <span>- heads and feedforward sublayers as writers on the residual stream, equilibrium of a representation, recording two sibling concepts</span></li>
+      <li>Resultants: The Residual Stream as a Sum of Writes <span>- exact attribution of a readout to its writers, parent and child concepts in one resultant, ellipsoids and a reading gate</span></li>
+      <li>Inertia: Along Depth and Along Training <span>- what carries a write upward, what the objective pins, the depth profile of a concept</span></li>
+      <li>Movement: Steering and the Reach of One Pass <span>- pushing the stream to test use, programs compiled with RASP and Tracr, sweeping a push around the concept plane</span></li>
+    </ol>
+    <p class="range">Conclusion: the findings and the open experiments. Appendix A: seven further probes (a push carried by the KV cache, cache-value and cache-key deltas, the ablation ladder, column masks, eviction, a rank-one weight edit, a removed direction and continued training). Appendix B: packing, readout and a survey of the literature by move.</p>
+    <a class="pdf" href="book3_tonefix/interp_book3.pdf">Read Part III (PDF)</a>
+  </section>
+
+  <section class="part">
+    <h2>Part IV - Kinematics</h2>
+    <p class="range">Chapters 13-16 . Representations in motion: what stays the same when the query, the store or the context changes</p>
+    <ol start="13">
+      <li>Rigidity of Representations Under a Change of Query <span>- shared representations across languages and models, a linear map split into rigid and non-rigid parts, rigidity by depth, head class and relation (measured)</span></li>
+      <li>Constraints on the KV Cache <span>- what a decode step writes and reads, multi-head latent attention and four other constraints, what survives compression (proposed)</span></li>
+      <li>Training and Inference as Coupled Loops <span>- four clocks, latent attention's two forms, the heal after cache conversion, expert routing, the attention sink (proposed)</span></li>
+      <li>In-Context Learning as a Driven Response <span>- induction and task heads, the in-context ridge estimator, settling under a steer and resonance across languages (measured)</span></li>
+    </ol>
+    <p class="range">Appendix A: the ridge map between caches, stores and weights. Appendix B: the measurements not run, and what each needs.</p>
+    <a class="pdf" href="book4_measured/interp_book4.pdf">Read Part IV (PDF)</a>
   </section>
 </div>
 
+<p>
+Each chapter ends with takeaways and runnable code; Parts I and II add open research directions scoped for a motivated reader to begin, and Parts III and IV report experiments run on GPT-2 small and Qwen3-0.6B. The full example suite runs on a laptop with Python and GPT-2-class models. Short "neuroscience parallel" interludes trace which methods the field inherited from systems neuroscience — and which failure modes came along for the ride.
+</p>
+
+
 <h3>Hands-on programs</h3>
 <p>
-The <code>programs/</code> github directory contains 22 runnable experiments
-keyed to the chapters - from reproducing Markov&rsquo;s 1913 letter
-statistics to finding induction heads, steering refusal directions, and
-watching a grokking phase transition form its internal circuit before
-the behavioral jump. See <code>programs/README_programs.txt</code> for
-what each program does and what to expect, and run them with
-<code>programs/run_tests.sh</code>.
+The <code>programs/</code> directory holds the runnable code for the four Parts, grouped by topic:
+<code>part1_foundations</code> and <code>part2_representations</code> (the chapter programs, from
+Markov&rsquo;s letter statistics to induction heads, refusal-direction steering and a grokking phase
+transition; run them with <code>programs/run.sh</code>), <code>part3_statics</code> and
+<code>part3_training</code> (the Part III recordings, probes and retraining experiment on GPT-2 small),
+<code>part4_dynamics</code> (the Part IV rigidity and settling measurements on GPT-2 and Qwen3-0.6B),
+and <code>kv_bridge</code>, <code>tracr</code> and <code>tools</code>. See <code>programs/README.md</code>
+for the map and <code>programs/README_programs.txt</code> for what each chapter program does.
+</p>
 <p>
   <a href="https://ruchirtewari.github.io/programs/">github programs directory</a>
+</p>
+
+<h3>Software</h3>
+<p>
+<code>software/probeladder</code> is the package that goes with the book: a numpy GPT-2 runner with a
+KV cache and the book&rsquo;s probes (push, switched-off writers, cache masks and deltas, eviction,
+rank-one edits, exact attribution), and tools built from them for securing a model: direction monitors
+with calibrated false-positive rates, fine-tune and edit audits, cache-integrity checks and an
+eviction-safety budget.
+</p>
+<p>
+  <a href="software/design_2026-11-17.html">Design and gap analysis</a> .
+  <a href="software/market_survey_2026-11-17.html">Market survey of interpretability and model-security tooling</a>
 </p>
 
 <h3>Interactive demos</h3>
